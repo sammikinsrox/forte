@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <complex>
+#include <limits>
 #include <numbers>
 
 namespace forte::detail
@@ -21,17 +22,6 @@ constexpr double highPassAboveHz = 100.0;      // SPEC §2.3
 constexpr float highPassRestingState = 1e-9f;
 constexpr double longitudinalHighPassHz = 40.0;  // SPEC §2.3
 constexpr float phantomRestingState = 1e-9f;     // in output units, like the high-pass's
-
-double partialFrequency (const NoteParameters& p, int partial) noexcept
-{
-    const double n = partial;
-    return n * p.fundamental * std::sqrt (1.0 + p.inharmonicity * n * n);
-}
-
-double promptDecay (const NoteParameters& p, double frequency) noexcept
-{
-    return p.decayConstant + p.decayPerHertzSquared * frequency * frequency;
-}
 
 double aftersoundDecay (const NoteParameters& p, double frequency) noexcept
 {
@@ -130,7 +120,7 @@ void NoteModel::prepare (const NoteParameters& p, double unisonSpreadCents, doub
             const double omega = modes.exponent[j].imag();
             const double sigma = -modes.exponent[j].real();
             const double frequency = omega / (2.0 * std::numbers::pi);
-            const double sigmaDamper = p.damperDecayConstant + p.damperDecayPerRootKilohertz * std::sqrt (frequency / 1000.0);
+            const double sigmaDamper = detail::damperDecay (p, frequency);  // not the member
 
             cosStep[i] = static_cast<float> (std::cos (omega * samplePeriod));
             sinStep[i] = static_cast<float> (std::sin (omega * samplePeriod));
@@ -686,5 +676,22 @@ double noteTailSeconds (const NoteParameters& p, double unisonSpreadCents)
     }
 
     return tail;
+}
+
+double slowestStringDecay (const NoteParameters& p, double unisonSpreadCents)
+{
+    double offsets[3];
+    unisonOffsetsCents (stringsInUnison (p), unisonSpreadCents, offsets);
+
+    double slowest = std::numeric_limits<double>::infinity();
+
+    for (int partial = 1; partialFrequency (p, partial) < maxPartialHz; ++partial)
+    {
+        const UnisonModes modes = modesOfPartial (p, partial, offsets);
+        for (int j = 0; j < modes.numModes; ++j)
+            slowest = std::min (slowest, -modes.exponent[j].real());
+    }
+
+    return slowest;
 }
 } // namespace forte::detail

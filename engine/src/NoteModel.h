@@ -104,6 +104,10 @@ public:
     /** True while the note makes any sound or its hammer is moving. */
     [[nodiscard]] bool isSounding() const noexcept { return sounding; }
 
+    /** The damper's effective lift as of the last control tick (or key-down): 0 = resting,
+        1 = clear. The sympathetic bank is gated by it. */
+    [[nodiscard]] float getLift() const noexcept { return lift; }
+
     [[nodiscard]] int getNumModes() const noexcept { return numModes; }
     [[nodiscard]] bool hasPhantomPartials() const noexcept { return numDrivingPartials > 0; }
 
@@ -201,4 +205,8 @@ private:
     any soft-pedal shift. Depends only on the note's parameters, not on the sample rate. Not
     realtime: it solves the coupled modes. */
 [[nodiscard]] double noteTailSeconds (const NoteParameters& parameters, double unisonSpreadCents);
+
+/** The slowest amplitude decay rate (1/s) of any of the note's string modes up to 20 kHz, with
+    its damper lifted. Not realtime: it solves the coupled modes. */
+[[nodiscard]] double slowestStringDecay (const NoteParameters& parameters, double unisonSpreadCents);
 } // namespace forte::detail

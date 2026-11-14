@@ -126,6 +126,11 @@ PianoModel makeSeedPianoModel()
     // Placeholder level until the soundboard and the fitted levels exist: an ff C4 peaks around
     // âˆ’15 dBFS, and a full 88-key sustain glissando at velocity 90 peaks just under 0 dBFS.
     model.outputGain = 5.6e-3;
+
+    // Placeholder until Piano in 162 calibrates it (SPEC §3.3): a round gain that puts a held
+    // note's pedal-down minus pedal-up difference about 12–28 dB under the note from E1 to C6,
+    // closer in the sustain than in the attack.
+    model.sympatheticLevel = 0.1;
     return model;
 }
 

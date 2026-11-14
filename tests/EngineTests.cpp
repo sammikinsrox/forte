@@ -5,6 +5,7 @@
 #include "PianoModel.h"
 #include "Soundboard.h"
 #include "SoundboardIrs.h"
+#include "SympatheticBank.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
@@ -243,6 +244,13 @@ TEST_CASE ("The reported tail covers the longest-ringing note", "[engine]")
         }
     }
 
+    // The sympathetic bank could ring on past the strings; at the seed level it doesn't.
+    double slowestDecay = 1e9;
+    for (const auto& p : model.notes)
+        slowestDecay = std::min (slowestDecay, forte::detail::slowestStringDecay (p, model.unisonSpreadCents));
+    const double stringsTail = forte::detail::sympatheticTailSeconds (model, longestTail, slowestDecay);
+    CHECK (stringsTail == longestTail);
+
     // Then the soundboard rings on for its IR, plus two partitions of rounding at 44.1 kHz.
     const auto irs = forte::detail::loadEmbeddedIrs();
     const double irSeconds = static_cast<double> (irs.length()) / irs.sampleRate;
@@ -250,7 +258,7 @@ TEST_CASE ("The reported tail covers the longest-ringing note", "[engine]")
     Engine engine;
     engine.prepare (sampleRate, 4096);
     const double tail = engine.getTailSeconds();
-    REQUIRE (tail == longestTail + irSeconds + 2.0 * forte::detail::Soundboard::partitionSize / 44100.0);
+    REQUIRE (tail == stringsTail + irSeconds + 2.0 * forte::detail::Soundboard::partitionSize / 44100.0);
     REQUIRE (tail > 10.0);
     REQUIRE (tail < 120.0);
 

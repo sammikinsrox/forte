@@ -5,12 +5,14 @@
 #include "ScopedFlushDenormals.h"
 #include "Soundboard.h"
 #include "SoundboardIrs.h"
+#include "SympatheticBank.h"
 #include "VelocityCurve.h"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 
 namespace forte
 {
@@ -22,6 +24,7 @@ constexpr double pedalSmoothingSeconds = 0.02;  // SPEC §4.2
 constexpr double lowestSampleRate = 44100.0;    // SPEC §2.2
 
 static_assert (partitionSize % controlInterval == 0, "a partition holds whole control intervals");
+static_assert (controlInterval <= detail::SympatheticBank::maxRenderSamples, "the banks render a control interval at once");
 
 /** A pedal CC value as a 0–1 position, with the dead zones from SPEC §4.2:
     0–12 is fully down (dampers resting), 116–127 is fully lifted. */
@@ -54,8 +57,18 @@ struct Engine::State
     detail::SoundboardIrs shippedIrs = detail::loadEmbeddedIrs();
     detail::Soundboard soundboard;
 
-    /** The notes' bridge force per region, for the current stretch of one partition. */
+    detail::SympatheticBank sympathetic;
+
+    /** The notes' and banks' bridge force per region, for the current stretch of one partition. */
     std::array<std::array<float, partitionSize>, detail::numBridgeRegions> regionBus {};
+
+    /** Each note's own bridge force over the current stretch of a control interval, and whether
+        it sounded (if not, its buffer is stale). Each bank hears every note but its own. */
+    std::array<std::array<float, controlInterval>, detail::numNotes> noteOutput {};
+    std::array<bool, detail::numNotes> noteSounded {};
+
+    /** Every note's bridge force summed, over the same stretch: the banks' drive. */
+    std::array<float, controlInterval> bridgeDrive {};
 
     /** Note-ons still waiting for their note-off, per key (SPEC §4.3: overlaps are counted). */
     std::array<std::uint32_t, detail::numNotes> keyDownCount {};
@@ -125,7 +138,13 @@ struct Engine::State
         {
             case cc::sustain:             sustainTarget = pedalPosition (value); break;
             case cc::soft:                softPedal = pedalPosition (value); break;
-            case cc::allSoundOff:         for (auto& n : notes) n.silence(); soundboard.silence(); break;
+            case cc::allSoundOff:
+                for (auto& n : notes)
+                    n.silence();
+                sympathetic.silence();
+                soundboard.silence();
+                break;
+
             case cc::resetAllControllers: sustainTarget = 0.0f; softPedal = 0.0f; break;
             case cc::allNotesOff:         allNotesOff(); break;
             default:                      break;  // mod wheel, sostenuto (CC66) and the rest
@@ -139,8 +158,54 @@ struct Engine::State
         else if (sustainLift > sustainTarget)
             sustainLift = std::max (sustainTarget, sustainLift - sustainStepPerTick);
 
-        for (auto& n : notes)
+        for (int i = 0; i < detail::numNotes; ++i)
+        {
+            auto& n = notes[static_cast<std::size_t> (i)];
             n.controlTick (sustainLift);
+            sympathetic.controlTick (i, n.getLift());
+        }
+    }
+
+    /** Renders length samples (within one control interval) of every note and bank into the
+        region buses, starting at offset into them. */
+    void renderInterval (int offset, int length) noexcept
+    {
+        bool anySounded = false;
+
+        for (std::size_t i = 0; i < notes.size(); ++i)
+        {
+            noteSounded[i] = notes[i].isSounding();
+            if (! noteSounded[i])
+                continue;
+
+            float* own = noteOutput[i].data();
+            std::fill_n (own, length, 0.0f);
+            notes[i].render (own, noteScratch.data(), length);
+
+            float* bus = regionBus[noteRegion[i]].data() + offset;
+            for (int t = 0; t < length; ++t)
+                bus[t] += own[t];
+
+            anySounded = true;
+        }
+
+        // The banks hear only the played strings, never each other (SPEC §2.1).
+        if (anySounded)
+        {
+            for (int t = 0; t < length; ++t)
+            {
+                const auto at = static_cast<std::size_t> (offset + t);
+                bridgeDrive[static_cast<std::size_t> (t)] = regionBus[0][at] + regionBus[1][at] + regionBus[2][at] + regionBus[3][at];
+            }
+        }
+
+        std::array<const float*, detail::numNotes> own {};
+        for (std::size_t i = 0; i < notes.size(); ++i)
+            own[i] = noteSounded[i] ? noteOutput[i].data() : nullptr;
+
+        const std::array<float*, detail::numBridgeRegions> buses { regionBus[0].data() + offset, regionBus[1].data() + offset,
+                                                                   regionBus[2].data() + offset, regionBus[3].data() + offset };
+        sympathetic.render (anySounded ? bridgeDrive.data() : nullptr, own, buses, length);
     }
 };
 
@@ -148,18 +213,23 @@ Engine::Engine()
     : state (std::make_unique<State>())
 {
     double notesTail = 0.0;
+    double slowestDecay = std::numeric_limits<double>::infinity();
 
     for (const auto& note : state->model.notes)
     {
         notesTail = std::max (notesTail, detail::noteTailSeconds (note, state->model.unisonSpreadCents));
+        slowestDecay = std::min (slowestDecay, detail::slowestStringDecay (note, state->model.unisonSpreadCents));
         state->noteRegion[static_cast<std::size_t> (note.midiNote - detail::lowestNote)] = static_cast<std::uint8_t> (note.bridgeRegion);
     }
+
+    // The sympathetic bank can ring on past the strings that drive it.
+    const double stringsTail = detail::sympatheticTailSeconds (state->model, notesTail, slowestDecay);
 
     // The soundboard rings on for the IR's length after the strings stop. The convolution's
     // partition grid can carry rounding residue up to two partitions further, at most this long
     // at the lowest host rate.
     const double irSeconds = static_cast<double> (state->shippedIrs.length()) / state->shippedIrs.sampleRate;
-    state->tailSeconds = notesTail + irSeconds + 2.0 * partitionSize / lowestSampleRate;
+    state->tailSeconds = stringsTail + irSeconds + 2.0 * partitionSize / lowestSampleRate;
 }
 
 Engine::~Engine() = default;
@@ -179,7 +249,7 @@ void Engine::prepare (double newSampleRate, int newMaxBlockSize)
     for (int midiNote = detail::lowestNote; midiNote <= detail::highestNote; ++midiNote)
         state->note (midiNote).prepare (model.note (midiNote), model.unisonSpreadCents, model.outputGain, sampleRate);
 
-    state->soundboard.prepare (detail::resampleIrs (state->shippedIrs, sampleRate));
+    state->sympathetic.prepare (model, sampleRate);    state->soundboard.prepare (detail::resampleIrs (state->shippedIrs, sampleRate));
 
     state->sustainStepPerTick = static_cast<float> (controlInterval / (pedalSmoothingSeconds * sampleRate));
     reset();
@@ -190,6 +260,7 @@ void Engine::reset() noexcept
     for (auto& n : state->notes)
         n.reset();
 
+    state->sympathetic.reset();
     state->soundboard.reset();
     state->keyDownCount.fill (0);
     state->sustainTarget = state->sustainLift = 0.0f;
@@ -257,9 +328,7 @@ void Engine::render (float* left, float* right, int numSamples) noexcept
 
             const int length = std::min (stretch - done, controlInterval - phase);
 
-            for (std::size_t i = 0; i < s.notes.size(); ++i)
-                s.notes[i].render (s.regionBus[s.noteRegion[i]].data() + done, s.noteScratch.data(), length);
-
+            s.renderInterval (done, length);
             done += length;
             s.sampleClock += length;
         }

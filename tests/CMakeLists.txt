@@ -35,6 +35,7 @@ target_sources(forte_tests PRIVATE
     MidiTests.cpp
     NoteModelTests.cpp
     SoundboardTests.cpp
+    SympatheticBankTests.cpp
     Tier1Tests.cpp
     UnisonModesTests.cpp
     VelocityCurveTests.cpp)

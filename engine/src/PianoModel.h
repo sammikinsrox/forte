@@ -3,6 +3,7 @@
 #include "VelocityCurve.h"
 
 #include <array>
+#include <cmath>
 
 namespace forte::detail
 {
@@ -84,6 +85,10 @@ struct PianoModel
     /** Bridge force (N) to output sample. */
     double outputGain = 1.0;
 
+    /** The sympathetic bank's physical level, the Resonance control's 50 (SPEC §2.6, §6.3): each
+        bank mode's gain at its own frequency, from the bridge drive to the bridge output. */
+    double sympatheticLevel = 0.0;
+
     [[nodiscard]] const NoteParameters& note (int midiNote) const noexcept { return notes[static_cast<std::size_t> (midiNote - lowestNote)]; }
 };
 
@@ -93,6 +98,25 @@ struct PianoModel
     Tuning is plain equal temperament at A4 = 440 Hz until the tuner (SPEC §5) exists.
 */
 [[nodiscard]] PianoModel makeSeedPianoModel();
+
+/** Partial n's frequency on the unison's average string: n·f0·√(1 + B·n²). */
+[[nodiscard]] inline double partialFrequency (const NoteParameters& p, int partial) noexcept
+{
+    const double n = partial;
+    return n * p.fundamental * std::sqrt (1.0 + p.inharmonicity * n * n);
+}
+
+/** The prompt sound's amplitude decay rate at a frequency, 1/s. */
+[[nodiscard]] inline double promptDecay (const NoteParameters& p, double frequency) noexcept
+{
+    return p.decayConstant + p.decayPerHertzSquared * frequency * frequency;
+}
+
+/** The extra decay rate with the damper resting, 1/s: d0 + d1·√(f / 1 kHz). */
+[[nodiscard]] inline double damperDecay (const NoteParameters& p, double frequency) noexcept
+{
+    return p.damperDecayConstant + p.damperDecayPerRootKilohertz * std::sqrt (frequency / 1000.0);
+}
 
 /** Per-string tuning offsets in cents for a unison (SPEC §2.3). Fills offsets[0..numStrings). */
 void unisonOffsetsCents (int numStrings, double spreadCents, double (&offsets)[3]) noexcept;

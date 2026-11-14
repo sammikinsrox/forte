@@ -25,10 +25,11 @@ enum class ListeningPerspective
     Output depends only on the events and their sample times, never on how the samples are split
     into render() calls, so offline and realtime renders are bit-identical (SPEC §7.4).
 
-    Output (SPEC §2.1, §2.8): each note's bridge force feeds one of four bridge regions, and each
-    region is convolved with its stereo soundboard IR from the active Listening perspective, with
-    no added latency. Brightness, Width and Volume sit at their defaults until the parameters
-    exist. The sympathetic bank comes later.
+    Output (SPEC §2.1, §2.6, §2.8): each note's bridge force feeds one of four bridge regions, and
+    every key's sympathetic bank, driven by all the other notes' force and gated by its damper,
+    feeds the key's own region. Each region is convolved with its stereo soundboard IR from the
+    active Listening perspective, with no added latency. Resonance, Brightness, Width and Volume
+    sit at their defaults until the parameters exist.
 */
 class Engine
 {
