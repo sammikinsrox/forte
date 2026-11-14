@@ -10,7 +10,13 @@ add_library(forte_engine STATIC
     include/forte/engine/Engine.h
     include/forte/engine/MidiEvent.h
     src/Engine.cpp
-    src/ScopedFlushDenormals.h)
+    src/NoteModel.cpp
+    src/NoteModel.h
+    src/PianoModel.cpp
+    src/PianoModel.h
+    src/ScopedFlushDenormals.h
+    src/VelocityCurve.cpp
+    src/VelocityCurve.h)
 add_library(forte::engine ALIAS forte_engine)
 
 target_include_directories(forte_engine

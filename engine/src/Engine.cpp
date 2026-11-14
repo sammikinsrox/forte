@@ -1,26 +1,207 @@
 #include "forte/engine/Engine.h"
 
+#include "NoteModel.h"
+#include "PianoModel.h"
 #include "ScopedFlushDenormals.h"
+#include "VelocityCurve.h"
 
 #include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstdint>
+#include <limits>
 
 namespace forte
 {
+namespace
+{
+constexpr int controlInterval = detail::NoteModel::controlInterval;
+constexpr double pedalSmoothingSeconds = 0.02;  // SPEC §4.2
+
+/** A pedal CC value as a 0–1 position, with the dead zones from SPEC §4.2:
+    0–12 is fully down (dampers resting), 116–127 is fully lifted. */
+float pedalPosition (int value) noexcept
+{
+    constexpr int restingUpTo = 12;
+    constexpr int liftedFrom = 116;
+    return std::clamp (static_cast<float> (value - restingUpTo) / static_cast<float> (liftedFrom - restingUpTo), 0.0f, 1.0f);
+}
+
+namespace cc
+{
+constexpr int sustain = 64;
+constexpr int soft = 67;
+constexpr int allSoundOff = 120;
+constexpr int resetAllControllers = 121;
+constexpr int allNotesOff = 123;
+} // namespace cc
+} // namespace
+
+struct Engine::State
+{
+    detail::PianoModel model = detail::makeSeedPianoModel();
+    std::array<detail::NoteModel, detail::numNotes> notes;
+
+    /** Note-ons still waiting for their note-off, per key (SPEC §4.3: overlaps are counted). */
+    std::array<std::uint32_t, detail::numNotes> keyDownCount {};
+
+    float sustainTarget = 0.0f;  // the pedal as last received
+    float sustainLift = 0.0f;    // smoothed, drives the dampers
+    float sustainStepPerTick = 1.0f;
+    float softPedal = 0.0f;      // read at each strike; the hammer shift itself is still to come
+
+    /** Touch, until the parameter exists (SPEC §6.3). */
+    double touch = detail::touchCalibrated;
+
+    /** Samples rendered since prepare() or reset(). Control ticks fall on multiples of
+        controlInterval, so they don't depend on how blocks are split. */
+    std::int64_t sampleClock = 0;
+
+    std::array<float, controlInterval> noteScratch {};
+
+    detail::NoteModel& note (int midiNote) noexcept { return notes[static_cast<std::size_t> (midiNote - detail::lowestNote)]; }
+    std::uint32_t& keyCount (int midiNote) noexcept { return keyDownCount[static_cast<std::size_t> (midiNote - detail::lowestNote)]; }
+
+    void noteOn (int midiNote, int velocity) noexcept
+    {
+        if (! detail::isOnKeyboard (midiNote))
+            return;
+
+        auto& count = keyCount (midiNote);
+        if (count < UINT32_MAX)
+            ++count;
+
+        auto& n = note (midiNote);
+        n.setKeyDown (true);
+        n.strike (velocity, touch);
+    }
+
+    void noteOff (int midiNote) noexcept
+    {
+        if (! detail::isOnKeyboard (midiNote))
+            return;
+
+        auto& count = keyCount (midiNote);
+        if (count == 0)
+            return;
+
+        if (--count == 0)
+            note (midiNote).setKeyDown (false);
+    }
+
+    void allNotesOff() noexcept
+    {
+        for (int midiNote = detail::lowestNote; midiNote <= detail::highestNote; ++midiNote)
+        {
+            if (keyCount (midiNote) != 0)
+            {
+                keyCount (midiNote) = 0;
+                note (midiNote).setKeyDown (false);
+            }
+        }
+    }
+
+    void controller (int number, int value) noexcept
+    {
+        switch (number)
+        {
+            case cc::sustain:             sustainTarget = pedalPosition (value); break;
+            case cc::soft:                softPedal = pedalPosition (value); break;
+            case cc::allSoundOff:         for (auto& n : notes) n.silence(); break;
+            case cc::resetAllControllers: sustainTarget = 0.0f; softPedal = 0.0f; break;
+            case cc::allNotesOff:         allNotesOff(); break;
+            default:                      break;  // mod wheel, sostenuto (CC66) and the rest
+        }
+    }
+
+    void controlTick() noexcept
+    {
+        if (sustainLift < sustainTarget)
+            sustainLift = std::min (sustainTarget, sustainLift + sustainStepPerTick);
+        else if (sustainLift > sustainTarget)
+            sustainLift = std::max (sustainTarget, sustainLift - sustainStepPerTick);
+
+        for (auto& n : notes)
+            n.controlTick (sustainLift);
+    }
+};
+
+Engine::Engine()
+    : state (std::make_unique<State>())
+{
+}
+
+Engine::~Engine() = default;
+
+double Engine::getTailSeconds() const noexcept
+{
+    // The slowest decay is a fundamental's: σ = b1 + b3·f0², with no damper on it. Full scale
+    // down to the resting level takes ln(1 / restingAmplitude) / σ.
+    double slowestDecay = std::numeric_limits<double>::max();
+
+    for (const auto& note : state->model.notes)
+        slowestDecay = std::min (slowestDecay, note.decayConstant + note.decayPerHertzSquared * note.fundamental * note.fundamental);
+
+    return std::log (1.0 / static_cast<double> (detail::NoteModel::restingAmplitude)) / slowestDecay;
+}
+
 void Engine::prepare (double newSampleRate, int newMaxBlockSize)
 {
     sampleRate = newSampleRate;
     maxBlockSize = newMaxBlockSize;
+
+    const auto& model = state->model;
+
+    for (int midiNote = detail::lowestNote; midiNote <= detail::highestNote; ++midiNote)
+        state->note (midiNote).prepare (model.note (midiNote), model.unisonSpreadCents, model.outputGain, sampleRate);
+
+    state->sustainStepPerTick = static_cast<float> (controlInterval / (pedalSmoothingSeconds * sampleRate));
     reset();
 }
 
 void Engine::reset() noexcept
 {
+    for (auto& n : state->notes)
+        n.reset();
+
+    state->keyDownCount.fill (0);
+    state->sustainTarget = state->sustainLift = 0.0f;
+    state->softPedal = 0.0f;
+    state->sampleClock = 0;
 }
 
 void Engine::handleMidi (const MidiEvent& event) noexcept
 {
-    // Silent skeleton: MIDI is accepted and ignored until the note models exist.
-    (void) event;
+    if (event.size < 1)
+        return;
+
+    const int status = event.bytes[0];
+    if (status < 0x80 || status >= 0xf0)
+        return;
+
+    if (event.size < 3)
+        return;  // every message the engine reads has two data bytes
+
+    // Omni (SPEC §4.3): the channel nibble is ignored.
+    const int type = status & 0xf0;
+    const int data1 = event.bytes[1] & 0x7f;
+    const int data2 = event.bytes[2] & 0x7f;
+
+    const detail::ScopedFlushDenormals noDenormals;
+
+    switch (type)
+    {
+        case 0x90:
+            if (data2 == 0)
+                state->noteOff (data1);
+            else
+                state->noteOn (data1, data2);
+            break;
+
+        case 0x80: state->noteOff (data1); break;  // release velocity is ignored
+        case 0xb0: state->controller (data1, data2); break;
+        default:   break;  // aftertouch, program change, pitch bend
+    }
 }
 
 void Engine::render (float* left, float* right, int numSamples) noexcept
@@ -29,8 +210,26 @@ void Engine::render (float* left, float* right, int numSamples) noexcept
         return;
 
     const detail::ScopedFlushDenormals noDenormals;
+    auto& s = *state;
 
     std::fill_n (left, numSamples, 0.0f);
-    std::fill_n (right, numSamples, 0.0f);
+
+    for (int position = 0; position < numSamples;)
+    {
+        const auto phase = static_cast<int> (s.sampleClock % controlInterval);
+
+        if (phase == 0)
+            s.controlTick();
+
+        const int length = std::min (numSamples - position, controlInterval - phase);
+
+        for (auto& n : s.notes)
+            n.render (left + position, s.noteScratch.data(), length);
+
+        position += length;
+        s.sampleClock += length;
+    }
+
+    std::copy_n (left, numSamples, right);
 }
 } // namespace forte

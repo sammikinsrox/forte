@@ -1,7 +1,8 @@
 # Per-push checks (SPEC §9.3), all run by `ctest`:
 #   - Catch2 unit tests, including the audio-thread allocation guard;
 #   - the realtime build rule, and a self-test that it rejects a violation;
-#   - forte-render determinism (Tier 1, SPEC §8.1);
+#   - the Tier 1 engine checks (SPEC §8.1): Catch2 tests tagged [tier1], plus forte-render
+#     determinism and block-size independence;
 #   - pluginval at strictness 10 on the VST3 (when pluginval is available).
 
 include(FetchContent)
@@ -27,11 +28,19 @@ juce_add_console_app(forte_tests PRODUCT_NAME "forte-tests")
 target_sources(forte_tests PRIVATE
     support/AudioThreadGuard.cpp
     support/AudioThreadGuard.h
+    support/EngineRender.h
     AudioThreadGuardTests.cpp
     BridgeTests.cpp
-    EngineTests.cpp)
+    EngineTests.cpp
+    MidiTests.cpp
+    Tier1Tests.cpp
+    VelocityCurveTests.cpp)
 
-target_include_directories(forte_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+# The engine's own headers too, so DSP parts (the velocity curve, the piano model) can be
+# tested directly.
+target_include_directories(forte_tests PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${PROJECT_SOURCE_DIR}/engine/src")
 
 target_compile_definitions(forte_tests PRIVATE
     JUCE_USE_CURL=0
@@ -47,10 +56,18 @@ target_link_libraries(forte_tests PRIVATE
 
 set_target_properties(forte_tests PROPERTIES FOLDER "Tests" OUTPUT_NAME "forte-tests")
 
+# Catch2 tests tagged [tier1] are Tier 1 engine checks (SPEC §8.1) and get their own label.
 catch_discover_tests(forte_tests
+    TEST_SPEC "~[tier1]"
     DISCOVERY_MODE PRE_TEST
     TEST_PREFIX "unit: "
     PROPERTIES LABELS "unit")
+
+catch_discover_tests(forte_tests
+    TEST_SPEC "[tier1]"
+    DISCOVERY_MODE PRE_TEST
+    TEST_PREFIX "tier1: "
+    PROPERTIES LABELS "tier1")
 
 # --- Realtime build rule -----------------------------------------------------------------------
 
@@ -78,7 +95,20 @@ add_test(NAME "tier1: render is deterministic"
         "-DMIDI=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/smoke.mid"
         "-DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/render-determinism/$<CONFIG>"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/RenderTwiceAndCompare.cmake")
-set_tests_properties("tier1: render is deterministic" PROPERTIES LABELS "tier1")
+
+# SPEC §7.4: offline and real-time renders use different block sizes and must still match.
+add_test(NAME "tier1: render is independent of block size"
+    COMMAND "${CMAKE_COMMAND}"
+        "-DFORTE_RENDER=$<TARGET_FILE:forte_render>"
+        "-DMIDI=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/smoke.mid"
+        "-DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/render-block-size/$<CONFIG>"
+        "-DSECOND_BLOCK_SIZE=37"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/RenderTwiceAndCompare.cmake")
+
+set_tests_properties(
+    "tier1: render is deterministic"
+    "tier1: render is independent of block size"
+    PROPERTIES LABELS "tier1")
 
 # --- pluginval ---------------------------------------------------------------------------------
 

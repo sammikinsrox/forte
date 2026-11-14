@@ -35,14 +35,22 @@ TEST_CASE ("renderBlock writes every sample of every channel", "[bridge]")
 
     juce::AudioBuffer<float> buffer (4, 256);
     fill (buffer, 1.0f);
+    forte::bridge::renderBlock (engine, buffer, {});
+    CHECK (isSilent (buffer));
 
+    fill (buffer, 1.0f);
     juce::MidiBuffer midi;
-    midi.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), 0);
-    midi.addEvent (juce::MidiMessage::noteOff (1, 60), 255);
-
+    midi.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), 10);
     forte::bridge::renderBlock (engine, buffer, midi);
 
-    CHECK (isSilent (buffer));
+    for (int i = 0; i < 256; ++i)
+    {
+        INFO ("sample " << i);
+        REQUIRE (buffer.getSample (0, i) != 1.0f);
+        REQUIRE (buffer.getSample (1, i) == buffer.getSample (0, i));
+        REQUIRE (buffer.getSample (2, i) == 0.0f);
+        REQUIRE (buffer.getSample (3, i) == 0.0f);
+    }
 }
 
 TEST_CASE ("renderBlock clears a buffer with too few channels", "[bridge]")
@@ -73,7 +81,9 @@ TEST_CASE ("renderBlock tolerates events outside the block", "[bridge]")
 
     forte::bridge::renderBlock (engine, buffer, midi);
 
-    CHECK (isSilent (buffer));
+    // The early event is applied at sample 0; the late one is clamped to the block's end.
+    CHECK (buffer.getSample (0, 0) != 0.0f);
+    CHECK (buffer.getSample (0, 63) == buffer.getSample (1, 63));
 }
 
 TEST_CASE ("renderBlock never touches the heap", "[bridge][audio-thread]")

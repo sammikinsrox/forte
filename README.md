@@ -2,7 +2,7 @@
 
 A free, open-source, physically modeled concert-grand piano for Windows, as a VST®3 plugin and a Standalone app. It simulates the hammer, strings, dampers and soundboard instead of playing back recordings.
 
-**Status:** project skeleton. The plugin loads and is silent; the engine comes next. The design lives in [SPEC.md](SPEC.md), with vocabulary in [GLOSSARY.md](GLOSSARY.md) and the reasoning in [issues/](issues/).
+**Status:** early engine. The 88 note models (modal strings, felt hammer, dampers) play from MIDI with seed values, straight from the bridge force: no soundboard, sympathetic resonance or controls yet, and no fitted piano model. The design lives in [SPEC.md](SPEC.md), with vocabulary in [GLOSSARY.md](GLOSSARY.md) and the reasoning in [issues/](issues/).
 
 ## Building
 
@@ -45,7 +45,7 @@ Output, under `build/`:
 - **Unit tests** (Catch2).
 - **Audio-thread allocation guard:** `tests/support/AudioThreadGuard.*` replaces the global `operator new`/`delete` in the test executable, and in Debug also hooks the CRT heap (`malloc`/`free`). Code run inside an `AudioThreadScope` must make zero heap calls.
 - **Realtime rule:** `cmake/CheckRealtimeSources.cmake` fails the build if anything under `engine/` includes `<mutex>`, `<thread>`, `<condition_variable>`, `<windows.h>`, JUCE headers and the like, or uses lock types.
-- **Tier 1:** `forte-render` determinism (two renders are bit-identical).
+- **Tier 1** (SPEC §8.1, label `tier1`): the velocity curve rises at every Touch value, overlapping note-ons never cut a note short, onsets land on their event's exact sample, and renders are bit-identical, both run to run and across block sizes (also end to end through `forte-render`). Velocity calibration, live changes and state compatibility arrive with the fitted model, the parameters and the saved state.
 - **pluginval** at strictness 10 on the VST3, including Steinberg's VST3 validator. JUCE's bundled SDK leaves the validator out, so `tools/get-vst3-validator.ps1` builds it from a pinned `vst3sdk` tag. The test fails if pluginval reports the validator as skipped.
 
 ## Licence
