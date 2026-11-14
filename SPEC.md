@@ -1,0 +1,481 @@
+# Forte v1 specification
+
+Forte is a free, open-source, physically modeled concert-grand piano plugin for Windows (VST3 + Standalone). It synthesises the sound by simulating the hammer, strings, dampers and soundboard. It does not play back recordings.
+
+This document compiles every decision from the planning map ([Map: Forte v1 spec](issues/0001-map-forte-v1-spec.md)). Each section links to the ticket that holds the full reasoning. If this document and a ticket disagree, the **later ticket wins**. Please report any disagreement so this file can be fixed. Vocabulary follows [GLOSSARY.md](GLOSSARY.md).
+
+Status: build-ready, 2026-11-14.
+
+---
+
+## 1. Product
+
+- **Licence:** Forte's code is GPLv3-or-later. JUCE is used under AGPLv3 (combinable per GPLv3 §13). The VST3 SDK is MIT.
+- **Platform:** Windows only. VST3 and Standalone. The test hosts are **FL Studio** and **Reaper**.
+- **One piano model:** a modern concert grand (Steinway D values), built on a parameterised piano model so other pianos can be added later as new model files.
+- **Physics in v1:**
+  - felt-hammer/string interaction;
+  - string stiffness (inharmonicity);
+  - 1–3 coupled, detuned strings per note (two-stage decay);
+  - phantom partials;
+  - soundboard and body;
+  - dampers with sustain pedal, including half-pedaling;
+  - sympathetic resonance;
+  - soft pedal.
+- **Performance target:** a full 88-key sustain-pedal glissando plays without dropouts at a 128-sample buffer, using **≤ 25% of one core** on a mid-range 2020 PC (reference machine: the user's Ryzen 5 5500) at 48 kHz.
+- **Judging the sound:** the reference recordings are the objective comparison. The user's ear makes the final call.
+- **Out of scope for v1:**
+  - macOS, AU and Linux;
+  - built-in reverb;
+  - sostenuto pedal;
+  - duplex scaling;
+  - key and pedal mechanical noises;
+  - lid and microphone position controls;
+  - other piano models;
+  - historical temperaments, MTS-ESP and MIDI Tuning Standard;
+  - release velocity;
+  - MIDI program change;
+  - transpose and fine-tune.
+
+## 2. Synthesis engine
+
+Sources: [Choose the synthesis architecture](issues/0007-choose-synthesis-architecture.md), [Single-note listening test](issues/0009-single-note-listening-test.md), research in [String & hammer modeling](issues/0002-string-hammer-modeling-approaches.md) and [Soundboard, coupling, dampers](issues/0003-soundboard-coupling-damper-models.md).
+
+### 2.1 Signal path
+
+```
+MIDI → Hammer (felt spring, 4× contact, soft-pedal shift)
+     → Note's Unison as modal resonators (stretch, coupled two-stage decay,
+       phantom partials, damper position + gap)
+     → one-way bridge force → [sympathetic bank (12/key, damper-gated)] → bridge region bus ×4
+     → per-region stereo convolution (active perspective; crossfade on switch)
+     → Brightness tilt per region → sum → Width → Volume → stereo out
+```
+
+Energy flows **one way**: strings → bridge regions and the sympathetic bank, with nothing flowing back. The soundboard's energy drain is already included in the measured decay times.
+
+### 2.2 Notes, not voices
+
+- **88 permanent note models.** There are no voices and no voice stealing. A note goes idle once it has decayed and its damper is down. Individual modes stop computing once they fall below −100 dB.
+- **Every note-on is a restrike** of that note's current string state.
+- **Sample rate:** the engine runs at the host rate (44.1–96 kHz) with no internal resampling. This is revisited only if 96 kHz misses its CPU gate (§9.2).
+
+### 2.3 Strings
+
+- **Modal strings:** one resonator per partial, up to 20 kHz or just under the sample rate's limit, whichever is lower.
+- **Unisons:** real Steinway D string counts (about 10 single, 18 double, the rest triple).
+- **Coupling:** Weinreich coupled modes (two-stage decay) for partials 1–32. Above 32, the strings are detuned and uncoupled.
+- **Unison tuning offsets:** fixed per string and the same in cents on every partial.
+  - 3 strings: −1, +0.2 and +0.85 × spread.
+  - 2 strings: ±0.5 × spread.
+  - The default spread is 0.7 cent (§5).
+- **Phantom partials:** on the lowest ~30 notes. Their path runs **continuously, including during hammer contact**, with a ~40 Hz high-pass on the longitudinal force.
+- **Bridge output** is the string slope **at the bridge end**, so its sign alternates per mode. (Taking it at the agraffe end caused the "wooden knock".)
+- **Per-note high-pass at f0/2** on notes above 100 Hz removes the sub-fundamental strike transient.
+
+### 2.4 Hammer
+
+- **Model:** a lumped mass with a nonlinear felt spring that stiffens under compression and has slight hysteresis (after Bank/Zambon/Fontana 2010).
+- **Contact:** computed sample by sample at **4× oversampling** during the contact window only.
+- **Strike position:** ~1/8 of the string length. It shapes which partials are excited.
+- **Per-note values:** mass, stiffness and exponent come from the model file.
+- **Stability test:** every note at maximum velocity, with the hardest felt, at every supported sample rate.
+
+### 2.5 Dampers and half-pedaling
+
+- **Per-partial damping** driven by a 0–1 damper position, plus a gap model for half-pedaling.
+- **Key-up** ramps the dampers down over ~20 ms.
+- **Undamped notes:** roughly the top 18 notes have no damper. The exact boundary comes from the Steinway D data.
+
+### 2.6 Sympathetic resonance
+
+- **Bank:** a separate set of **12 modes per key**, fed from the bridge and gated by that key's damper.
+- **Routing:** the sympathetic bank feeds the soundboard in its own bridge region. Sympathetic strings never feed each other or the played strings.
+
+### 2.7 Soft pedal
+
+A continuous 0–1 hammer shift that changes which strings are struck and the felt hardness. It is read **at each strike**, so it doesn't affect notes already ringing.
+
+### 2.8 Soundboard and output
+
+- **Four bridge regions:** bass, tenor, middle and treble. Each is convolved with its own stereo IR (20k taps, ~0.42 s at 48 kHz).
+- **Perspective:** only the active Listening perspective's IR set runs. Switching perspective crossfades between the IR sets.
+- **Stereo:** placement comes from the regions, with no panning. Bass is on the left, in both perspectives.
+- **Brightness:** a treble tilt on each region's output.
+- **Width, then Volume:** applied after the regions are summed.
+
+### 2.9 Live parameter changes
+
+| Kind | Controls | Behaviour |
+|---|---|---|
+| Strike-time | Hardness, Touch, soft-pedal felt | Next strike only |
+| Tuning | A4, Stretch, Spread | Ringing modes glide over ~50 ms |
+| Output | Volume, Width, Brightness, Resonance | Immediate, smoothed over ~20 ms |
+| Perspective | Listening perspective | Crossfade between IR sets |
+
+Ringing notes are never cut off by a parameter change, a preset load or automation.
+
+### 2.10 Measured cost
+
+The prototype benchmark ([Modal resonator CPU benchmark](issues/0011-modal-resonator-cpu-benchmark.md)) measured the core parts at ~4% average / 6% p99 of one core with AVX2, and 8% / 12% with SSE2, at 48 kHz. Allowing 2–3× for the rest of the real engine, the expected total is ~15–25%.
+
+## 3. Piano model data and fitting
+
+Sources: [Parameter fitting pipeline](issues/0014-parameter-fitting-pipeline.md), [Reference recordings](issues/0005-reference-recordings-and-measurements.md), [Soundboard impulse response source](issues/0012-soundboard-impulse-response-source.md).
+
+### 3.1 References
+
+| Source | Used for | Licence |
+|---|---|---|
+| Iowa MIS Steinway B | Per-note measurements at pp/mf/ff | Free use |
+| Salamander Grand (Yamaha C5) | Velocity-layer shape, release samples | CC BY 3.0 |
+| Piano in 162 | Pedal-down sympathetic level | Measured locally, never shipped |
+| Plath concert-grand dataset | Soundboard and Pianist calibration | CC BY 4.0 |
+| Published Steinway D tables (Chabassier & Duruflé, Chaigne & Askenfelt, …) | Seed values | Cited |
+
+**No reference audio ever ships.** Only derived numbers ship. `tools/fetch-references` downloads the recordings into the git-ignored `refs/`.
+
+### 3.2 Pipeline
+
+Offline Python (numpy, scipy, soundfile) in `tools/fitting/`, in three steps, each with committed output:
+
+1. **measure:** recordings → `data/reference-measurements/`.
+2. **fit:** seeds + measurements → model parameters.
+3. **build:** parameters + **voicing overrides** (a hand-edited file of per-note brightness, level and decay offsets) → the shipped model file and IRs.
+
+There is one command per step, plus `all`. Fixed seeds make every run's output byte-identical. The plugin never fits anything.
+
+### 3.3 What is fitted
+
+- **Inharmonicity B:** from the Steinway D string scale, smoothed across keys. Iowa only checks the trend.
+  - Fallback if the D tables can't be obtained: Iowa's B scaled by B ∝ 1/L².
+- **f0** is not fitted. The tuner computes it (§5).
+- **Decay**, from Iowa mf:
+  - Partials at least 10 dB above the noise floor keep their own measured values.
+  - Higher partials follow σ = b1 + b3·f², with the coefficients smoothed across keys and outliers rejected.
+  - The top octave borrows its law from its neighbours.
+  - A noisy tail is never trusted over the law.
+- **Unison coupling** per partial: derived from the fast and slow decay and the fixed spread.
+- **Phantom levels:** fitted against Iowa ff.
+- **Hammer:**
+  - **Mass:** a smooth curve from the seeds, not fitted.
+  - **Felt stiffness and exponent:** fitted per note across pp, mf and ff together. For each dynamic, the hammer speed that matches the loudness is solved first, then the felt is fitted to match brightness at all three dynamics. Salamander checks the curve shape between those points.
+  - **Hand-off:** the three matched speeds per note become the velocity calibration points (§4).
+- **Soft-pedal felt:** a literature offset from the normal felt, then set by ear.
+- **Dampers:**
+  - damper-down law from Salamander's releases;
+  - half-pedal gap model seeded from Lehtonen et al. and Stulov et al., then set by ear;
+  - undamped region from the D data.
+- **Sympathetic bank:** frequencies and decays come from the fitted strings. Its 100% level is calibrated against the pedal-down minus pedal-up difference in Piano in 162.
+
+### 3.4 Soundboard IRs
+
+- **One generator, two colours.** Synthesised "modal noise": low modes placed from published concert-grand data, the rest statistical. Its shared low modes and per-band decays come from Plath's bridge accelerometer.
+- **Microphones colour:** render-and-compare against Iowa per third-octave band per region, with Salamander as the cross-check.
+- **Pianist colour:** Plath's bridge-to-dummy-head transfer, pooled per region, with detail above ~2 kHz smoothed out.
+- **Irregularity:** the mix of resonant modes against a smooth direct path. It's fitted to match the reference's partial-level scatter. It is not a user control.
+
+### 3.5 What ships
+
+- **Model file:** `data/model/concert-grand.json`, with a schema version. It holds:
+  - per-note B, decay laws and measured partials;
+  - coupling and phantom levels;
+  - hammer and damper values;
+  - the sympathetic level;
+  - the IR generator parameters.
+- **IRs:** 32-bit float WAV at 48 kHz, 4 regions × 2 perspectives, stereo, ~3 MB. They're resampled once at load for other host rates.
+- **Packaging:** both are **embedded in the plugin binary** (§9.4).
+
+## 4. MIDI, touch and pedals
+
+Source: [Touch and pedal mapping](issues/0015-touch-and-pedal-mapping.md).
+
+### 4.1 Velocity and Touch
+
+- **Velocity sets hammer speed only.** Loudness and brightness emerge from the physics.
+- **Per-note curve:** each note's curve passes through its fitted pp, mf and ff hammer speeds at **velocities 32, 64 and 112**.
+  - It always rises and is smooth on a log-hammer-speed scale.
+  - Below pp it extends to velocity 1, about 12 dB under pp.
+  - Above ff it extends to velocity 127, about 4–5 dB over ff, capped where the hammer stability test still passes.
+  - Velocity is used at full host resolution, not rounded to 7 bits.
+- **Touch** (0–100, default 50 = calibrated):
+  - It bends normalised velocity before the per-note curve: lower is lighter, higher is heavier.
+  - Velocity 1 and 127 always stay the softest and hardest blows, and the curve can never fold back on itself.
+  - There is no fixed-velocity mode.
+
+### 4.2 Pedals
+
+- **Sustain (CC64):** always read as continuous.
+  - **Dead zones:** 0–12 = fully down (dampers resting); 116–127 = fully lifted. Values in between drive the gap model.
+  - **Smoothing:** damper position is smoothed over ~20 ms.
+- **Soft (CC67):** a continuous 0–1 shift with the same dead zones, read at each strike.
+- **Pedal invert:** a separate setting for each pedal, for reversed pedals (§6.4).
+- **On-screen pedals** share one value per pedal with MIDI, and the latest message wins.
+
+### 4.3 Notes and other MIDI
+
+- **Overlapping note-ons are counted.** A key stays down until every note-on has had its note-off.
+- **Range:** notes outside A0–C8 (MIDI 21–108) are ignored silently.
+- **Channels:** omni.
+- **Timing:** sample-accurate. Every event is applied at its exact offset in the block.
+- **CC123** (All Notes Off) releases every key, so the sustain pedal still holds notes.
+- **CC120** (All Sound Off) silences everything immediately.
+- **CC121** (Reset All Controllers) sets both pedals up.
+- **Ignored:** pitch bend, mod wheel, aftertouch, sostenuto (CC66) and release velocity.
+
+## 5. Tuning
+
+Source: [Tuning system](issues/0016-tuning-system.md).
+
+- **A simulated tuner** sets every note's average string pitch from B, A4 and Stretch.
+  - It starts at A4 and sets A3–A4 to equal temperament, then tunes outward one note at a time.
+  - **About C3–C6:** 4:2 octaves.
+  - **Below about C3:** 6:3.
+  - **Above about C6:** 2:1.
+- **When it runs:** whenever A4 or Stretch changes, off the audio thread. Ringing modes glide to the new pitches over ~50 ms.
+- **Stretch:** 0–100, default 50. 0 = exact 2:1 octaves, 50 = the calculated curve, 100 = double. It is a smooth multiplier on each note's distance from equal temperament and doesn't switch which partials the tuner matches.
+- **A4:** 415–466 Hz, in whole Hz, default 440.
+- **Unison spread:** a per-note curve (flat 0.7 cent by default) × one overall amount (the Spread control). Individual notes can be adjusted in the voicing overrides.
+- **Stretched equal temperament only.** There is no random tuner imperfection.
+
+## 6. Editor
+
+Sources: [Editor look & feel direction](issues/0006-editor-look-and-feel.md), [Editor rendering approach](issues/0010-editor-rendering-approach.md), [Listening perspective](issues/0013-listening-perspective.md), [Editor control set](issues/0017-editor-control-set.md). The visual reference is `prototypes/editor-look-and-feel/index.html?variant=D`. Control names and groups follow ticket 17, which overrides the prototype's labels.
+
+### 6.1 Technology
+
+- **Native JUCE drawing**, with no WebView: a custom `LookAndFeel` (rotary dials, faders, pill and segment buttons).
+- **Resizing:** a scaled content component keeps a fixed aspect ratio.
+- **Typed values:** editable integer labels.
+- **Fonts:** Jost and Italiana are embedded unmodified as binary data. Jost is a variable font, so the 400/500 weights are cloned explicitly, and `withPointHeight` matches the CSS sizes.
+- **Visualisations:** read lock-free atomics that the audio thread publishes. They repaint at ~30 Hz, and only when the data changes.
+
+### 6.2 Look
+
+- **Fallboard design:**
+  - FORTE wordmark set in Italiana; everything else in Jost.
+  - A red felt strip (#9E1B32) above a full-width, playable 88-key keyboard.
+- **Light and Dark themes:**
+  - **Light:** white lacquer with ebony knobs.
+  - **Dark:** ebony lacquer with ivory knobs.
+  - The felt strip and the keyboard are the same in both.
+- **The advanced view** uses the same visual language and adds:
+  - a live overtone display of the last note played (stiff-string partials against perfect harmonics, decaying in real time);
+  - the stretch-tuning curve across all 88 notes;
+  - keys lit by how strongly they ring.
+
+### 6.3 Controls
+
+**Value rules:**
+- Every sound control runs 0–100, and **50 = the real piano**.
+- Values are whole numbers and can be typed: Enter commits, ↑/↓ steps by 1, Esc cancels.
+- **Double-click resets** a control to its default. Pedal controls are the exception.
+
+| Control | Range | Default | Meaning | Views |
+|---|---|---|---|---|
+| Hardness | 0–100 | 50 = fitted felt | Log-scale multiplier on the felt stiffness. Span set by ear. Strike-time. | simple dial, advanced knob |
+| Brightness | 0–100 | 50 = no tilt | Treble tilt, about ±12 dB at 10 kHz (exact by ear) | both |
+| Resonance | 0–100 | 50 = physical | Sympathetic bank level. 0 = none, 100 = double. | both |
+| Volume | −60 to +6 dB | 0 dB | −60 shows as "Off" | simple fader, advanced knob |
+| Listening perspective | Microphones \| Pianist | Microphones | Selects the IR set | both headers |
+| Sustain | 0–100 | live | Raw pedal position (0 = Up, 100 = Down). Up / Half / Down slider. | both |
+| Soft | toggle | off | Shows on past halfway. A click sends fully down or fully up. | both |
+| Touch | 0–100 | 50 | §4.1 | advanced |
+| A4 | 415–466 Hz | 440 | §5 | advanced |
+| Stretch | 0–100 | 50 | §5 | advanced |
+| Spread | 0–100 | 50 = 0.7 cent | 0 = perfect unison, 100 = 1.4 cent | advanced |
+| Width | 0–100 | 100 | 0 = mono | advanced |
+
+### 6.4 Layout
+
+- **Simple view:**
+  - Hardness, Brightness and Resonance dials;
+  - Volume fader;
+  - Microphones | Pianist toggle under the preset name;
+  - Soft toggle and Sustain slider;
+  - Advanced button, theme toggle and Settings gear;
+  - preset name with ‹ › arrows;
+  - the keyboard.
+- **Advanced view groups:**
+  - **Hammer:** Hardness · Touch
+  - **Tuning:** A4 · Stretch
+  - **Strings:** Spread · Resonance
+  - **Output:** Brightness · Width · Volume
+  - **Pedals:** Sustain · Soft
+- **Header:**
+  - **Settings gear** (both views): *Invert sustain pedal*, *Invert soft pedal*, and an **About** panel with credits and licence notices (§9.6).
+  - **Advanced view meters:** **Notes** (notes currently sounding) and **CPU** (% of one core).
+- **Not in v1:** a soft-pedal amount control and a separate half-pedal display.
+
+## 7. Presets, saved state and automation
+
+Source: [Presets, saved state and automation](issues/0018-presets-state-automation.md), [ADR 0001](docs/adr/0001-projects-follow-latest-model.md).
+
+| Control | Preset | Automatable | Project state |
+|---|---|---|---|
+| Hardness, Brightness, Resonance, Touch, Stretch, Spread, Width | ✓ | ✓ | ✓ |
+| Listening perspective | ✓ | ✓ (two-state) | ✓ |
+| Volume, A4 | — | ✓ | ✓ |
+| Sustain, Soft | — | — (MIDI only) | — (they start released) |
+| Pedal inverts, theme | — | — | — (per computer, `%APPDATA%\Forte\settings.json`) |
+
+### 7.1 Presets
+
+- **Contents:** the 8 character controls only.
+- **Factory presets:** about 5–8, built in and read-only. **"Concert Grand"** (all defaults) comes first. Candidates are Pianist's Seat, Mellow, Bright, Intimate and Honest Equal. The final list is set by ear.
+- **User preset files:** `Documents\Forte\Presets\<name>.fortepreset`, as JSON. Each holds a format version, the model id, the name and the 8 whole-number values.
+- **Arrows:** ‹ › step through the factory presets, then the user presets alphabetically, and wrap at the ends.
+- **Changed indicator:** `*` marks unsaved changes. Arrowing away discards them silently.
+- **Name menu:** Factory and User lists, Save, Save as…, Rename, Delete and Open presets folder.
+
+### 7.2 Automation
+
+- The 10 sound controls are automatable.
+- **Parameter IDs are permanent.**
+- The host shows the editor's own text.
+
+### 7.3 Saved state
+
+- **The project saves:** the 10 values, the preset name and its `*` flag, the open view and a state-format version.
+- **Model updates:** projects follow the latest piano model, and release notes flag sound changes.
+- **Compatibility:** a newer Forte opens older states. An older Forte ignores fields it doesn't know.
+
+### 7.4 Engine edge cases
+
+- **Sample-rate change:** the engine rebuilds while audio is stopped (recompute modes, resample the IRs, rerun the tuner). The target is well under 1 s.
+- **Offline bounce:** renders bit-identically to real-time playback. All randomness uses fixed seeds.
+
+## 8. Validation
+
+Source: [Objective validation plan](issues/0019-objective-validation-plan.md).
+
+### 8.1 Tier 1: engine checks
+
+Run on every change and **never waivable**. They sit alongside the safety net in §9.3.
+
+| Check | Pass condition |
+|---|---|
+| Velocity calibration | At Touch 50, velocities 32/64/112 reproduce the fitted pp/mf/ff loudness within ±1 dB |
+| Velocity curve | Monotonic at every Touch value |
+| Overlapping note-ons | Never cut a note short |
+| MIDI timing | Onset lands on the event's exact sample |
+| Determinism | Two renders of the same project are bit-identical |
+| Live changes | A preset change or automation while notes ring causes no level drop and no click |
+| State compatibility | The previous release's saved-state fixtures load with every value intact |
+
+### 8.2 Tier 2: sound-match checks
+
+Run nightly and before release. They measure real-engine renders against `data/reference-measurements/`. A failure can be **waived by the user's ear**, with a written waiver.
+
+| Area | Gate |
+|---|---|
+| Inharmonicity | ±10% of the D scale. Bass at or below Iowa's. |
+| Decay | ±15% of measured; no note more than 25% off its neighbours |
+| Hammers | Spectral centroid ÷ f0 within ±10% of Iowa at pp/mf/ff |
+| Microphones IR | ±2 dB per third-octave band vs Iowa, 100 Hz–10 kHz. Below 250 Hz, up to +3 dB is allowed. |
+| Pianist IR | ±2 dB vs Plath dummy head, 100 Hz–5 kHz |
+| Irregularity | Partial-level scatter ±2 dB |
+| Stretch | Railsback shape, ±5 cents of Iowa's trend. Up to 5 cents less stretched in the outer octaves. |
+| Knock | 60–250 Hz share of the first 30 ms at most 3 dB above the reference |
+| Pops | Zero clicks on the Prelude, a fast repeated-note test and a slow pedal sweep |
+| Half-pedal | Endpoints match free-ringing and damper-down; decay only lengthens as the pedal rises; high partials die faster at mid-pedal |
+
+### 8.3 Tier 3: listening
+
+- **Release sign-off:** a blind A/B page with the Prelude, plus C2, C4 and C6 at pp, mf and ff, each paired with its reference. The bar is "a convincing piano next to the reference".
+- **Voicing pass:** all 88 notes at mf and pp, one clip per octave. It runs after the first full fit and after each refit that changes the sound. Fixes go into the voicing overrides.
+
+### 8.4 Tooling
+
+- **`forte-render`:** a command-line renderer (MIDI → WAV, 48 kHz default) built from the real engine.
+- **`tools/validate/`:** the checks, in Python, reusing the measuring code in `tools/fitting/`.
+- **Report:** each run writes an HTML report with pass/fail per gate, the numbers, waivers and the listening pages.
+
+## 9. Build, CI and release
+
+Source: [Build, installer and release](issues/0020-build-installer-release.md), research in [research/code-signing-and-vst-branding.md](research/code-signing-and-vst-branding.md).
+
+### 9.1 Toolchain
+
+- **Compiler:** MSVC (Visual Studio 2026), with `/O2 /fp:fast`. Flush-to-zero and denormals-are-zero are set inside the engine.
+- **JUCE:** a git submodule pinned to **JUCE 9.0.5**. Upgrading it is a deliberate commit.
+- **Build:** CMake. The targets are the VST3, the Standalone, `forte-render` and the tests. They all link **one shared engine library**.
+- **Version:** one semantic version number in CMake, starting at `1.0.0`.
+
+### 9.2 CPU paths and performance gate
+
+- **One binary, two engine paths:** the hot loops are compiled for AVX2 and for SSE2, and a CPU check at startup picks one.
+- **Manual release gate** on the Ryzen 5 5500. Each check is a full 88-key sustain glissando at a 128-sample buffer:
+  - AVX2 at 48 kHz: **≤ 25%** of one core.
+  - AVX2 at 96 kHz: **≤ 50%** of one core.
+  - SSE2 at 48 kHz: **no dropouts** (CPU % is recorded, but not gated).
+- **CI** only flags render-time regressions above 1.5×.
+
+### 9.3 Safety net (GitHub Actions, Windows)
+
+- **Every push and pull request:**
+  - Debug and Release builds;
+  - **Catch2** DSP unit tests;
+  - audio-thread tests: a guard fails any allocation on the audio thread, and a build rule rejects `<mutex>` and the like in DSP sources;
+  - **pluginval** at strictness 10;
+  - the Tier 1 checks.
+- **Nightly and on release tags:** the Tier 2 checks and the HTML report.
+
+### 9.4 Hosting and installer
+
+- **Hosting:** a public GitHub repo, with Releases and Actions.
+- **Installer (Inno Setup):**
+  - per-machine install, run as admin;
+  - `Forte.vst3` → `C:\Program Files\Common Files\VST3\`;
+  - `Forte.exe` → `C:\Program Files\Forte\`, with a Start-menu shortcut;
+  - checkboxes for VST3 and Standalone, plus an uninstaller;
+  - never touches `Documents\Forte\Presets`.
+- **Portable zip** of the same two files.
+- **Self-contained:** the model file and IRs are embedded in the binaries.
+
+### 9.5 Release flow
+
+1. Bump the version and push a tag `vX.Y.Z`.
+2. CI runs Tier 1 and Tier 2, builds the installer and zip, and creates a **draft** GitHub Release with the report attached.
+3. The user runs the blind A/B sign-off and the performance gate.
+4. The user publishes.
+
+### 9.6 Release contents, notices and branding
+
+- **Files:**
+  - `LICENSE` (GPLv3) and the AGPLv3 text, with a link to the matching source tag;
+  - `CREDITS.md`: Iowa MIS, Salamander (CC BY 3.0), Piano in 162, Plath (CC BY 4.0, modified) and the papers;
+  - `THIRD-PARTY.md`: JUCE, the VST3 SDK (MIT), Jost and Italiana (OFL, embedded unmodified), and every JUCE-bundled library actually in the binary, checked against the real build.
+- **About panel:** the same credits and notices.
+- **Records:**
+  - the validation report is attached to each release;
+  - waivers are committed as `docs/validation/<version>-waivers.md`;
+  - each release commits its saved-state files as fixtures for the next release's compatibility check.
+- **VST branding** (Steinberg's usage guidelines, a release-checklist item):
+  - the VST Compatible logo next to any "VST3" claim (README, Releases page, About panel);
+  - ® on the first use in each document;
+  - the line "VST is a registered trademark of Steinberg Media Technologies GmbH.";
+  - no "VSTi" or other variants, and "VST" never in the product name.
+- **Code signing:** v1.0 ships **unsigned**, with a SmartScreen note on the download page.
+  - Known gap: Smart App Control, where enforcing, blocks unsigned code.
+  - Once Forte has users, apply to SignPath Foundation. If refused: Microsoft Artifact Signing (US or Canada residents only) or Certum's open-source certificate.
+
+## 10. Settled in the first build
+
+These are specified, but their final values are explicitly left to the first real build, by ear or by measurement:
+
+- **Set by ear:**
+  - the span of the Hardness control;
+  - Brightness's exact dB range;
+  - soft-pedal felt;
+  - the half-pedal gap model settings;
+  - the final factory preset list and values.
+- **Measured:**
+  - real-engine CPU against §9.2, and whether 96 kHz needs internal resampling;
+  - sample-rate rebuild time (target well under 1 s).
+- **Checked in the editor:**
+  - whether the five advanced groups fit the side column;
+  - typed values (host keystroke capture) and resizing in **FL Studio**, which the editor prototype wasn't tested in.
+- **From data:**
+  - the exact undamped-region boundary;
+  - availability of the Steinway D string tables (the fallback is in §3.3).

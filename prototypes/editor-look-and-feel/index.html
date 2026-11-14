@@ -1,0 +1,705 @@
+<!doctype html>
+<!--
+  PROTOTYPE (throwaway). Answers the question "What should Forte's editor look and feel like?"
+  Plan: three structurally different editor variants on one page, switchable with ?variant=A|B|C
+  via the floating bar (or ← / →). Controls are placeholders. The sound is a toy additive synth,
+  not Forte's physical model; it is only there so the editor reacts when you play.
+  Run: double-click this file (opens in your browser).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forte editor prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..800&family=Italiana&family=Jost:wght@300..600&family=Manrope:wght@400..700&family=Marcellus&display=swap" rel="stylesheet">
+<style>
+  :root { --host-bg:#55595f; --chrome:#33363b; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:var(--host-bg); overflow:hidden; font-family:Manrope, system-ui, sans-serif; }
+  /* --- mock host window, so the editor is judged in context --- */
+  #stage { position:absolute; left:50%; top:calc(50% - 26px); width:1100px; height:720px; transform-origin:center; }
+  .host { width:100%; height:100%; border-radius:8px; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.45); display:flex; flex-direction:column; }
+  .host-bar { height:30px; background:var(--chrome); color:#c9ccd1; font:500 12px/30px Manrope, sans-serif; padding:0 12px; display:flex; justify-content:space-between; flex:none; }
+  .host-bar span:last-child { letter-spacing:.3em; opacity:.6; }
+  #editor { position:relative; width:1100px; height:690px; overflow:hidden; user-select:none; -webkit-user-select:none; }
+  [data-param],[data-toggle] { touch-action:none; cursor:ns-resize; }
+  [data-kind="h"] { cursor:ew-resize; }
+  [data-toggle] { cursor:pointer; }
+  :focus-visible { outline:2px solid #6aa8ff; outline-offset:3px; }
+
+  /* --- shared keyboard --- */
+  .kb { position:absolute; }
+  .kb .wk, .kb .bk { position:absolute; top:0; cursor:pointer; }
+  .kb .wk { height:100%; }
+  .kb .bk { height:62%; z-index:2; }
+
+  /* --- shared knob --- */
+  .knob { position:relative; border-radius:50%; flex:none; }
+  .knob .ind { position:absolute; inset:0; transform:rotate(calc(var(--v) * 270deg - 135deg)); }
+  .knob .ind::before { content:""; position:absolute; left:50%; top:8%; width:2px; height:30%; margin-left:-1px; border-radius:1px; background:currentColor; }
+
+  /* --- prototype switcher (not part of the design) --- */
+  #switcher { position:fixed; left:50%; bottom:14px; transform:translateX(-50%); display:flex; align-items:center; gap:4px; background:#fff; color:#111; border-radius:999px; padding:4px; box-shadow:0 6px 24px rgba(0,0,0,.35); font:600 13px Manrope, sans-serif; z-index:99; white-space:nowrap; }
+  #switcher button { border:0; background:#eee; width:32px; height:32px; border-radius:50%; font-size:16px; cursor:pointer; }
+  #switcher button:hover { background:#ddd; }
+  #switcher .label { padding:0 12px; min-width:170px; text-align:center; }
+  #switcher .hint { font-weight:400; color:#666; padding:0 12px 0 4px; border-left:1px solid #ddd; }
+
+  /* ================= A: Open lid ================= */
+  .vA { background:#263039; color:#E9DDC4; font-family:Manrope, sans-serif; }
+  .vA .top { position:absolute; left:0; right:0; top:0; height:52px; display:flex; align-items:center; padding:0 24px; gap:18px; }
+  .vA .wordmark { font:400 28px Marcellus, serif; letter-spacing:.12em; }
+  .vA .preset { font-size:13px; color:#b9ae98; border:1px solid #3b4752; border-radius:20px; padding:5px 14px; }
+  .vA .top .out { margin-left:auto; display:flex; align-items:center; gap:10px; font-size:12px; color:#b9ae98; }
+  .vA svg.plan { position:absolute; left:0; top:0; width:1100px; height:690px; }
+  .vA .str { transition:stroke .15s; }
+  .vA .str.on { stroke:#F0B44C !important; animation:shim .09s linear infinite alternate; }
+  @keyframes shim { from { stroke-opacity:1; } to { stroke-opacity:.45; } }
+  @media (prefers-reduced-motion:reduce) { .vA .str.on { animation:none; } }
+  .vA .hammers { transition:transform .25s; }
+  .vA .plan.soft .hammers { transform:translateX(3px); }
+  .vA .plan .hl-target { transition:opacity .2s; }
+  .vA .plan.hl-board .board-glow, .vA .plan.hl-strings .strings-glow { opacity:1; }
+  .vA .plan.hl-hammers .hammers rect { fill:#F0B44C; }
+  .vA .plan.hl-dampers .dampers rect { fill:#F0B44C; }
+  .vA .plan.hl-board path.board { stroke:#7A3D2C; }
+  .vA .leader { stroke:#E9DDC4; stroke-opacity:.35; stroke-width:1; fill:none; transition:stroke-opacity .2s; }
+  .vA .leader.hot { stroke-opacity:.9; }
+  .vA .col { position:absolute; left:790px; top:64px; width:290px; display:flex; flex-direction:column; gap:8px; }
+  .vA .tag { border:1px solid #3a4650; border-radius:10px; padding:10px 12px; background:rgba(255,255,255,.025); transition:border-color .2s, background .2s; }
+  .vA .tag:hover { border-color:#8a7b62; background:rgba(255,255,255,.05); }
+  .vA .tag h3 { margin:0; font:400 16px Marcellus, serif; letter-spacing:.04em; }
+  .vA .tag p { margin:2px 0 8px; font-size:11.5px; color:#9d9583; }
+  .vA .row { display:flex; gap:18px; align-items:center; }
+  .vA .ctl { display:flex; align-items:center; gap:8px; }
+  .vA .ctl .knob { width:34px; height:34px; background:radial-gradient(circle at 35% 30%, #F1DBAB, #C9A465 70%); color:#5A2B20; box-shadow:0 2px 0 #1a2128, inset 0 -2px 3px rgba(0,0,0,.2); }
+  .vA .ctl b { display:block; font-size:11px; font-weight:600; color:#cfc4ac; }
+  .vA .ctl span { font-size:12px; font-variant-numeric:tabular-nums; color:#F0B44C; }
+  .vA .toggle { border:1px solid #5a6672; background:transparent; color:#E9DDC4; border-radius:16px; padding:5px 12px; font:600 11px Manrope; }
+  .vA .toggle[aria-pressed="true"] { background:#A3233A; border-color:#A3233A; }
+  .vA .hs { position:relative; width:120px; height:16px; }
+  .vA .hs::before { content:""; position:absolute; left:0; right:0; top:7px; height:2px; background:#4a5660; }
+  .vA .hs .fill { position:absolute; left:0; top:7px; height:2px; width:calc(var(--v) * 100%); background:#F0B44C; }
+  .vA .hs .thumb { position:absolute; top:2px; left:calc(var(--v) * 100% - 6px); width:12px; height:12px; border-radius:50%; background:#E2C48A; }
+  .vA .kb .wk { background:#F2ECE0; border-right:1px solid #9c917e; border-radius:0 0 2px 2px; }
+  .vA .kb .bk { background:#1d1a18; border-radius:0 0 2px 2px; }
+  .vA .kb .on { background:#F0B44C !important; }
+
+  /* ================= B: Scale drawing ================= */
+  .vB { background:#E3E7E1; color:#2A2E31; font-family:Archivo, sans-serif; font-stretch:88%;
+        background-image:linear-gradient(#d3dad4 1px, transparent 1px), linear-gradient(90deg, #d3dad4 1px, transparent 1px); background-size:24px 24px; }
+  .vB .hdr { position:absolute; left:24px; right:24px; top:0; height:56px; display:flex; align-items:center; gap:22px; border-bottom:1.5px solid #2A2E31; }
+  .vB .wordmark { font-weight:800; font-size:26px; font-stretch:72%; letter-spacing:.01em; }
+  .vB .hdr .preset { font-size:14px; }
+  .vB .hdr .preset small { color:#6a7176; margin-left:6px; }
+  .vB .hdr .meters { margin-left:auto; display:flex; gap:20px; font-size:13px; font-variant-numeric:tabular-nums; }
+  .vB .hdr .meters b { font-weight:700; }
+  .vB .panel { position:absolute; background:rgba(243,245,241,.85); border:1px solid #9aa39d; }
+  .vB .panel .cap { position:absolute; left:12px; top:8px; font-size:13px; font-weight:600; }
+  .vB .panel .cap small { font-weight:400; color:#5d656a; margin-left:8px; }
+  .vB canvas { position:absolute; left:0; top:0; }
+  .vB .side { position:absolute; left:828px; top:72px; width:248px; bottom:24px; display:flex; flex-direction:column; gap:14px; }
+  .vB .grp h4 { margin:0 0 6px; font-size:13px; font-weight:700; font-stretch:72%; border-bottom:1px solid #2A2E31; padding-bottom:3px; }
+  .vB .sl { display:grid; grid-template-columns:1fr auto; row-gap:3px; margin-bottom:7px; font-size:12.5px; }
+  .vB .sl .val { font-variant-numeric:tabular-nums; color:#2D5BA3; font-weight:600; }
+  .vB .sl .hs { grid-column:1 / -1; position:relative; height:14px; }
+  .vB .hs::before { content:""; position:absolute; left:0; right:0; top:6px; height:1px; background:#2A2E31; }
+  .vB .hs::after { content:""; position:absolute; left:50%; top:3px; height:7px; width:1px; background:#2A2E31; }
+  .vB .hs .fill { position:absolute; left:0; top:5px; height:3px; width:calc(var(--v) * 100%); background:#2D5BA3; }
+  .vB .hs .thumb { position:absolute; top:0; left:calc(var(--v) * 100% - 1px); width:2px; height:14px; background:#C2452D; }
+  .vB .toggle { font:600 12px Archivo; font-stretch:88%; border:1px solid #2A2E31; background:transparent; padding:3px 10px; }
+  .vB .toggle[aria-pressed="true"] { background:#2A2E31; color:#E3E7E1; }
+  .vB .kb .wk { background:color-mix(in srgb, #2D5BA3 calc(var(--e, 0) * 85%), #f7f8f5); border:1px solid #2A2E31; border-left:0; }
+  .vB .kb .wk:first-child { border-left:1px solid #2A2E31; }
+  .vB .kb .bk { background:color-mix(in srgb, #5f8fdc calc(var(--e, 0) * 85%), #2A2E31); }
+  .vB svg text { font-family:Archivo, sans-serif; font-stretch:88%; }
+
+  /* ================= C: Fallboard ================= */
+  .vC { background:linear-gradient(180deg, #F4F4F1 0%, #E9E9E5 55%, #F4F4F1 56%, #EDEDE9 100%); color:#1E1C1B; font-family:Jost, sans-serif; }
+  .vC .fall { position:absolute; left:0; right:0; top:0; height:150px; text-align:center; }
+  .vC .wordmark { font:400 72px/1 Italiana, serif; letter-spacing:.32em; margin:34px 0 0 .32em; }
+  .vC .presetnav { margin-top:10px; display:inline-flex; gap:14px; align-items:center; font-size:14px; letter-spacing:.06em; color:#555; }
+  .vC .presetnav button { border:0; background:none; font-size:18px; color:#555; cursor:pointer; }
+  .vC .dials { position:absolute; left:0; right:0; top:168px; height:220px; display:flex; justify-content:center; gap:64px; }
+  .vC .dial { text-align:center; }
+  .vC .dial .knob { width:140px; height:140px; margin:0 auto; background:radial-gradient(circle at 40% 30%, #3a3532, #141211 72%); color:#B3203A; box-shadow:0 10px 24px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.12); }
+  .vC .dial .knob .ind::before { width:3px; height:24%; top:9%; }
+  .vC .dial .ring { position:absolute; inset:-12px; border-radius:50%; background:conic-gradient(from -135deg, #B3203A calc(var(--v) * 270deg), #d6d6d1 0 270deg, transparent 0); -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px)); mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px)); }
+  .vC .dial h3 { margin:22px 0 0; font-weight:500; font-size:17px; letter-spacing:.04em; }
+  .vC .dial span { font-size:13px; color:#6b6763; font-variant-numeric:tabular-nums; }
+  .vC .fader { position:absolute; right:56px; top:178px; width:44px; height:176px; }
+  .vC .fader .track { position:absolute; left:20px; top:0; bottom:0; width:4px; background:#d6d6d1; border-radius:2px; }
+  .vC .fader .fill { position:absolute; left:20px; bottom:0; width:4px; height:calc(var(--v) * 100%); background:#1E1C1B; border-radius:2px; }
+  .vC .fader .cap { position:absolute; left:6px; bottom:calc(var(--v) * 100% - 9px); width:32px; height:18px; background:#1E1C1B; border-radius:3px; }
+  .vC .fader-l { position:absolute; right:40px; top:362px; width:76px; text-align:center; font-size:12px; color:#6b6763; }
+  .vC .more { position:absolute; left:48px; top:178px; border:1px solid #1E1C1B; background:transparent; font:500 13px Jost; letter-spacing:.06em; padding:8px 16px; border-radius:20px; cursor:pointer; }
+  .vC .drawer { position:absolute; left:32px; top:226px; width:290px; padding:18px 20px; background:#fff; border-radius:12px; box-shadow:0 14px 40px rgba(0,0,0,.18); z-index:5; display:none; }
+  .vC .drawer.open { display:block; }
+  .vC .drawer .sl { margin-bottom:14px; font-size:13px; display:grid; grid-template-columns:1fr auto; gap:4px; }
+  .vC .drawer .sl span { color:#B3203A; font-variant-numeric:tabular-nums; }
+  .vC .hs { grid-column:1 / -1; position:relative; height:16px; }
+  .vC .hs::before { content:""; position:absolute; left:0; right:0; top:7px; height:2px; background:#d6d6d1; }
+  .vC .hs .fill { position:absolute; left:0; top:7px; height:2px; width:calc(var(--v) * 100%); background:#1E1C1B; }
+  .vC .hs .thumb { position:absolute; top:1px; left:calc(var(--v) * 100% - 7px); width:14px; height:14px; border-radius:50%; background:#1E1C1B; }
+  .vC .felt { position:absolute; left:0; right:0; top:404px; height:10px; background:#9E1B32; box-shadow:inset 0 2px 3px rgba(0,0,0,.25); }
+  .vC .kb .wk { background:linear-gradient(#fdfdfb, #f2f1ec); border-right:1px solid #c9c8c2; border-radius:0 0 4px 4px; box-shadow:inset 0 -6px 0 #e4e3dd; }
+  .vC .kb .bk { background:linear-gradient(#2b2725, #0f0d0c); border-radius:0 0 3px 3px; box-shadow:inset 0 -4px 0 #3a3532; }
+  .vC .kb .wk.on { background:#f0d9dd; box-shadow:inset 0 -2px 0 #e4e3dd; }
+  .vC .kb .bk.on { background:#B3203A; }
+  .vC .pedals { position:absolute; left:0; right:0; top:626px; display:flex; justify-content:center; align-items:center; gap:40px; font-size:13px; }
+  .vC .pedals .sus { display:flex; align-items:center; gap:14px; }
+  .vC .pedals .sus .hs { width:300px; }
+  .vC .pedals .marks { display:flex; justify-content:space-between; width:300px; font-size:11px; color:#8a8580; margin-top:2px; }
+  .vC .toggle { font:500 13px Jost; border:1px solid #1E1C1B; background:transparent; padding:6px 16px; border-radius:20px; }
+  .vC .toggle[aria-pressed="true"] { background:#1E1C1B; color:#fff; }
+
+  /* ================= D: Fallboard + advanced (B), light/dark ================= */
+  .vD { --bg:#F4F4F1; --bg2:#EAEAE6; --panel:#FBFBF9; --ink:#1E1C1B; --muted:#6b6763; --line:#d6d6d1; --accent:#B3203A;
+        --knob:radial-gradient(circle at 40% 30%, #3a3532, #141211 72%); --knob-shadow:0 8px 20px rgba(0,0,0,.2);
+        background:linear-gradient(180deg, var(--bg), var(--bg2)); color:var(--ink); font-family:Jost, sans-serif; }
+  .vD[data-theme="dark"] { --bg:#1E1C1B; --bg2:#161514; --panel:#262423; --ink:#EDEAE4; --muted:#9d978f; --line:#3d3936; --accent:#E5566C;
+        --knob:radial-gradient(circle at 40% 30%, #fffdf8, #d8d2c5 72%); --knob-shadow:0 8px 22px rgba(0,0,0,.5); }
+  .vD .knob { background:var(--knob); color:var(--accent); box-shadow:var(--knob-shadow); }
+  .vD .ring { position:absolute; border-radius:50%; background:conic-gradient(from -135deg, var(--accent) calc(var(--v) * 270deg), var(--line) 0 270deg, transparent 0);
+        -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px)); mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px)); }
+  .vD .d-btn { border:1px solid var(--ink); background:transparent; color:var(--ink); font:500 13px Jost; letter-spacing:.04em; padding:7px 16px; border-radius:20px; cursor:pointer; }
+  .vD .d-btn:hover { background:var(--ink); color:var(--bg); }
+  .vD .d-seg { display:inline-flex; border:1px solid var(--line); border-radius:20px; padding:2px; }
+  .vD .d-seg button { border:0; background:transparent; color:var(--muted); font:500 12px Jost; padding:5px 12px; border-radius:16px; cursor:pointer; }
+  .vD .d-seg button[aria-pressed="true"] { background:var(--ink); color:var(--bg); }
+  .vD .d-num { display:inline-flex; align-items:baseline; gap:3px; color:var(--muted); font-size:13px; }
+  .vD .d-num input { width:3.6ch; border:0; border-bottom:1px dashed transparent; background:transparent; color:var(--ink); font:500 14px Jost; text-align:center; font-variant-numeric:tabular-nums; padding:1px 0; }
+  .vD .d-num input:hover { border-bottom-color:var(--muted); }
+  .vD .d-num input:focus { outline:none; border-bottom:1px solid var(--accent); }
+  .vD .d-num i { font-style:normal; font-size:11px; }
+  .vD .kb .wk { background:color-mix(in srgb, var(--accent) calc(var(--e, 0) * 55%), #fbfaf6); border-right:1px solid #c9c8c2; border-radius:0 0 4px 4px; box-shadow:inset 0 -6px 0 #e4e3dd; }
+  .vD .kb .bk { background:color-mix(in srgb, var(--accent) calc(var(--e, 0) * 85%), #171413); border-radius:0 0 3px 3px; box-shadow:inset 0 -4px 0 #3a3532; }
+  .vD .d-felt { position:absolute; left:0; right:0; height:10px; background:#9E1B32; box-shadow:inset 0 2px 3px rgba(0,0,0,.25); }
+  .vD .hs { position:relative; height:16px; width:300px; }
+  .vD .hs::before { content:""; position:absolute; left:0; right:0; top:7px; height:2px; background:var(--line); }
+  .vD .hs .fill { position:absolute; left:0; top:7px; height:2px; width:calc(var(--v) * 100%); background:var(--ink); }
+  .vD .hs .thumb { position:absolute; top:1px; left:calc(var(--v) * 100% - 7px); width:14px; height:14px; border-radius:50%; background:var(--ink); }
+  .vD .toggle { font:500 13px Jost; border:1px solid var(--ink); color:var(--ink); background:transparent; padding:6px 16px; border-radius:20px; }
+  .vD .toggle[aria-pressed="true"] { background:var(--ink); color:var(--bg); }
+  /* simple view */
+  .vD .d-corner { position:absolute; top:22px; display:flex; gap:10px; align-items:center; }
+  .vD .d-fall { position:absolute; left:0; right:0; top:0; text-align:center; }
+  .vD .d-word { font:400 72px/1 Italiana, serif; letter-spacing:.32em; margin:34px 0 0 .32em; }
+  .vD .d-preset { margin-top:10px; display:inline-flex; gap:14px; align-items:center; font-size:14px; letter-spacing:.06em; color:var(--muted); }
+  .vD .d-preset button { border:0; background:none; font-size:18px; color:var(--muted); cursor:pointer; }
+  .vD .d-dials { position:absolute; left:0; right:0; top:178px; display:flex; justify-content:center; gap:64px; }
+  .vD .d-dial { text-align:center; }
+  .vD .d-dial .wrap { position:relative; width:140px; height:140px; margin:0 auto; }
+  .vD .d-dial .knob { width:140px; height:140px; }
+  .vD .d-dial .knob .ind::before { width:3px; height:24%; top:9%; }
+  .vD .d-dial .ring { inset:-12px; }
+  .vD .d-dial h3 { margin:20px 0 2px; font-weight:500; font-size:17px; letter-spacing:.04em; }
+  .vD .d-fader { position:absolute; right:56px; top:180px; width:44px; height:170px; }
+  .vD .d-fader .track { position:absolute; left:20px; top:0; bottom:0; width:4px; background:var(--line); border-radius:2px; }
+  .vD .d-fader .fill { position:absolute; left:20px; bottom:0; width:4px; height:calc(var(--v) * 100%); background:var(--ink); border-radius:2px; }
+  .vD .d-fader .cap { position:absolute; left:6px; bottom:calc(var(--v) * 100% - 9px); width:32px; height:18px; background:var(--ink); border-radius:3px; }
+  .vD .d-fader-l { position:absolute; right:30px; top:360px; width:96px; text-align:center; font-size:13px; }
+  .vD .d-pedals { position:absolute; left:0; right:0; top:626px; display:flex; justify-content:center; align-items:center; gap:28px; font-size:13px; }
+  .vD .d-marks { display:flex; justify-content:space-between; width:300px; font-size:11px; color:var(--muted); margin-top:2px; }
+  /* advanced view */
+  .vD .d-hdr { position:absolute; left:24px; right:24px; top:0; height:58px; display:flex; align-items:center; gap:20px; border-bottom:1px solid var(--line); }
+  .vD .d-hdr .d-word { font-size:28px; margin:0; letter-spacing:.28em; white-space:nowrap; flex:none; }
+  .vD .d-hdr .d-preset { margin:0; }
+  .vD .d-meters { margin-left:auto; display:flex; gap:16px; font-size:13px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .vD .d-meters b { color:var(--ink); font-weight:500; }
+  .vD .d-panel { position:absolute; left:24px; width:780px; background:var(--panel); border:1px solid var(--line); border-radius:10px; overflow:hidden; transition:background .3s; }
+  .vD .d-panel .cap { position:absolute; left:14px; top:10px; font-size:14px; font-weight:500; }
+  .vD .d-panel .cap small { font-weight:400; font-size:12px; color:var(--muted); margin-left:8px; }
+  .vD .d-side { position:absolute; left:828px; top:70px; width:248px; display:flex; flex-direction:column; gap:10px; }
+  .vD .d-grp h4 { margin:0 0 8px; font-size:13px; font-weight:500; letter-spacing:.04em; color:var(--muted); border-bottom:1px solid var(--line); padding-bottom:4px; }
+  .vD .d-grp .row { display:flex; justify-content:space-around; align-items:flex-start; }
+  .vD .d-k { display:flex; flex-direction:column; align-items:center; gap:3px; width:110px; }
+  .vD .d-k .wrap { position:relative; width:44px; height:44px; margin:4px 0 4px; }
+  .vD .d-k .knob { width:44px; height:44px; }
+  .vD .d-k .ring { inset:-6px; }
+  .vD .d-k label { font-size:12px; }
+  @media (prefers-reduced-motion:reduce) { .vD, .vD .d-panel { transition:none; } }
+</style>
+</head>
+<body>
+<div id="stage"><div class="host"><div class="host-bar"><span>Forte (Instrument track 1)</span><span>– ▢ ×</span></div><div id="editor"></div></div></div>
+<div id="switcher" role="toolbar" aria-label="Prototype variant switcher">
+  <button id="prev" aria-label="Previous variant">‹</button><div class="label" id="vlabel"></div><button id="next" aria-label="Next variant">›</button>
+  <div class="hint">Play: click keys, or type A–K. Space toggles sustain.</div>
+</div>
+<script>
+/* ---------------- shared state ---------------- */
+const pct = v => Math.round(v * 100) + '%';
+const P = {
+  hardness:    { v:.55, d:.55, fmt:pct },
+  brightness:  { v:.5,  d:.5,  fmt:pct },
+  volume:      { v:.8,  d:.8,  fmt:v => v < .01 ? '−∞ dB' : (20 * Math.log10(v / .8)).toFixed(1) + ' dB' },
+  a4:          { v:.5,  d:.5,  fmt:v => (430 + v * 20).toFixed(1) + ' Hz' },
+  stretch:     { v:.5,  d:.5,  fmt:pct },
+  sympathetic: { v:.4,  d:.4,  fmt:pct },
+  curve:       { v:.5,  d:.5,  fmt:v => v < .34 ? 'Gentle' : v < .67 ? 'Even' : 'Firm' },
+  sustain:     { v:0,   d:0,   fmt:v => v < .1 ? 'Up' : v > .85 ? 'Down' : 'Half' },
+};
+let soft = false;
+const clamp = v => Math.max(0, Math.min(1, v));
+let variantHook = { update(){}, frame(){} };
+
+function setParam(k, v) {
+  const before = P[k].v;
+  P[k].v = clamp(v);
+  if (k === 'volume' && master) master.gain.value = P.volume.v * .5;
+  if (k === 'sustain' && before > .85 && P.sustain.v <= .85) releasePending();
+  update();
+}
+function update() {
+  document.querySelectorAll('[data-param]').forEach(el => el.style.setProperty('--v', P[el.dataset.param].v));
+  document.querySelectorAll('[data-show]').forEach(el => el.textContent = P[el.dataset.show].fmt(P[el.dataset.show].v));
+  document.querySelectorAll('[data-param]').forEach(el => el.setAttribute('aria-valuetext', P[el.dataset.param].fmt(P[el.dataset.param].v)));
+  document.querySelectorAll('[data-toggle="soft"]').forEach(el => el.setAttribute('aria-pressed', soft));
+  variantHook.update();
+}
+
+/* drag / wheel / keys for controls */
+document.addEventListener('pointerdown', e => {
+  const t = e.target.closest('[data-toggle]');
+  if (t) { soft = !soft; update(); return; }
+  const el = e.target.closest('[data-param]');
+  if (!el) return;
+  e.preventDefault(); el.setPointerCapture(e.pointerId); el.focus();
+  const k = el.dataset.param, kind = el.dataset.kind || 'knob', y0 = e.clientY, v0 = P[k].v;
+  const set = ev => {
+    const r = el.getBoundingClientRect();
+    if (kind === 'h') setParam(k, (ev.clientX - r.left) / r.width);
+    else if (kind === 'v') setParam(k, 1 - (ev.clientY - r.top) / r.height);
+    else setParam(k, v0 + (y0 - ev.clientY) / (ev.shiftKey ? 700 : 200));
+  };
+  if (kind !== 'knob') set(e);
+  const mv = ev => set(ev);
+  const up = () => { el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', up); };
+  el.addEventListener('pointermove', mv); el.addEventListener('pointerup', up);
+});
+document.addEventListener('dblclick', e => { const el = e.target.closest('[data-param]'); if (el) setParam(el.dataset.param, P[el.dataset.param].d); });
+document.addEventListener('wheel', e => { const el = e.target.closest('[data-param]'); if (!el) return; e.preventDefault(); setParam(el.dataset.param, P[el.dataset.param].v - Math.sign(e.deltaY) * .03); }, { passive:false });
+
+/* ---------------- toy sound + note model ---------------- */
+let ctx, master;
+const voices = new Map();   // midi -> voice
+let lastVoice = null;
+function audio() {
+  if (!ctx) {
+    ctx = new AudioContext();
+    master = ctx.createGain(); master.gain.value = P.volume.v * .5;
+    const comp = ctx.createDynamicsCompressor();
+    master.connect(comp).connect(ctx.destination);
+  }
+  if (ctx.state === 'suspended') ctx.resume();
+  return ctx;
+}
+const inharm = m => 0.00008 * Math.pow(10, (m - 21) / 87 * 2.3);
+const railsback = m => m > 69 ? 30 * Math.pow((m - 69) / 39, 2.2) : -15 * Math.pow((69 - m) / 48, 2);
+const noteName = m => ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'][m % 12] + (Math.floor(m / 12) - 1);
+function freq(m) { return (430 + P.a4.v * 20) * Math.pow(2, (m - 69) / 12) * Math.pow(2, railsback(m) * P.stretch.v * 2 / 1200); }
+
+function noteOn(m, vel = .7) {
+  audio();
+  if (voices.has(m)) kill(voices.get(m), .03);
+  vel = Math.pow(vel, 0.4 + P.curve.v * 1.4);
+  const t = ctx.currentTime, { f0, B, parts } = voiceParts(m, vel);
+  const out = ctx.createGain(); out.connect(master);
+  const oscs = [];
+  for (const { fn, amp, t1, t2 } of parts) {
+    for (const s of [-1, 1]) {
+      const o = ctx.createOscillator(); o.frequency.value = fn * (1 + s * .00035);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(amp * .5, t + .004);
+      g.gain.exponentialRampToValueAtTime(amp * .5 * .3, t + .004 + t1);
+      g.gain.exponentialRampToValueAtTime(.00001, t + .004 + t1 + t2);
+      o.connect(g).connect(out); o.start(t); o.stop(t + t1 + t2 + .1);
+      oscs.push(o);
+    }
+  }
+  const v = { m, out, oscs, f0, B, t0:t, vel, parts, held:true, gone:false, damp:1, dampAt:null };
+  voices.set(m, v); lastVoice = v;
+  oscs[oscs.length - 1].onended = () => { if (voices.get(m) === v) voices.delete(m); v.gone = true; mark(m, false); };
+  mark(m, true);
+}
+function voiceParts(m, vel) {
+  const f0 = freq(m), B = inharm(m), parts = [];
+  const tilt = 2.7 - 1.3 * P.hardness.v - .9 * vel - .6 * P.brightness.v;
+  const tau = 10 * Math.pow(.955, m - 21) + .4;
+  for (let n = 1; n <= 20; n++) {
+    const fn = n * f0 * Math.sqrt(1 + B * n * n);
+    if (fn > 15000) break;
+    let amp = Math.pow(vel, 1.4) / Math.pow(n, Math.max(.6, tilt)) * .22;
+    if (soft) amp *= n > 2 ? .6 : .85;
+    parts.push({ n, fn, amp, t1:.12 * tau / Math.sqrt(n), t2:tau / Math.pow(n, .6) });
+  }
+  return { f0, B, parts };
+}
+function kill(v, tc) {
+  const t = ctx.currentTime;
+  v.out.gain.cancelScheduledValues(t); v.out.gain.setTargetAtTime(0, t, tc);
+  v.dampAt = t; v.dampTc = tc;
+  v.oscs.forEach(o => { try { o.stop(t + tc * 8); } catch (_) {} });
+}
+function noteOff(m) {
+  const v = voices.get(m); if (!v) return;
+  v.held = false;
+  if (m >= 89 || P.sustain.v > .85) return;               // top notes have no dampers; pedal down holds
+  kill(v, .05 + P.sustain.v * 1.6);                         // half-pedal = slow, smeared damping
+}
+function releasePending() { voices.forEach(v => { if (!v.held && v.m < 89 && !v.dampAt) kill(v, .05 + P.sustain.v * 1.6); }); }
+function energy(v) {                                          // rough loudness 0..1 for visuals
+  if (!ctx || v.gone) return 0;
+  const dt = ctx.currentTime - v.t0;
+  let e = v.vel * (dt < v.parts[0].t1 ? Math.exp(-dt / v.parts[0].t1 * 1.2) * .7 + .3 : .3 * Math.exp(-(dt - v.parts[0].t1) / v.parts[0].t2 * 2.5));
+  if (v.dampAt) e *= Math.exp(-(ctx.currentTime - v.dampAt) / v.dampTc);
+  return Math.max(0, Math.min(1, e));
+}
+function mark(m, on) { document.querySelectorAll(`[data-note="${m}"]`).forEach(el => el.classList.toggle('on', on)); }
+
+/* shared 88-key keyboard */
+let mouseDown = false, mouseNote = null;
+addEventListener('pointerup', () => { mouseDown = false; if (mouseNote != null) noteOff(mouseNote); mouseNote = null; });
+function buildKeys(el, { lo = 21, hi = 108 } = {}) {
+  const isBlack = m => [1, 3, 6, 8, 10].includes(m % 12);
+  let whites = 0; for (let m = lo; m <= hi; m++) if (!isBlack(m)) whites++;
+  const w = 100 / whites; let wi = 0, html = '';
+  for (let m = lo; m <= hi; m++) {
+    if (isBlack(m)) html += `<div class="bk" data-note="${m}" data-key="${m}" style="left:${wi * w - w * .32}%;width:${w * .64}%"></div>`;
+    else { html += `<div class="wk" data-note="${m}" data-key="${m}" style="left:${wi * w}%;width:${w}%"></div>`; wi++; }
+  }
+  el.innerHTML = html;
+  const play = (k, e) => { const r = k.getBoundingClientRect(); const vel = .25 + .75 * clamp((e.clientY - r.top) / r.height); mouseNote = +k.dataset.key; noteOn(mouseNote, vel); };
+  el.addEventListener('pointerdown', e => { const k = e.target.closest('[data-key]'); if (!k) return; e.preventDefault(); mouseDown = true; play(k, e); });
+  el.addEventListener('pointerover', e => { if (!mouseDown) return; const k = e.target.closest('[data-key]'); if (!k || +k.dataset.key === mouseNote) return; noteOff(mouseNote); play(k, e); });
+}
+
+/* computer keyboard */
+const KEYMAP = { a:60, w:61, s:62, e:63, d:64, f:65, t:66, g:67, y:68, h:69, u:70, j:71, k:72 };
+const downKeys = new Set();
+addEventListener('keydown', e => {
+  if (e.target.matches && e.target.matches('input[data-num]')) {           // typing a value: no notes, no variant switching
+    const k = e.target.dataset.num;
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); setParam(k, fromInt(k, toInt(k) + (e.key === 'ArrowUp' ? 1 : -1))); e.target.value = toInt(k); e.target.select(); }
+    if (e.key === 'Enter') e.target.blur();
+    if (e.key === 'Escape') { e.target.value = toInt(k); e.target.blur(); }
+    return;
+  }
+  if (e.target.closest && e.target.closest('[data-param]') && ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
+    const k = e.target.dataset.param; setParam(k, P[k].v + (e.key === 'ArrowUp' || e.key === 'ArrowRight' ? .02 : -.02)); e.preventDefault(); return;
+  }
+  if (e.key === 'ArrowLeft') return cycle(-1);
+  if (e.key === 'ArrowRight') return cycle(1);
+  if (e.key === ' ') { e.preventDefault(); setParam('sustain', P.sustain.v > .5 ? 0 : 1); return; }
+  const m = KEYMAP[e.key.toLowerCase()]; if (m && !downKeys.has(m) && !e.repeat) { downKeys.add(m); noteOn(m, .7); }
+});
+addEventListener('keyup', e => { const m = KEYMAP[e.key.toLowerCase()]; if (m) { downKeys.delete(m); noteOff(m); } });
+
+/* control helpers */
+const knob = (k, cls = '') => `<div class="knob ${cls}" data-param="${k}" tabindex="0" role="slider" aria-label="${k}"><div class="ind"></div></div>`;
+const hs = k => `<div class="hs" data-param="${k}" data-kind="h" tabindex="0" role="slider" aria-label="${k}"><div class="fill"></div><div class="thumb"></div></div>`;
+
+/* ================= Variant A: Open lid ================= */
+function variantA(ed) {
+  ed.className = 'vA';
+  const X = i => 100 + i * 620 / 87, Y = i => 85 + 380 * Math.pow(i / 87, 1.5);
+  let strings = '', hits = '', dampers = '', hammers = '', bridge = [];
+  for (let i = 0; i < 88; i++) {
+    const m = 21 + i, x = X(i).toFixed(1), y = Y(i).toFixed(1);
+    const col = m < 41 ? '#C07A40' : '#CDD3D6', sw = m < 33 ? 2.4 : m < 41 ? 1.7 : 1;
+    strings += `<line class="str" data-note="${m}" x1="${x}" y1="560" x2="${x}" y2="${y}" stroke="${col}" stroke-width="${sw}"/>`;
+    hits += `<rect data-key="${m}" x="${x - 3.5}" y="${y}" width="7" height="${560 - y}" fill="transparent" style="cursor:pointer"/>`;
+    if (m < 89) dampers += `<rect x="${x - 2.8}" y="532" width="5.6" height="12" rx="1.5" fill="#8F969B"/>`;
+    hammers += `<rect x="${x - 2.8}" y="566" width="5.6" height="14" rx="2" fill="#EDE6D6"/>`;
+    bridge.push(`${x},${(+y + 6).toFixed(1)}`);
+  }
+  const casePath = 'M70,598 L70,80 Q70,58 92,58 L250,58 C330,58 380,120 430,210 C480,300 560,360 680,400 C735,418 752,440 752,480 L752,598 Z';
+  // leader targets [part, target x, y, tag index]
+  const L = [['board', 230, 250], ['strings', 520, 380], ['dampers', 420, 538], ['hammers', 660, 573], ['keys', 600, 625]];
+  ed.innerHTML = `
+  <svg class="plan" viewBox="0 0 1100 690" aria-label="Top-down view of the piano">
+    <defs><pattern id="grain" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(-38)"><rect width="12" height="12" fill="#E2C48A"/><line x1="0" y1="6" x2="12" y2="6" stroke="#D4B172" stroke-width="1.4"/></pattern>
+    <radialGradient id="glow"><stop offset="0" stop-color="#F0B44C" stop-opacity=".45"/><stop offset="1" stop-color="#F0B44C" stop-opacity="0"/></radialGradient></defs>
+    <path class="board" d="${casePath}" fill="url(#grain)" stroke="#5A2B20" stroke-width="16" stroke-linejoin="round"/>
+    <ellipse class="hl-target board-glow" cx="320" cy="300" rx="260" ry="200" fill="url(#glow)" opacity="0"/>
+    <polyline points="${bridge.join(' ')}" fill="none" stroke="#9A6A3A" stroke-width="5" stroke-linecap="round"/>
+    <g class="strings">${strings}</g>
+    <rect class="hl-target strings-glow" x="90" y="80" width="650" height="480" fill="#F0B44C" opacity="0" style="mix-blend-mode:soft-light"/>
+    <g class="dampers">${dampers}</g>
+    <g class="hammers">${hammers}</g>
+    <g class="hits">${hits}</g>
+    <rect x="70" y="586" width="682" height="12" fill="#3f1e17"/>
+    <g class="leaders"></g>
+  </svg>
+  <div class="top"><div class="wordmark">FORTE</div><div class="preset">Concert grand</div>
+    <div class="out"><button class="toggle" data-toggle="soft" aria-pressed="false">Soft pedal</button>
+      <span>Sustain</span>${hs('sustain')}<span data-show="sustain" style="color:#F0B44C;min-width:34px"></span>
+      <span style="margin-left:14px">Output</span>${knob('volume')}<span data-show="volume" style="color:#F0B44C;min-width:52px"></span></div></div>
+  <div class="kb" style="left:90px;top:600px;width:640px;height:52px"></div>
+  <div class="col">
+    <div class="tag" data-part="board"><h3>Soundboard</h3><p>The spruce panel that turns string motion into sound</p>
+      <div class="row"><div class="ctl">${knob('brightness')}<div><b>Brightness</b><span data-show="brightness"></span></div></div></div></div>
+    <div class="tag" data-part="strings"><h3>Strings</h3><p>Pitch and the stretched tuning real pianos use</p>
+      <div class="row"><div class="ctl">${knob('a4')}<div><b>A4 pitch</b><span data-show="a4"></span></div></div>
+      <div class="ctl">${knob('stretch')}<div><b>Stretch</b><span data-show="stretch"></span></div></div></div></div>
+    <div class="tag" data-part="dampers"><h3>Dampers</h3><p>Felt that stops strings; lifted strings ring in sympathy</p>
+      <div class="row"><div class="ctl">${knob('sympathetic')}<div><b>Sympathetic</b><span data-show="sympathetic"></span></div></div></div></div>
+    <div class="tag" data-part="hammers"><h3>Hammers</h3><p>Harder felt gives a brighter, more percussive strike</p>
+      <div class="row"><div class="ctl">${knob('hardness')}<div><b>Hardness</b><span data-show="hardness"></span></div></div></div></div>
+    <div class="tag" data-part="keys"><h3>Keys</h3><p>How your playing strength maps to hammer speed</p>
+      <div class="row"><div class="ctl">${knob('curve')}<div><b>Touch</b><span data-show="curve"></span></div></div></div></div>
+  </div>`;
+  buildKeys(ed.querySelector('.kb'));
+  const svg = ed.querySelector('svg');
+  // strings are playable too
+  const hitsG = svg.querySelector('.hits');
+  hitsG.addEventListener('pointerdown', e => { const k = e.target.closest('[data-key]'); if (!k) return; mouseDown = true; mouseNote = +k.dataset.key; noteOn(mouseNote, .75); });
+  hitsG.addEventListener('pointerover', e => { if (!mouseDown) return; const k = e.target.closest('[data-key]'); if (!k || +k.dataset.key === mouseNote) return; noteOff(mouseNote); mouseNote = +k.dataset.key; noteOn(mouseNote, .6); });
+  // leaders from each tag to its part
+  requestAnimationFrame(() => {
+    const er = ed.getBoundingClientRect(), s = er.width / 1100;
+    let g = '';
+    L.forEach(([part, tx, ty]) => {
+      const tag = ed.querySelector(`.tag[data-part="${part}"]`), r = tag.getBoundingClientRect();
+      const y = (r.top - er.top) / s + 22;
+      g += `<polyline class="leader" data-part="${part}" points="790,${y} 770,${y} ${tx},${ty}"/><circle cx="${tx}" cy="${ty}" r="3.5" fill="#E9DDC4"/>`;
+    });
+    svg.querySelector('.leaders').innerHTML = g;
+  });
+  ed.querySelectorAll('.tag[data-part]').forEach(tag => {
+    const p = tag.dataset.part;
+    tag.addEventListener('pointerenter', () => { svg.classList.add('hl-' + p); svg.querySelector(`.leader[data-part="${p}"]`)?.classList.add('hot'); });
+    tag.addEventListener('pointerleave', () => { svg.classList.remove('hl-' + p); svg.querySelector(`.leader[data-part="${p}"]`)?.classList.remove('hot'); });
+  });
+  variantHook = { update() { svg.classList.toggle('soft', soft); }, frame() {} };
+}
+
+/* ================= Variant B: Scale drawing ================= */
+function variantB(ed) {
+  ed.className = 'vB';
+  const sl = (k, name) => `<div class="sl"><span>${name}</span><span class="val" data-show="${k}"></span>${hs(k)}</div>`;
+  ed.innerHTML = `
+  <div class="hdr"><div class="wordmark">Forte</div><div class="preset">Concert grand<small>Default scale</small></div>
+    <div class="meters"><span>Voices <b id="bVoices">0</b></span><span>CPU <b id="bCpu">0%</b></span></div></div>
+  <div class="panel" style="left:24px;top:72px;width:780px;height:350px"><canvas id="spec"></canvas>
+    <div class="cap" id="specCap">Partials<small>Play a note to see its overtones</small></div></div>
+  <div class="panel" style="left:24px;top:434px;width:780px;height:128px"><svg id="rails" width="780" height="128"></svg>
+    <div class="cap">Tuning curve<small>Cents away from equal temperament, across all 88 notes</small></div></div>
+  <div class="kb" style="left:24px;top:570px;width:780px;height:96px"></div>
+  <div class="side">
+    <div class="grp"><h4>Hammer</h4>${sl('hardness', 'Felt hardness')}${sl('curve', 'Touch curve')}</div>
+    <div class="grp"><h4>Tuning</h4>${sl('a4', 'A4 reference')}${sl('stretch', 'Stretch')}</div>
+    <div class="grp"><h4>Resonance</h4>${sl('brightness', 'Soundboard brightness')}${sl('sympathetic', 'Sympathetic strings')}</div>
+    <div class="grp"><h4>Pedals</h4>${sl('sustain', 'Sustain depth')}<button class="toggle" data-toggle="soft" aria-pressed="false">Soft pedal</button></div>
+    <div class="grp"><h4>Output</h4>${sl('volume', 'Level')}</div>
+  </div>`;
+  buildKeys(ed.querySelector('.kb'));
+  const cv = ed.querySelector('#spec'), dpr = Math.max(2, devicePixelRatio);
+  cv.width = 780 * dpr; cv.height = 350 * dpr; cv.style.width = '780px'; cv.style.height = '350px';
+  const c = cv.getContext('2d'); c.scale(dpr, dpr);
+  const keyEls = [...ed.querySelectorAll('.kb [data-key]')];
+  const cap = ed.querySelector('#specCap');
+  let shownFor = null;
+  function drawRails() {
+    const svg = ed.querySelector('#rails'), W = 780, x0 = 16, x1 = W - 16, zy = 104, sc = .9;
+    let d = '', pts = [];
+    for (let m = 21; m <= 108; m++) pts.push(`${(x0 + (m - 21) / 87 * (x1 - x0)).toFixed(1)},${(zy - railsback(m) * P.stretch.v * 2 * sc).toFixed(1)}`);
+    for (let c = -20; c <= 60; c += 10) d += `<line x1="${x0}" x2="${x1}" y1="${zy - c * sc}" y2="${zy - c * sc}" stroke="${c ? '#c6cec8' : '#2A2E31'}" stroke-width="${c ? 1 : 1.2}"/>${c % 20 === 0 ? `<text x="${x1 - 2}" y="${zy - c * sc - 3}" font-size="10" text-anchor="end" fill="#5d656a">${c > 0 ? '+' : ''}${c}</text>` : ''}`;
+    svg.innerHTML = `${d}<polyline points="${pts.join(' ')}" fill="none" stroke="#C2452D" stroke-width="2"/><g id="railDots"></g>`;
+  }
+  function frame() {
+    const W = 780, H = 350, x0 = 40, x1 = W - 24, base = H - 36, top = 56;
+    c.clearRect(0, 0, W, H);
+    document.getElementById('bVoices').textContent = [...voices.values()].filter(v => energy(v) > .002).length;
+    document.getElementById('bCpu').textContent = Math.min(25, Math.round(1 + voices.size * .28)) + '%';
+    keyEls.forEach(k => { const v = voices.get(+k.dataset.key); k.style.setProperty('--e', v ? Math.pow(energy(v), .5) : 0); });
+    const v = lastVoice;
+    c.strokeStyle = '#2A2E31'; c.lineWidth = 1; c.beginPath(); c.moveTo(x0, base); c.lineTo(x1, base); c.stroke();
+    if (!v) return;
+    if (shownFor !== v) {
+      shownFor = v;
+      const lastP = v.parts[v.parts.length - 1];
+      const cents = 1200 * Math.log2(lastP.fn / (lastP.n * v.f0));
+      cap.innerHTML = `Partials of ${noteName(v.m)}<small>${v.f0.toFixed(1)} Hz. Inharmonicity B = ${v.B.toExponential(1)}. Partial ${lastP.n} sits ${cents.toFixed(0)} cents above a pure harmonic.</small>`;
+    }
+    const N = v.parts.length, fmax = v.parts[N - 1].fn * 1.06;
+    const X = f => x0 + f / fmax * (x1 - x0);
+    const dt = ctx && !v.preview ? ctx.currentTime - v.t0 : 0;
+    c.font = '600 10px Archivo'; c.textAlign = 'center';
+    for (const p of v.parts) {
+      const xi = X(p.n * v.f0), xa = X(p.fn);
+      c.strokeStyle = 'rgba(45,91,163,.55)'; c.setLineDash([3, 3]); c.beginPath(); c.moveTo(xi, top); c.lineTo(xi, base); c.stroke(); c.setLineDash([]);
+      let a = dt < p.t1 ? p.amp * Math.pow(.3, dt / p.t1) : p.amp * .3 * Math.pow(1e-4 / .3, Math.min(1, (dt - p.t1) / p.t2));
+      if (v.dampAt) a *= Math.exp(-(ctx.currentTime - v.dampAt) / v.dampTc);
+      const db = 20 * Math.log10(Math.max(a, 1e-6) / .22), h = clamp(1 + db / 60) * (base - top);
+      c.fillStyle = '#C2452D'; c.fillRect(xa - 2, base - h, 4, h);
+      c.fillStyle = '#2A2E31'; c.fillText(p.n, xa, base + 14);
+    }
+    c.textAlign = 'left'; c.fillStyle = '#5d656a'; c.font = '400 10px Archivo';
+    c.fillText('Dashed lines: where a perfectly flexible string would put each overtone. Red bars: where this stiff string puts them, and how loud they are now.', x0, base + 30);
+  }
+  drawRails();
+  if (!lastVoice) lastVoice = { m:36, vel:.8, preview:true, ...voiceParts(36, .8) };   // static C2 so the panel isn't empty before you play
+  variantHook = { update: drawRails, frame };
+}
+
+/* ================= Variant C: Fallboard ================= */
+function variantC(ed) {
+  ed.className = 'vC';
+  const dial = (k, name) => `<div class="dial"><div style="position:relative;width:140px;margin:0 auto"><div class="ring" data-param="${k}"></div>${knob(k)}</div><h3>${name}</h3><span data-show="${k}"></span></div>`;
+  const sl = (k, name) => `<div class="sl">${name}<span data-show="${k}"></span>${hs(k)}</div>`;
+  ed.innerHTML = `
+  <div class="fall"><div class="wordmark">FORTE</div><div class="presetnav"><button aria-label="Previous preset">‹</button>Concert Grand<button aria-label="Next preset">›</button></div></div>
+  <button class="more" aria-expanded="false">Tuning &amp; touch</button>
+  <div class="drawer">${sl('a4', 'A4 pitch')}${sl('stretch', 'Stretch tuning')}${sl('curve', 'Touch curve')}${sl('sympathetic', 'Sympathetic resonance')}</div>
+  <div class="dials">${dial('hardness', 'Hammer')}${dial('brightness', 'Tone')}${dial('sympathetic', 'Resonance')}</div>
+  <div class="fader" data-param="volume" data-kind="v" tabindex="0" role="slider" aria-label="volume"><div class="track"></div><div class="fill"></div><div class="cap"></div></div>
+  <div class="fader-l">Volume<br><span data-show="volume"></span></div>
+  <div class="felt"></div>
+  <div class="kb" style="left:0;top:414px;width:1100px;height:196px"></div>
+  <div class="pedals"><button class="toggle" data-toggle="soft" aria-pressed="false">Soft</button>
+    <div class="sus">Sustain<div>${hs('sustain')}<div class="marks"><span>Up</span><span>Half</span><span>Down</span></div></div><span data-show="sustain" style="min-width:40px;color:#B3203A"></span></div></div>`;
+  buildKeys(ed.querySelector('.kb'));
+  const more = ed.querySelector('.more'), dr = ed.querySelector('.drawer');
+  more.addEventListener('click', () => { const o = dr.classList.toggle('open'); more.setAttribute('aria-expanded', o); });
+  variantHook = { update() {}, frame() {} };
+}
+
+/* ================= Variant D: Fallboard, expanding to the advanced view, light/dark ================= */
+// whole-number ranges shown and typed by the user: [min, max, unit]
+const INT = { hardness:[0,100,''], brightness:[0,100,''], sympathetic:[0,100,''], stretch:[0,100,''], curve:[0,100,''], sustain:[0,100,''], a4:[430,450,'Hz'], volume:[-60,1,'dB'] };
+function toInt(k) {
+  const v = P[k].v;
+  if (k === 'volume') return v < .001 ? -60 : Math.max(-60, Math.round(20 * Math.log10(v / .8)));
+  const [lo, hi] = INT[k]; return Math.round(lo + v * (hi - lo));
+}
+function fromInt(k, x) {
+  const [lo, hi] = INT[k]; x = Math.max(lo, Math.min(hi, Math.round(x)));
+  if (k === 'volume') return x <= -60 ? 0 : .8 * Math.pow(10, x / 20);
+  return (x - lo) / (hi - lo);
+}
+document.addEventListener('change', e => { const k = e.target.dataset?.num; if (!k) return; const x = parseFloat(e.target.value); if (!isNaN(x)) setParam(k, fromInt(k, x)); e.target.value = toInt(k); });
+document.addEventListener('focusin', e => { if (e.target.dataset?.num) e.target.select(); });
+
+const qs = new URLSearchParams(location.search);
+let dAdvanced = qs.get('adv') === '1', dTheme = qs.get('theme') === 'dark' ? 'dark' : 'light';
+function variantD(ed) {
+  ed.className = 'vD'; ed.dataset.theme = dTheme;
+  const num = (k, label) => `<span class="d-num"><input data-num="${k}" inputmode="numeric" aria-label="${label}">${INT[k][2] ? `<i>${INT[k][2]}</i>` : ''}</span>`;
+  const theme = `<div class="d-seg" role="group" aria-label="Theme"><button data-act="light" aria-pressed="${dTheme === 'light'}">Light</button><button data-act="dark" aria-pressed="${dTheme === 'dark'}">Dark</button></div>`;
+  const preset = `<div class="d-preset"><button aria-label="Previous preset">‹</button>Concert Grand<button aria-label="Next preset">›</button></div>`;
+  if (!dAdvanced) {
+    const dial = (k, name) => `<div class="d-dial"><div class="wrap"><div class="ring" data-param="${k}"></div>${knob(k)}</div><h3>${name}</h3>${num(k, name)}</div>`;
+    ed.innerHTML = `
+    <div class="d-fall"><div class="d-word">FORTE</div>${preset}</div>
+    <div class="d-corner" style="left:32px"><button class="d-btn" data-act="adv" aria-expanded="false">Advanced</button></div>
+    <div class="d-corner" style="right:32px">${theme}</div>
+    <div class="d-dials">${dial('hardness', 'Hammer')}${dial('brightness', 'Tone')}${dial('sympathetic', 'Resonance')}</div>
+    <div class="d-fader" data-param="volume" data-kind="v" tabindex="0" role="slider" aria-label="Volume"><div class="track"></div><div class="fill"></div><div class="cap"></div></div>
+    <div class="d-fader-l">Volume<br>${num('volume', 'Volume')}</div>
+    <div class="d-felt" style="top:404px"></div>
+    <div class="kb" style="left:0;top:414px;width:1100px;height:196px"></div>
+    <div class="d-pedals"><button class="toggle" data-toggle="soft" aria-pressed="false">Soft</button>
+      <span>Sustain</span><div>${hs('sustain')}<div class="d-marks"><span>Up</span><span>Half</span><span>Down</span></div></div>${num('sustain', 'Sustain')}</div>`;
+  } else {
+    const k = (p, label) => `<div class="d-k"><div class="wrap"><div class="ring" data-param="${p}"></div>${knob(p)}</div><label>${label}</label>${num(p, label)}</div>`;
+    ed.innerHTML = `
+    <div class="d-hdr"><div class="d-word">FORTE</div>${preset}
+      <div class="d-meters"><span>Voices <b id="dV">0</b></span><span>CPU <b id="dC">1%</b></span></div>${theme}
+      <button class="d-btn" data-act="simple" aria-expanded="true">Simple</button></div>
+    <div class="d-panel" style="top:70px;height:286px"><canvas id="dSpec"></canvas><div class="cap" id="dCap"></div></div>
+    <div class="d-panel" style="top:366px;height:112px"><svg id="dRails" width="780" height="112"></svg>
+      <div class="cap">Tuning curve<small>Cents away from equal temperament, across all 88 notes</small></div></div>
+    <div class="d-felt" style="left:24px;right:auto;width:780px;top:488px;height:6px;border-radius:2px"></div>
+    <div class="kb" style="left:24px;top:494px;width:780px;height:172px"></div>
+    <div class="d-side">
+      <div class="d-grp"><h4>Hammer</h4><div class="row">${k('hardness', 'Felt hardness')}${k('curve', 'Touch curve')}</div></div>
+      <div class="d-grp"><h4>Tuning</h4><div class="row">${k('a4', 'A4 pitch')}${k('stretch', 'Stretch')}</div></div>
+      <div class="d-grp"><h4>Resonance</h4><div class="row">${k('brightness', 'Brightness')}${k('sympathetic', 'Sympathetic')}</div></div>
+      <div class="d-grp"><h4>Pedals and output</h4><div class="row">${k('sustain', 'Sustain')}${k('volume', 'Volume')}</div>
+        <div style="text-align:center;margin-top:6px"><button class="toggle" data-toggle="soft" aria-pressed="false">Soft pedal</button></div></div>
+    </div>`;
+  }
+  buildKeys(ed.querySelector('.kb'));
+  ed.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => {
+    const a = b.dataset.act;
+    if (a === 'adv' || a === 'simple') dAdvanced = a === 'adv';
+    else dTheme = a;
+    variantD(ed); update();
+    ed.querySelector(`[data-act="${a === 'adv' ? 'simple' : a === 'simple' ? 'adv' : a}"]`)?.focus();
+  }));
+  const keyEls = [...ed.querySelectorAll('.kb [data-key]')];
+  let col = {};
+  const readColors = () => { const cs = getComputedStyle(ed); for (const n of ['ink', 'muted', 'line', 'accent']) col[n] = cs.getPropertyValue('--' + n).trim(); };
+  readColors();
+  const heat = () => keyEls.forEach(el => { const v = voices.get(+el.dataset.key); el.style.setProperty('--e', v ? Math.pow(energy(v), .5) : 0); });
+  if (!dAdvanced) { variantHook = { update() { document.querySelectorAll('[data-num]').forEach(el => { if (document.activeElement !== el) el.value = toInt(el.dataset.num); }); }, frame: heat }; return; }
+
+  const cv = ed.querySelector('#dSpec'), dpr = Math.max(2, devicePixelRatio), W = 780, H = 286;
+  cv.width = W * dpr; cv.height = H * dpr; cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  const c = cv.getContext('2d'); c.scale(dpr, dpr);
+  const cap = ed.querySelector('#dCap');
+  if (!lastVoice) lastVoice = { m:36, vel:.8, preview:true, ...voiceParts(36, .8) };
+  let shownFor = null;
+  function drawRails() {
+    const svg = ed.querySelector('#dRails'), x0 = 16, x1 = W - 16, zy = 84, sc = .75;
+    let d = '', pts = [];
+    for (let m = 21; m <= 108; m++) pts.push(`${(x0 + (m - 21) / 87 * (x1 - x0)).toFixed(1)},${(zy - railsback(m) * P.stretch.v * 2 * sc).toFixed(1)}`);
+    for (let ct = -20; ct <= 60; ct += 20) d += `<line x1="${x0}" x2="${x1 - 26}" y1="${zy - ct * sc}" y2="${zy - ct * sc}" style="stroke:var(--${ct ? 'line' : 'muted'})"/><text x="${x1}" y="${zy - ct * sc + 4}" font-size="10" text-anchor="end" style="fill:var(--muted);font-family:Jost">${ct > 0 ? '+' : ''}${ct}</text>`;
+    svg.innerHTML = `${d}<polyline points="${pts.join(' ')}" fill="none" style="stroke:var(--accent)" stroke-width="2"/>`;
+  }
+  function frame() {
+    heat();
+    document.getElementById('dV').textContent = [...voices.values()].filter(v => energy(v) > .002).length;
+    document.getElementById('dC').textContent = Math.min(25, Math.round(1 + voices.size * .28)) + '%';
+    const x0 = 40, x1 = W - 24, base = H - 40, top = 48;
+    c.clearRect(0, 0, W, H);
+    c.strokeStyle = col.line; c.lineWidth = 1; c.beginPath(); c.moveTo(x0, base); c.lineTo(x1, base); c.stroke();
+    const v = lastVoice; if (!v) return;
+    if (shownFor !== v) {
+      shownFor = v;
+      const lp = v.parts[v.parts.length - 1], cents = 1200 * Math.log2(lp.fn / (lp.n * v.f0));
+      cap.innerHTML = `Overtones of ${noteName(v.m)}<small>${Math.round(v.f0)} Hz. Overtone ${lp.n} sits ${Math.round(cents)} cents above a perfect harmonic.</small>`;
+    }
+    const fmax = v.parts[v.parts.length - 1].fn * 1.06, X = f => x0 + f / fmax * (x1 - x0);
+    const dt = ctx && !v.preview ? ctx.currentTime - v.t0 : 0;
+    c.font = '400 11px Jost'; c.textAlign = 'center';
+    for (const p of v.parts) {
+      const xi = X(p.n * v.f0), xa = X(p.fn);
+      c.strokeStyle = col.muted; c.globalAlpha = .5; c.setLineDash([3, 3]); c.beginPath(); c.moveTo(xi, top); c.lineTo(xi, base); c.stroke(); c.setLineDash([]); c.globalAlpha = 1;
+      let a = dt < p.t1 ? p.amp * Math.pow(.3, dt / p.t1) : p.amp * .3 * Math.pow(1e-4 / .3, Math.min(1, (dt - p.t1) / p.t2));
+      if (v.dampAt) a *= Math.exp(-(ctx.currentTime - v.dampAt) / v.dampTc);
+      const h = clamp(1 + 20 * Math.log10(Math.max(a, 1e-6) / .22) / 60) * (base - top);
+      c.fillStyle = col.accent; c.beginPath(); c.roundRect(xa - 2.5, base - h, 5, h, 2); c.fill();
+      c.fillStyle = col.muted; c.fillText(p.n, xa, base + 15);
+    }
+    c.textAlign = 'left'; c.fillText('Dashed lines: a perfectly flexible string. Bars: where this stiff string puts each overtone, and how loud it is now.', x0, base + 32);
+  }
+  drawRails();
+  variantHook = { update() { drawRails(); document.querySelectorAll('[data-num]').forEach(el => { if (document.activeElement !== el) el.value = toInt(el.dataset.num); }); }, frame };
+}
+
+/* ---------------- switcher ---------------- */
+const VARIANTS = { A:['Open lid', variantA], B:['Scale drawing', variantB], C:['Fallboard', variantC], D:['C expanding to B', variantD] };
+const keys = Object.keys(VARIANTS);
+let cur = new URLSearchParams(location.search).get('variant')?.toUpperCase();
+if (!VARIANTS[cur]) cur = 'D';
+function show(k) {
+  cur = k; const u = new URL(location); u.searchParams.set('variant', k); history.replaceState(null, '', u);
+  document.getElementById('vlabel').textContent = `${k} (${VARIANTS[k][0]})`;
+  VARIANTS[k][1](document.getElementById('editor')); update();
+}
+function cycle(d) { show(keys[(keys.indexOf(cur) + d + keys.length) % keys.length]); }
+document.getElementById('prev').onclick = () => cycle(-1);
+document.getElementById('next').onclick = () => cycle(1);
+function fit() { const s = Math.min((innerWidth - 24) / 1100, (innerHeight - 90) / 720, 1.4); document.getElementById('stage').style.transform = `translate(-50%, -50%) scale(${s})`; }
+addEventListener('resize', () => { fit(); if (cur === 'A') show('A'); });
+(function loop() { variantHook.frame(); requestAnimationFrame(loop); })();
+fit(); document.fonts.ready.then(() => show(cur));
+</script>
+</body>
+</html>

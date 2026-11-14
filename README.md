@@ -1,0 +1,54 @@
+# Forte
+
+A free, open-source, physically modeled concert-grand piano for Windows, as a VST®3 plugin and a Standalone app. It simulates the hammer, strings, dampers and soundboard instead of playing back recordings.
+
+**Status:** project skeleton. The plugin loads and is silent; the engine comes next. The design lives in [SPEC.md](SPEC.md), with vocabulary in [GLOSSARY.md](GLOSSARY.md) and the reasoning in [issues/](issues/).
+
+## Building
+
+Needs Visual Studio 2026 (Desktop development with C++), CMake 3.25+ and Git.
+
+```powershell
+git clone --recursive <repo-url> forte      # or: git submodule update --init --recursive
+cd forte
+./tools/get-pluginval.ps1                    # optional: enables the pluginval test
+cmake --preset vs2026
+cmake --build --preset release
+ctest --preset release
+```
+
+Output, under `build/`:
+
+| Target | File |
+|---|---|
+| VST3 | `plugin/Forte_artefacts/<Config>/VST3/Forte.vst3` |
+| Standalone | `plugin/Forte_artefacts/<Config>/Standalone/Forte.exe` |
+| `forte-render` (MIDI → WAV) | `tools/forte-render/forte_render_artefacts/<Config>/forte-render.exe` |
+| Unit tests | `tests/forte_tests_artefacts/<Config>/forte-tests.exe` |
+
+## Layout
+
+| Path | What |
+|---|---|
+| `engine/` | `forte_engine`, the one shared engine library. Plain C++, no JUCE. Everything here is a DSP source and must pass the realtime rule. |
+| `bridge/` | Header-only glue from JUCE buffers to the engine, shared by the plugin and `forte-render`. |
+| `plugin/` | The VST3/Standalone wrapper. |
+| `tools/forte-render/` | Command-line renderer through the real engine. |
+| `tests/` | Catch2 tests, the audio-thread allocation guard, and the CTest checks. |
+| `external/JUCE` | JUCE 9.0.5, a pinned submodule. |
+
+## Safety net
+
+`ctest` runs what CI runs on every push (SPEC §9.3):
+
+- **Unit tests** (Catch2).
+- **Audio-thread allocation guard:** `tests/support/AudioThreadGuard.*` replaces the global `operator new`/`delete` in the test executable, and in Debug also hooks the CRT heap (`malloc`/`free`). Code run inside an `AudioThreadScope` must make zero heap calls.
+- **Realtime rule:** `cmake/CheckRealtimeSources.cmake` fails the build if anything under `engine/` includes `<mutex>`, `<thread>`, `<condition_variable>`, `<windows.h>`, JUCE headers and the like, or uses lock types.
+- **Tier 1:** `forte-render` determinism (two renders are bit-identical).
+- **pluginval** at strictness 10 on the VST3.
+
+## Licence
+
+Forte is GPLv3-or-later. JUCE is used under AGPLv3, and the VST3 SDK under MIT. See SPEC §1 and §9.6.
+
+VST is a registered trademark of Steinberg Media Technologies GmbH.

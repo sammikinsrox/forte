@@ -1,0 +1,61 @@
+# Per-push safety net (SPEC §9.3). Tier 2 (nightly and release tags) is a separate workflow,
+# still to come.
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: ${{ matrix.config }}
+    # windows-2025 ships Visual Studio 2026 (generator "Visual Studio 18 2026").
+    runs-on: windows-2025
+    strategy:
+      fail-fast: false
+      matrix:
+        config: [Debug, Release]
+
+    steps:
+      - name: Check out (with JUCE submodule)
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Cache pluginval
+        uses: actions/cache@v6
+        with:
+          path: .tools/pluginval
+          key: pluginval-${{ hashFiles('tools/get-pluginval.ps1') }}
+
+      - name: Get pluginval
+        shell: pwsh
+        run: ./tools/get-pluginval.ps1
+
+      - name: Configure
+        run: cmake --preset vs2026
+
+      - name: Build
+        run: cmake --build --preset ${{ matrix.config == 'Debug' && 'debug' || 'release' }} --parallel
+
+      - name: Unit tests, realtime rule and Tier 1
+        run: ctest --preset ${{ matrix.config == 'Debug' && 'debug' || 'release' }} --label-exclude pluginval
+
+      - name: pluginval (strictness 10)
+        run: ctest --preset ${{ matrix.config == 'Debug' && 'debug' || 'release' }} --label-regex pluginval --no-tests=error --verbose
+
+      - name: Upload pluginval logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pluginval-logs-${{ matrix.config }}
+          path: build/tests/pluginval/
+          if-no-files-found: ignore

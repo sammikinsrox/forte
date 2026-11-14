@@ -1,0 +1,289 @@
+<!doctype html>
+<!-- PROTOTYPE (throwaway): variant D running inside the plugin's WebView2 window, bound to real JUCE parameters.
+     Also opens in a normal browser with a local stand-in for the plugin. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Forte</title>
+<style>
+  @font-face { font-family:Italiana; src:url(fonts/Italiana.ttf); }
+  @font-face { font-family:Jost; src:url(fonts/Jost.ttf); font-weight:100 900; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; overflow:hidden; background:#F4F4F1; }
+  body.dark { background:#1E1C1B; }
+  #ed { position:absolute; left:0; top:0; width:1100px; height:690px; transform-origin:0 0; overflow:hidden; user-select:none; -webkit-user-select:none;
+        --bg:#F4F4F1; --bg2:#EAEAE6; --panel:#FBFBF9; --ink:#1E1C1B; --muted:#6b6763; --line:#d6d6d1; --accent:#B3203A;
+        --knob:radial-gradient(circle at 40% 30%, #3a3532, #141211 72%); --knob-shadow:0 8px 20px rgba(0,0,0,.2);
+        background:linear-gradient(180deg, var(--bg), var(--bg2)); color:var(--ink); font-family:Jost, sans-serif; }
+  #ed.dark { --bg:#1E1C1B; --bg2:#161514; --panel:#262423; --ink:#EDEAE4; --muted:#9d978f; --line:#3d3936; --accent:#E5566C;
+        --knob:radial-gradient(circle at 40% 30%, #fffdf8, #d8d2c5 72%); --knob-shadow:0 8px 22px rgba(0,0,0,.5); }
+  [data-param] { touch-action:none; cursor:ns-resize; }
+  [data-kind="h"] { cursor:ew-resize; }
+  :focus-visible { outline:2px solid #6aa8ff; outline-offset:3px; }
+  .knob { position:relative; border-radius:50%; background:var(--knob); color:var(--accent); box-shadow:var(--knob-shadow); }
+  .knob .ind { position:absolute; inset:0; transform:rotate(calc(var(--v) * 270deg - 135deg)); }
+  .knob .ind::before { content:""; position:absolute; left:50%; top:8%; width:2px; height:30%; margin-left:-1px; border-radius:1px; background:currentColor; }
+  .ring { position:absolute; border-radius:50%; background:conic-gradient(from -135deg, var(--accent) calc(var(--v) * 270deg), var(--line) 0 270deg, transparent 0);
+          -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px)); }
+  .btn { border:1px solid var(--ink); background:transparent; color:var(--ink); font:500 13px Jost; letter-spacing:.04em; padding:7px 16px; border-radius:20px; cursor:pointer; }
+  .btn:hover { background:var(--ink); color:var(--bg); }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:20px; padding:2px; }
+  .seg button { border:0; background:transparent; color:var(--muted); font:500 12px Jost; padding:5px 12px; border-radius:16px; cursor:pointer; }
+  .seg button[aria-pressed="true"] { background:var(--ink); color:var(--bg); }
+  .num { display:inline-flex; align-items:baseline; gap:3px; color:var(--muted); font-size:13px; }
+  .num input { width:3.6ch; border:0; border-bottom:1px dashed transparent; background:transparent; color:var(--ink); font:500 14px Jost; text-align:center; font-variant-numeric:tabular-nums; padding:1px 0; }
+  .num input:hover { border-bottom-color:var(--muted); }
+  .num input:focus { outline:none; border-bottom:1px solid var(--accent); }
+  .num i { font-style:normal; font-size:11px; }
+  .kb { position:absolute; }
+  .kb .wk, .kb .bk { position:absolute; top:0; cursor:pointer; }
+  .kb .wk { height:100%; background:color-mix(in srgb, var(--accent) calc(var(--e, 0) * 55%), #fbfaf6); border-right:1px solid #c9c8c2; border-radius:0 0 4px 4px; box-shadow:inset 0 -6px 0 #e4e3dd; }
+  .kb .bk { height:62%; z-index:2; background:color-mix(in srgb, var(--accent) calc(var(--e, 0) * 85%), #171413); border-radius:0 0 3px 3px; box-shadow:inset 0 -4px 0 #3a3532; }
+  .felt { position:absolute; left:0; right:0; height:10px; background:#9E1B32; box-shadow:inset 0 2px 3px rgba(0,0,0,.25); }
+  .hs { position:relative; height:16px; width:300px; }
+  .hs::before { content:""; position:absolute; left:0; right:0; top:7px; height:2px; background:var(--line); }
+  .hs .fill { position:absolute; left:0; top:7px; height:2px; width:calc(var(--v) * 100%); background:var(--ink); }
+  .hs .thumb { position:absolute; top:1px; left:calc(var(--v) * 100% - 7px); width:14px; height:14px; border-radius:50%; background:var(--ink); }
+  .toggle { font:500 13px Jost; border:1px solid var(--ink); color:var(--ink); background:transparent; padding:6px 16px; border-radius:20px; cursor:pointer; }
+  .toggle[aria-pressed="true"] { background:var(--ink); color:var(--bg); }
+  .corner { position:absolute; top:22px; display:flex; gap:10px; align-items:center; }
+  .fall { position:absolute; left:0; right:0; top:0; text-align:center; }
+  .word { font:400 72px/1 Italiana, serif; letter-spacing:.32em; margin:30px 0 0 .32em; }
+  .preset { margin-top:8px; display:inline-flex; gap:14px; align-items:center; font-size:14px; letter-spacing:.06em; color:var(--muted); }
+  .preset button { border:0; background:none; font-size:18px; color:var(--muted); cursor:pointer; }
+  .fall .seg { display:flex; width:max-content; margin:8px auto 0; }
+  .dials { position:absolute; left:0; right:0; top:196px; display:flex; justify-content:center; gap:64px; }
+  .dial { text-align:center; }
+  .dial .wrap { position:relative; width:130px; height:130px; margin:0 auto; }
+  .dial .knob { width:130px; height:130px; }
+  .dial .knob .ind::before { width:3px; height:24%; top:9%; }
+  .dial .ring { inset:-12px; }
+  .dial h3 { margin:16px 0 2px; font-weight:500; font-size:17px; letter-spacing:.04em; }
+  .fader { position:absolute; right:56px; top:196px; width:44px; height:160px; }
+  .fader .track { position:absolute; left:20px; top:0; bottom:0; width:4px; background:var(--line); border-radius:2px; }
+  .fader .fill { position:absolute; left:20px; bottom:0; width:4px; height:calc(var(--v) * 100%); background:var(--ink); border-radius:2px; }
+  .fader .cap { position:absolute; left:6px; bottom:calc(var(--v) * 100% - 9px); width:32px; height:18px; background:var(--ink); border-radius:3px; }
+  .fader-l { position:absolute; right:30px; top:362px; width:96px; text-align:center; font-size:13px; }
+  .pedals { position:absolute; left:0; right:0; top:626px; display:flex; justify-content:center; align-items:center; gap:28px; font-size:13px; }
+  .marks { display:flex; justify-content:space-between; width:300px; font-size:11px; color:var(--muted); margin-top:2px; }
+  .hdr { position:absolute; left:24px; right:24px; top:0; height:58px; display:flex; align-items:center; gap:18px; border-bottom:1px solid var(--line); }
+  .hdr .word { font-size:28px; margin:0; letter-spacing:.28em; white-space:nowrap; }
+  .hdr .preset { margin:0; }
+  .meters { margin-left:auto; font-size:13px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .meters b { color:var(--ink); font-weight:500; }
+  .panel { position:absolute; left:24px; width:780px; background:var(--panel); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .panel .cap { position:absolute; left:14px; top:10px; font-size:14px; font-weight:500; }
+  .panel .cap small { font-weight:400; font-size:12px; color:var(--muted); margin-left:8px; }
+  .side { position:absolute; left:828px; top:70px; width:248px; display:flex; flex-direction:column; gap:10px; }
+  .grp h4 { margin:0 0 8px; font-size:13px; font-weight:500; letter-spacing:.04em; color:var(--muted); border-bottom:1px solid var(--line); padding-bottom:4px; }
+  .grp .row { display:flex; justify-content:space-around; align-items:flex-start; }
+  .k { display:flex; flex-direction:column; align-items:center; gap:3px; width:80px; }
+  .k .wrap { position:relative; width:40px; height:40px; margin:4px 0; }
+  .k .knob { width:40px; height:40px; }
+  .k .ring { inset:-6px; }
+  .k label { font-size:12px; }
+</style>
+</head>
+<body>
+<div id="ed"></div>
+<script type="module">
+/* ---------- bridge to the plugin (or a local stand-in in a normal browser) ---------- */
+const KNOBS = { hardness:[0,100,55,''], curve:[0,100,50,''], a4:[430,450,440,'Hz'], stretch:[0,100,50,''], brightness:[0,100,50,''],
+                sympathetic:[0,100,40,''], sustain:[0,100,0,''], volume:[-60,1,0,'dB'], width:[0,100,100,''] };
+const inPlugin = typeof window.__JUCE__ !== 'undefined';
+const Juce = inPlugin ? await import('./juce/index.js') : null;
+const listeners = [];
+const P = {};
+for (const [k, [lo, hi, def, unit]] of Object.entries(KNOBS)) {
+  if (inPlugin) {
+    const s = Juce.getSliderState(k);
+    P[k] = { lo, hi, unit, get v() { return s.getNormalisedValue(); }, set(v) { s.setNormalisedValue(Math.max(0, Math.min(1, v))); },
+             start() { s.sliderDragStarted(); }, end() { s.sliderDragEnded(); } };
+    s.valueChangedEvent.addListener(() => listeners.forEach(f => f()));
+  } else {
+    let v = (def - lo) / (hi - lo);
+    P[k] = { lo, hi, unit, get v() { return v; }, set(x) { v = Math.max(0, Math.min(1, x)); listeners.forEach(f => f()); }, start() {}, end() {} };
+  }
+}
+const toInt = k => Math.round(P[k].lo + P[k].v * (P[k].hi - P[k].lo));
+const fromInt = (k, x) => (Math.max(P[k].lo, Math.min(P[k].hi, Math.round(x))) - P[k].lo) / (P[k].hi - P[k].lo);
+let softLocal = false, perspLocal = 0;
+const soft = inPlugin ? Juce.getToggleState('soft') : { getValue: () => softLocal, setValue: x => { softLocal = x; listeners.forEach(f => f()); } };
+const persp = inPlugin ? Juce.getComboBoxState('perspective') : { getChoiceIndex: () => perspLocal, setChoiceIndex: x => { perspLocal = x; listeners.forEach(f => f()); } };
+if (inPlugin) { soft.valueChangedEvent.addListener(() => listeners.forEach(f => f())); persp.valueChangedEvent.addListener(() => listeners.forEach(f => f())); }
+const native = name => inPlugin ? Juce.getNativeFunction(name) : () => Promise.resolve({});
+const noteOn = native('noteOn'), noteOff = native('noteOff'), uiState = native('uiState');
+let viz = { energy:new Array(88).fill(0), m:36, f0:65.4, parts:[], voices:0 };
+let vizDirty = true;
+if (inPlugin) window.__JUCE__.backend.addEventListener('viz', d => { viz = d; vizDirty = true; });
+
+/* ---------- UI ---------- */
+const ed = document.getElementById('ed');
+let advanced = false, dark = false;
+const knob = k => `<div class="knob" data-param="${k}" tabindex="0" role="slider" aria-label="${k}"><div class="ind"></div></div>`;
+const hs = k => `<div class="hs" data-param="${k}" data-kind="h" tabindex="0" role="slider" aria-label="${k}"><div class="fill"></div><div class="thumb"></div></div>`;
+const num = (k, label) => `<span class="num"><input data-num="${k}" inputmode="numeric" aria-label="${label}">${P[k].unit ? `<i>${P[k].unit}</i>` : ''}</span>`;
+
+function render() {
+  ed.classList.toggle('dark', dark); document.body.classList.toggle('dark', dark);
+  const theme = `<div class="seg" role="group" aria-label="Theme"><button data-act="light" aria-pressed="${!dark}">Light</button><button data-act="dark" aria-pressed="${dark}">Dark</button></div>`;
+  const perspective = `<div class="seg" role="group" aria-label="Listening perspective"><button data-persp="0">Microphones</button><button data-persp="1">Pianist</button></div>`;
+  const preset = `<div class="preset"><button aria-label="Previous preset">‹</button>Concert Grand<button aria-label="Next preset">›</button></div>`;
+  if (!advanced) {
+    const dial = (k, name) => `<div class="dial"><div class="wrap"><div class="ring" data-param="${k}"></div>${knob(k)}</div><h3>${name}</h3>${num(k, name)}</div>`;
+    ed.innerHTML = `
+    <div class="fall"><div class="word">FORTE</div>${preset}${perspective}</div>
+    <div class="corner" style="left:32px"><button class="btn" data-act="adv" aria-expanded="false">Advanced</button></div>
+    <div class="corner" style="right:32px">${theme}</div>
+    <div class="dials">${dial('hardness', 'Hammer')}${dial('brightness', 'Tone')}${dial('sympathetic', 'Resonance')}</div>
+    <div class="fader" data-param="volume" data-kind="v" tabindex="0" role="slider" aria-label="Volume"><div class="track"></div><div class="fill"></div><div class="cap"></div></div>
+    <div class="fader-l">Volume<br>${num('volume', 'Volume')}</div>
+    <div class="felt" style="top:404px"></div>
+    <div class="kb" style="left:0;top:414px;width:1100px;height:196px"></div>
+    <div class="pedals"><button class="toggle" data-soft aria-pressed="false">Soft</button>
+      <span>Sustain</span><div>${hs('sustain')}<div class="marks"><span>Up</span><span>Half</span><span>Down</span></div></div>${num('sustain', 'Sustain')}</div>`;
+  } else {
+    const k = (p, label) => `<div class="k"><div class="wrap"><div class="ring" data-param="${p}"></div>${knob(p)}</div><label>${label}</label>${num(p, label)}</div>`;
+    ed.innerHTML = `
+    <div class="hdr"><div class="word">FORTE</div>${preset}${perspective}<div class="meters">Voices <b id="vc">0</b></div>${theme}
+      <button class="btn" data-act="simple" aria-expanded="true">Simple</button></div>
+    <div class="panel" style="top:70px;height:286px"><canvas id="spec"></canvas><div class="cap" id="cap"></div></div>
+    <div class="panel" style="top:366px;height:112px"><svg id="rails" width="780" height="112"></svg>
+      <div class="cap">Tuning curve<small>Cents away from equal temperament, across all 88 notes</small></div></div>
+    <div class="felt" style="left:24px;right:auto;width:780px;top:488px;height:6px;border-radius:2px"></div>
+    <div class="kb" style="left:24px;top:494px;width:780px;height:172px"></div>
+    <div class="side">
+      <div class="grp"><h4>Hammer</h4><div class="row">${k('hardness', 'Hardness')}${k('curve', 'Touch')}</div></div>
+      <div class="grp"><h4>Tuning</h4><div class="row">${k('a4', 'A4 pitch')}${k('stretch', 'Stretch')}</div></div>
+      <div class="grp"><h4>Resonance</h4><div class="row">${k('brightness', 'Brightness')}${k('sympathetic', 'Sympathetic')}</div></div>
+      <div class="grp"><h4>Pedals and output</h4><div class="row">${k('sustain', 'Sustain')}${k('volume', 'Volume')}${k('width', 'Width')}</div>
+        <div style="text-align:center;margin-top:6px"><button class="toggle" data-soft aria-pressed="false">Soft pedal</button></div></div>
+    </div>`;
+    setupCanvas();
+  }
+  buildKeys(ed.querySelector('.kb'));
+  ed.querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
+    const a = b.dataset.act;
+    if (a === 'adv' || a === 'simple') advanced = a === 'adv'; else dark = a === 'dark';
+    uiState(advanced, dark); render(); update();
+  });
+  ed.querySelectorAll('[data-persp]').forEach(b => b.onclick = () => persp.setChoiceIndex(+b.dataset.persp));
+  ed.querySelectorAll('[data-soft]').forEach(b => b.onclick = () => soft.setValue(!soft.getValue()));
+}
+
+function update() {
+  ed.querySelectorAll('[data-param]').forEach(el => el.style.setProperty('--v', P[el.dataset.param].v));
+  ed.querySelectorAll('[data-num]').forEach(el => { if (document.activeElement !== el) el.value = toInt(el.dataset.num); });
+  ed.querySelectorAll('[data-soft]').forEach(el => el.setAttribute('aria-pressed', soft.getValue()));
+  ed.querySelectorAll('[data-persp]').forEach(el => el.setAttribute('aria-pressed', persp.getChoiceIndex() === +el.dataset.persp));
+  if (advanced) drawRails();
+}
+listeners.push(update);
+
+/* control interaction: drag, wheel, double-click reset, typed values */
+ed.addEventListener('pointerdown', e => {
+  const el = e.target.closest('[data-param]'); if (!el) return;
+  e.preventDefault(); el.setPointerCapture(e.pointerId); el.focus();
+  const k = el.dataset.param, kind = el.dataset.kind || 'knob', y0 = e.clientY, v0 = P[k].v;
+  const scale = ed.getBoundingClientRect().width / 1100;
+  P[k].start();
+  const set = ev => {
+    const r = el.getBoundingClientRect();
+    if (kind === 'h') P[k].set((ev.clientX - r.left) / r.width);
+    else if (kind === 'v') P[k].set(1 - (ev.clientY - r.top) / r.height);
+    else P[k].set(v0 + (y0 - ev.clientY) / scale / (ev.shiftKey ? 700 : 200));
+  };
+  if (kind !== 'knob') set(e);
+  const mv = ev => set(ev);
+  const up = () => { P[k].end(); el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', up); };
+  el.addEventListener('pointermove', mv); el.addEventListener('pointerup', up);
+});
+ed.addEventListener('dblclick', e => { const el = e.target.closest('[data-param]'); if (el) { const k = el.dataset.param; P[k].set(fromInt(k, KNOBS[k][2])); } });
+ed.addEventListener('wheel', e => { const el = e.target.closest('[data-param]'); if (!el) return; e.preventDefault(); const k = el.dataset.param; P[k].set(fromInt(k, toInt(k) - Math.sign(e.deltaY))); }, { passive:false });
+ed.addEventListener('change', e => { const k = e.target.dataset.num; if (!k) return; const x = parseFloat(e.target.value); if (!isNaN(x)) P[k].set(fromInt(k, x)); e.target.value = toInt(k); });
+ed.addEventListener('focusin', e => { if (e.target.dataset.num) e.target.select(); });
+ed.addEventListener('keydown', e => {
+  const k = e.target.dataset.num || e.target.dataset.param;
+  if (!k) return;
+  if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); P[k].set(fromInt(k, toInt(k) + (e.key === 'ArrowUp' ? 1 : -1))); if (e.target.dataset.num) e.target.select(); }
+  if (e.key === 'Enter' && e.target.dataset.num) e.target.blur();
+  if (e.key === 'Escape' && e.target.dataset.num) { e.target.value = toInt(k); e.target.blur(); }
+});
+
+/* keyboard */
+let mouseDown = false, mouseNote = null;
+addEventListener('pointerup', () => { mouseDown = false; if (mouseNote != null) noteOff(mouseNote); mouseNote = null; });
+let keyEls = [];
+function buildKeys(el) {
+  const black = m => [1, 3, 6, 8, 10].includes(m % 12);
+  const w = 100 / 52; let wi = 0, html = '';
+  for (let m = 21; m <= 108; m++) {
+    if (black(m)) html += `<div class="bk" data-key="${m}" style="left:${wi * w - w * .32}%;width:${w * .64}%"></div>`;
+    else { html += `<div class="wk" data-key="${m}" style="left:${wi * w}%;width:${w}%"></div>`; wi++; }
+  }
+  el.innerHTML = html;
+  keyEls = [...el.querySelectorAll('[data-key]')];
+  const play = (k, e) => { const r = k.getBoundingClientRect(); mouseNote = +k.dataset.key; noteOn(mouseNote, .25 + .75 * Math.max(0, Math.min(1, (e.clientY - r.top) / r.height))); };
+  el.addEventListener('pointerdown', e => { const k = e.target.closest('[data-key]'); if (!k) return; e.preventDefault(); mouseDown = true; play(k, e); });
+  el.addEventListener('pointerover', e => { if (!mouseDown) return; const k = e.target.closest('[data-key]'); if (!k || +k.dataset.key === mouseNote) return; noteOff(mouseNote); play(k, e); });
+}
+
+/* advanced visuals */
+let c, col = {};
+function setupCanvas() {
+  const cv = ed.querySelector('#spec'), dpr = devicePixelRatio * (innerWidth / 1100);
+  cv.width = 780 * dpr; cv.height = 286 * dpr; cv.style.width = '780px'; cv.style.height = '286px';
+  c = cv.getContext('2d'); c.scale(dpr, dpr);
+  const cs = getComputedStyle(ed); for (const n of ['ink', 'muted', 'line', 'accent']) col[n] = cs.getPropertyValue('--' + n).trim();
+}
+const railsback = m => m > 69 ? 30 * Math.pow((m - 69) / 39, 2.2) : -15 * Math.pow((69 - m) / 48, 2);
+function drawRails() {
+  const svg = ed.querySelector('#rails'); if (!svg) return;
+  const W = 780, x0 = 16, x1 = W - 16, zy = 84, sc = .75, st = toInt('stretch') / 50;
+  let d = '', pts = [];
+  for (let m = 21; m <= 108; m++) pts.push(`${(x0 + (m - 21) / 87 * (x1 - x0)).toFixed(1)},${(zy - railsback(m) * st * sc).toFixed(1)}`);
+  for (let ct = -20; ct <= 60; ct += 20) d += `<line x1="${x0}" x2="${x1 - 26}" y1="${zy - ct * sc}" y2="${zy - ct * sc}" style="stroke:var(--${ct ? 'line' : 'muted'})"/><text x="${x1}" y="${zy - ct * sc + 4}" font-size="10" text-anchor="end" style="fill:var(--muted);font-family:Jost">${ct > 0 ? '+' : ''}${ct}</text>`;
+  svg.innerHTML = `${d}<polyline points="${pts.join(' ')}" fill="none" style="stroke:var(--accent)" stroke-width="2"/>`;
+}
+const names = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
+const lastE = new Map();
+let capText = '', vcText = '';
+const setCap = s => { if (s !== capText) { capText = s; document.getElementById('cap').innerHTML = s; } };
+function frame() {
+  requestAnimationFrame(frame);
+  if (!vizDirty) return;          // only redraw when the plugin sends new data (30 times a second)
+  vizDirty = false;
+  keyEls.forEach(el => {
+    const e = Math.round(Math.sqrt(viz.energy[+el.dataset.key - 21] || 0) * 50) / 50;
+    if (lastE.get(el) !== e) { lastE.set(el, e); el.style.setProperty('--e', e); }
+  });
+  if (advanced && c) {
+    if (String(viz.voices) !== vcText) { vcText = String(viz.voices); document.getElementById('vc').textContent = vcText; }
+    const W = 780, H = 286, x0 = 40, x1 = W - 24, base = H - 40, top = 48;
+    c.clearRect(0, 0, W, H);
+    c.strokeStyle = col.line; c.lineWidth = 1; c.beginPath(); c.moveTo(x0, base); c.lineTo(x1, base); c.stroke();
+    const parts = viz.parts, f0 = viz.f0;
+    if (parts.length) {
+      const last = parts[parts.length - 1][0], cents = 1200 * Math.log2(last / (parts.length * f0));
+      setCap(`Overtones of ${names[viz.m % 12]}${Math.floor(viz.m / 12) - 1}<small>${Math.round(f0)} Hz. Overtone ${parts.length} sits ${Math.round(cents)} cents above a perfect harmonic.</small>`);
+      const X = f => x0 + f / (last * 1.06) * (x1 - x0);
+      c.font = '400 11px Jost'; c.textAlign = 'center';
+      parts.forEach(([fn, a], i) => {
+        const xi = X((i + 1) * f0), xa = X(fn);
+        c.strokeStyle = col.muted; c.globalAlpha = .5; c.setLineDash([3, 3]); c.beginPath(); c.moveTo(xi, top); c.lineTo(xi, base); c.stroke(); c.setLineDash([]); c.globalAlpha = 1;
+        const h = Math.max(0, Math.min(1, 1 + 20 * Math.log10(Math.max(a, 1e-6) / .24) / 60)) * (base - top);
+        c.fillStyle = col.accent; c.beginPath(); c.roundRect(xa - 2.5, base - h, 5, h, 2); c.fill();
+        c.fillStyle = col.muted; c.fillText(i + 1, xa, base + 15);
+      });
+    } else setCap('Overtones<small>Play a note to see its overtones</small>');
+  }
+}
+
+function fit() { const s = innerWidth / 1100; ed.style.transform = `scale(${s})`; }
+addEventListener('resize', fit);
+const st = await native('ready')();
+if (st && typeof st === 'object') { advanced = !!st.advanced; dark = !!st.dark; }
+fit(); render(); update(); requestAnimationFrame(frame);
+</script>
+</body>
+</html>

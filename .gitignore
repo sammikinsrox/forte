@@ -1,0 +1,30 @@
+﻿# Reference recordings. Downloaded by tools/fetch-references and never committed or shipped (SPEC §3.1).
+refs/
+
+# Build output
+/build/
+/out/
+CMakeUserPresets.json
+.vs/
+*.user
+
+# Local tool downloads (pluginval etc.)
+/.tools/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Reaper peak files
+*.reapeaks
+
+# --- Prototypes (throwaway; only their sources are kept) ---
+prototypes/**/build/
+# Vendored JUCE clone and NuGet packages used by the rendering prototype
+prototypes/editor-rendering/JUCE/
+prototypes/editor-rendering/deps/nuget/
+prototypes/editor-rendering/build.log
+# Listening-test renders. These include reference audio (*_ref.wav), which must never be committed.
+prototypes/listening-test/out/*.wav
+prototypes/listening-test/out/peaks/

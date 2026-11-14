@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forte listening test</title>
+<style>
+  @font-face { font-family: Jost; src: url("../../editor-rendering/deps/fonts/Jost.ttf"); font-weight: 100 900; }
+  @font-face { font-family: Italiana; src: url("../../editor-rendering/deps/fonts/Italiana-Regular.ttf"); }
+  :root { --bg: #f7f6f2; --ink: #17161a; --mute: #6c6a70; --line: #dcd9d1; --key: #fff; --accent: #8a6a2f; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #141316; --ink: #ecebe6; --mute: #9a979e; --line: #2c2a30; --key: #1d1c20; --accent: #d1b06a; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 400 16px/1.55 Jost, system-ui, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 48px 16px 80px; }
+  h1 { font: 400 52px/1.05 Italiana, serif; margin: 0 0 12px; letter-spacing: .01em; }
+  p { max-width: 64ch; color: var(--mute); margin: 0 0 14px; }
+  .bar { display: flex; gap: 12px; align-items: center; margin: 28px 0 8px; flex-wrap: wrap; }
+  label { color: var(--mute); display: flex; gap: 8px; align-items: center; cursor: pointer; }
+  h2 { font: 500 20px/1.2 Jost; margin: 40px 0 6px; }
+  .row { display: grid; grid-template-columns: 88px 1fr; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
+  .dyn { font-weight: 500; }
+  .dyn small { display: block; color: var(--mute); font-weight: 400; font-size: 13px; }
+  .ctrls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  button { font: 500 15px Jost; padding: 9px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--key); color: var(--ink); cursor: pointer; min-width: 112px; }
+  button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .stop { min-width: 0; }
+  .reveal { color: var(--mute); font-size: 14px; min-width: 9ch; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Forte, first notes</h1>
+  <p>Each row plays a real Steinway note (University of Iowa recordings) and Forte's physical model of the same note, in sync. Switching between them keeps your place, so you hear the difference at the same moment of the note.</p>
+  <p>Forte's levels are matched to the recording at loud (ff) only. Soft and medium notes come from slower hammer speeds, so their loudness <em>and</em> brightness come from the physics. Headphones help.</p>
+  <div class="bar">
+    <label><input type="checkbox" id="blind"> Blind mode: label the two sounds A and B in random order</label>
+  </div>
+  <div id="list"></div>
+</main>
+<script>
+const notes = [["C2", "Low"], ["C4", "Middle C"], ["C6", "High"]];
+const dyns = [["pp", "soft"], ["mf", "medium"], ["ff", "loud"]];
+const list = document.getElementById("list");
+const blindBox = document.getElementById("blind");
+let current = null;   // {ref, forte}
+
+function stopAll() {
+  if (current) { current.ref.pause(); current.forte.pause(); current.btns.forEach(b => b.setAttribute("aria-pressed", "false")); }
+  current = null;
+}
+
+function build() {
+  stopAll(); list.innerHTML = "";
+  const blind = blindBox.checked;
+  const h = document.createElement("h2"); h.textContent = "Bach, Prelude in C major (BWV 846)"; list.append(h);
+  const pn = document.createElement("p");
+  pn.textContent = "The same performance, played from the Steinway's own recorded notes and by three Forte versions. A: brighter hammers. B: A plus each note's two or three strings tuned slightly apart (about 0.7 cent), as on a real piano, for shimmer. C: B with wider detuning (1.4 cents) and stronger bass phantom partials, for more twang. The Steinway version is a simple sampler with one loudness layer, so its key releases are approximate.";
+  list.append(pn);
+  addRow(blind, "A", "brighter", "prelude_ref.wav", "prelude_forte_a.wav");
+  addRow(blind, "B", "+ shimmer", "prelude_ref.wav", "prelude_forte_b.wav");
+  addRow(blind, "C", "+ twang", "prelude_ref.wav", "prelude_forte_c.wav");
+  for (const [n, label] of notes) {
+    const h = document.createElement("h2"); h.textContent = `${n}, ${label.toLowerCase()}`; list.append(h);
+    for (const [d, word] of dyns) addRow(blind, d, word, `${n}_${d}_ref.wav`, `${n}_${d}_forte.wav`);
+  }
+}
+
+function addRow(blind, title, sub, refUrl, forteUrl) {
+  {
+    {
+      const row = document.createElement("div"); row.className = "row";
+      row.innerHTML = `<div class="dyn">${title}<small>${sub}</small></div><div class="ctrls"></div>`;
+      const ref = new Audio(refUrl), forte = new Audio(forteUrl);
+      ref.preload = forte.preload = "auto";
+      const swap = blind && Math.random() < 0.5;
+      const order = swap ? [["A", forte], ["B", ref]] : (blind ? [["A", ref], ["B", forte]] : [["Steinway", ref], ["Forte", forte]]);
+      const ctrls = row.querySelector(".ctrls");
+      const btns = [];
+      const reveal = document.createElement("span"); reveal.className = "reveal";
+      for (const [name, audio] of order) {
+        const b = document.createElement("button"); b.textContent = name; b.setAttribute("aria-pressed", "false");
+        b.onclick = () => {
+          const other = audio === ref ? forte : ref;
+          if (!current || current.ref !== ref) {
+            stopAll();
+            current = { ref, forte, btns };
+            ref.currentTime = forte.currentTime = 0;
+            ref.play(); forte.play();
+          } else if (audio.muted === false && !audio.paused) {
+            // pressing the playing one again restarts the note
+            ref.currentTime = forte.currentTime = 0;
+          }
+          audio.muted = false; other.muted = true;
+          btns.forEach(x => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+        };
+        btns.push(b); ctrls.append(b);
+      }
+      const s = document.createElement("button"); s.className = "stop"; s.textContent = "Stop"; s.onclick = stopAll; ctrls.append(s);
+      if (blind) {
+        const r = document.createElement("button"); r.className = "stop"; r.textContent = "Reveal";
+        r.onclick = () => { reveal.textContent = swap ? "A = Forte" : "A = Steinway"; }; ctrls.append(r, reveal);
+      }
+      ref.onended = () => { if (current && current.ref === ref) stopAll(); };
+      list.append(row);
+    }
+  }
+}
+blindBox.onchange = build;
+build();
+</script>
+</body>
+</html>

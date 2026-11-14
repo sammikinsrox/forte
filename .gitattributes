@@ -1,0 +1,8 @@
+* text=auto
+
+*.mid  binary
+*.wav  binary
+*.ttf  binary
+*.otf  binary
+*.png  binary
+*.zip  binary
