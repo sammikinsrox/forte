@@ -3,10 +3,14 @@
 
 #include "NoteModel.h"
 #include "PianoModel.h"
+#include "Soundboard.h"
+#include "SoundboardIrs.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 
+#include <algorithm>
+#include <cmath>
 #include <vector>
 #include <xmmintrin.h>
 
@@ -45,17 +49,77 @@ TEST_CASE ("Engine is silent until a key is struck", "[engine]")
     CHECK (allZero (right));
 }
 
-TEST_CASE ("A struck note sounds, the same on both channels", "[engine]")
+TEST_CASE ("A struck note sounds on both channels, bass to the left and treble to the right", "[engine]")
 {
+    // SPEC §2.8: placement comes from the bridge regions' IRs, with bass on the left.
     const auto sampleRate = GENERATE (44100.0, 48000.0, 88200.0, 96000.0);
     const auto note = GENERATE (21, 60, 108);
 
-    const auto out = renderFresh ({ noteOn (0, note, 100) }, static_cast<std::int64_t> (sampleRate / 4), 256, sampleRate);
+    const auto length = static_cast<std::int64_t> (sampleRate / 4);
+    const auto out = renderFresh ({ noteOn (0, note, 100) }, length, 256, sampleRate);
 
-    CHECK (out.left == out.right);
-    CHECK (allFinite (out.left));
-    CHECK (peak (out.left) > 1e-3f);
-    CHECK (peak (out.left) < 1.0f);
+    INFO ("note " << note << " at " << sampleRate << " Hz");
+    for (const auto* channel : { &out.left, &out.right })
+    {
+        CHECK (allFinite (*channel));
+        CHECK (peak (*channel) > 1e-3f);
+        CHECK (peak (*channel) < 1.0f);
+    }
+
+    // Single notes scatter around their region's place, by up to ~10 dB with the seed IRs: each
+    // channel's modes are independent, so a partial can sit on a strong mode in one only.
+    const double balanceDb = 20.0 * std::log10 (rms (out.left, 0, length) / rms (out.right, 0, length));
+    if (note == 21)
+        CHECK (balanceDb > 3.0);
+    if (note == 108)
+        CHECK (balanceDb < -3.0);
+}
+
+TEST_CASE ("The Listening perspective selects the IR set, from the next partition, without a jump", "[engine][soundboard]")
+{
+    const std::vector<TimedMidi> chord { controller (0, 64, 127), noteOn (0, 36, 100), noteOn (0, 60, 90), noteOn (0, 84, 80) };
+    const std::int64_t length = second / 2;
+
+    const auto microphones = renderFresh (chord, length);
+
+    Engine engine;
+    engine.prepare (48000.0, 128);
+    engine.setListeningPerspective (forte::ListeningPerspective::pianist);
+    engine.reset();  // a switch with nothing playing applies at once
+    const auto pianist = render (engine, chord, length);
+
+    CHECK (slice (microphones.left, 0, length) != slice (pianist.left, 0, length));
+    CHECK (rms (pianist.left, 0, length) > 0.5 * rms (microphones.left, 0, length));
+    CHECK (rms (pianist.left, 0, length) < 2.0 * rms (microphones.left, 0, length));
+
+    // A switch mid-render: nothing changes until the next 128-sample boundary, then a crossfade
+    // with no step larger than the signal's own.
+    engine.setListeningPerspective (forte::ListeningPerspective::microphones);
+    engine.reset();
+    const std::int64_t switchAt = 10000;  // not on a boundary: the fade starts at 10112
+    auto first = render (engine, chord, switchAt);
+    engine.setListeningPerspective (forte::ListeningPerspective::pianist);
+
+    std::vector<float> left (static_cast<std::size_t> (length - switchAt)), right (left.size());
+    engine.render (left.data(), right.data(), static_cast<int> (left.size()));
+    first.left.insert (first.left.end(), left.begin(), left.end());
+
+    // The fade starts at gain 0, so 10112 itself is still all Microphones; it lasts 19
+    // partitions (~50 ms), after which the output is exactly Pianist's.
+    const std::int64_t fadeEnd = 10112 + 19 * 128;
+    CHECK (slice (first.left, 0, 10113) == slice (microphones.left, 0, 10113));
+    CHECK (slice (first.left, 10113, 10200) != slice (microphones.left, 10113, 10200));
+    CHECK (slice (first.left, fadeEnd - 128, fadeEnd) != slice (pianist.left, fadeEnd - 128, fadeEnd));
+    CHECK (slice (first.left, fadeEnd, length) == slice (pianist.left, fadeEnd, length));
+
+    float largestStep = 0.0f, largestNaturalStep = 0.0f;
+    for (std::size_t i = 9000; i < 14000; ++i)
+    {
+        largestStep = std::max (largestStep, std::abs (first.left[i] - first.left[i - 1]));
+        largestNaturalStep = std::max ({ largestNaturalStep, std::abs (microphones.left[i] - microphones.left[i - 1]),
+                                         std::abs (pianist.left[i] - pianist.left[i - 1]) });
+    }
+    CHECK (largestStep <= 1.05f * largestNaturalStep);
 }
 
 TEST_CASE ("Engine render of zero samples writes nothing", "[engine]")
@@ -87,6 +151,10 @@ TEST_CASE ("Engine audio-thread calls never touch the heap", "[engine][audio-thr
 
         for (std::uint8_t note = 21; note <= 108; ++note)
         {
+            if (note % 9 == 0)  // perspective crossfades, some reversed mid-fade
+                engine.setListeningPerspective (note % 2 == 0 ? forte::ListeningPerspective::pianist
+                                                              : forte::ListeningPerspective::microphones);
+
             engine.handleMidi (shortMessage (0x90, note, static_cast<std::uint8_t> (1 + note % 127)));
             engine.handleMidi (shortMessage (0x91, note, 127));
             engine.render (left.data(), right.data(), 1 + (note * 37) % 1024);
@@ -175,10 +243,14 @@ TEST_CASE ("The reported tail covers the longest-ringing note", "[engine]")
         }
     }
 
+    // Then the soundboard rings on for its IR, plus two partitions of rounding at 44.1 kHz.
+    const auto irs = forte::detail::loadEmbeddedIrs();
+    const double irSeconds = static_cast<double> (irs.length()) / irs.sampleRate;
+
     Engine engine;
     engine.prepare (sampleRate, 4096);
     const double tail = engine.getTailSeconds();
-    REQUIRE (tail == longestTail);
+    REQUIRE (tail == longestTail + irSeconds + 2.0 * forte::detail::Soundboard::partitionSize / 44100.0);
     REQUIRE (tail > 10.0);
     REQUIRE (tail < 120.0);
 

@@ -6,6 +6,13 @@
 
 namespace forte
 {
+/** Where the listener is (SPEC §6.3): it selects the soundboard's IR set. */
+enum class ListeningPerspective
+{
+    microphones,  // a close stereo pair over the open lid (the default)
+    pianist       // the player's seat
+};
+
 /** The Forte piano engine: 88 permanent note models and the MIDI that plays them (SPEC §2, §4).
 
     Threading contract:
@@ -18,8 +25,10 @@ namespace forte
     Output depends only on the events and their sample times, never on how the samples are split
     into render() calls, so offline and realtime renders are bit-identical (SPEC §7.4).
 
-    For now the output is the strings' summed bridge force on both channels. The soundboard,
-    sympathetic bank and output controls come later (SPEC §2.1).
+    Output (SPEC §2.1, §2.8): each note's bridge force feeds one of four bridge regions, and each
+    region is convolved with its stereo soundboard IR from the active Listening perspective, with
+    no added latency. Brightness, Width and Volume sit at their defaults until the parameters
+    exist. The sympathetic bank comes later.
 */
 class Engine
 {
@@ -44,9 +53,15 @@ public:
     /** Renders numSamples of stereo output, overwriting left and right. Realtime-safe. */
     void render (float* left, float* right, int numSamples) noexcept;
 
-    /** The longest a note can go on sounding after the last MIDI event: an undamped (or
-        pedalled) note decaying from full scale to rest, through its slowest coupled mode.
-        Depends only on the piano model, not on the sample rate. Safe from any thread. */
+    /** Switches the Listening perspective at the current render position. The new IR set fades in
+        over ~50 ms from the next 128-sample boundary of the engine's sample clock. It survives
+        reset() and prepare(), where it applies at once. Realtime-safe. */
+    void setListeningPerspective (ListeningPerspective perspective) noexcept;
+
+    /** The longest the engine can go on sounding after the last MIDI event: an undamped (or
+        pedalled) note decaying from full scale to rest, through its slowest coupled mode, then
+        the soundboard IR's length. Depends only on the piano model and the IRs, not on the
+        sample rate. Safe from any thread. */
     [[nodiscard]] double getTailSeconds() const noexcept;
 
     [[nodiscard]] double getSampleRate() const noexcept { return sampleRate; }

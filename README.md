@@ -2,7 +2,7 @@
 
 A free, open-source, physically modeled concert-grand piano for Windows, as a VST®3 plugin and a Standalone app. It simulates the hammer, strings, dampers and soundboard instead of playing back recordings.
 
-**Status:** early engine. The 88 note models (modal strings, felt hammer, dampers) play from MIDI with seed values, straight from the bridge force: no soundboard, sympathetic resonance or controls yet, and no fitted piano model. The design lives in [SPEC.md](SPEC.md), with vocabulary in [GLOSSARY.md](GLOSSARY.md) and the reasoning in [issues/](issues/).
+**Status:** early engine. The 88 note models (modal strings, felt hammer, dampers) play from MIDI with seed values, through the soundboard: four bridge regions, each convolved with a stereo IR for the Microphones or Pianist perspective. The IRs are uncalibrated seeds from the listening-test prototype's generator. No sympathetic resonance or controls yet, and no fitted piano model. The design lives in [SPEC.md](SPEC.md), with vocabulary in [GLOSSARY.md](GLOSSARY.md) and the reasoning in [issues/](issues/).
 
 ## Building
 
@@ -35,6 +35,9 @@ Output, under `build/`:
 | `bridge/` | Header-only glue from JUCE buffers to the engine, shared by the plugin and `forte-render`. |
 | `plugin/` | The VST3/Standalone wrapper. |
 | `tools/forte-render/` | Command-line renderer through the real engine. |
+| `tools/embed/` | Build-time tool that embeds data files (the IRs) in the engine. |
+| `tools/seed-irs/` | Writes the seed soundboard IRs (`python tools/seed-irs/make_seed_irs.py`, needs numpy). |
+| `data/ir/` | The soundboard IRs the engine embeds: 32-bit float WAV, 48 kHz, one per perspective and bridge region. |
 | `tests/` | Catch2 tests, the audio-thread allocation guard, and the CTest checks. |
 | `external/JUCE` | JUCE 9.0.5, a pinned submodule. |
 

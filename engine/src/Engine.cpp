@@ -3,6 +3,8 @@
 #include "NoteModel.h"
 #include "PianoModel.h"
 #include "ScopedFlushDenormals.h"
+#include "Soundboard.h"
+#include "SoundboardIrs.h"
 #include "VelocityCurve.h"
 
 #include <algorithm>
@@ -15,7 +17,11 @@ namespace forte
 namespace
 {
 constexpr int controlInterval = detail::NoteModel::controlInterval;
+constexpr int partitionSize = detail::Soundboard::partitionSize;
 constexpr double pedalSmoothingSeconds = 0.02;  // SPEC §4.2
+constexpr double lowestSampleRate = 44100.0;    // SPEC §2.2
+
+static_assert (partitionSize % controlInterval == 0, "a partition holds whole control intervals");
 
 /** A pedal CC value as a 0–1 position, with the dead zones from SPEC §4.2:
     0–12 is fully down (dampers resting), 116–127 is fully lifted. */
@@ -40,6 +46,16 @@ struct Engine::State
 {
     detail::PianoModel model = detail::makeSeedPianoModel();
     std::array<detail::NoteModel, detail::numNotes> notes;
+
+    /** Each note's bridge region, as an index into regionBus. */
+    std::array<std::uint8_t, detail::numNotes> noteRegion {};
+
+    /** The IRs as shipped, at 48 kHz; prepare() resamples them for the host rate. */
+    detail::SoundboardIrs shippedIrs = detail::loadEmbeddedIrs();
+    detail::Soundboard soundboard;
+
+    /** The notes' bridge force per region, for the current stretch of one partition. */
+    std::array<std::array<float, partitionSize>, detail::numBridgeRegions> regionBus {};
 
     /** Note-ons still waiting for their note-off, per key (SPEC §4.3: overlaps are counted). */
     std::array<std::uint32_t, detail::numNotes> keyDownCount {};
@@ -109,7 +125,7 @@ struct Engine::State
         {
             case cc::sustain:             sustainTarget = pedalPosition (value); break;
             case cc::soft:                softPedal = pedalPosition (value); break;
-            case cc::allSoundOff:         for (auto& n : notes) n.silence(); break;
+            case cc::allSoundOff:         for (auto& n : notes) n.silence(); soundboard.silence(); break;
             case cc::resetAllControllers: sustainTarget = 0.0f; softPedal = 0.0f; break;
             case cc::allNotesOff:         allNotesOff(); break;
             default:                      break;  // mod wheel, sostenuto (CC66) and the rest
@@ -131,8 +147,19 @@ struct Engine::State
 Engine::Engine()
     : state (std::make_unique<State>())
 {
+    double notesTail = 0.0;
+
     for (const auto& note : state->model.notes)
-        state->tailSeconds = std::max (state->tailSeconds, detail::noteTailSeconds (note, state->model.unisonSpreadCents));
+    {
+        notesTail = std::max (notesTail, detail::noteTailSeconds (note, state->model.unisonSpreadCents));
+        state->noteRegion[static_cast<std::size_t> (note.midiNote - detail::lowestNote)] = static_cast<std::uint8_t> (note.bridgeRegion);
+    }
+
+    // The soundboard rings on for the IR's length after the strings stop. The convolution's
+    // partition grid can carry rounding residue up to two partitions further, at most this long
+    // at the lowest host rate.
+    const double irSeconds = static_cast<double> (state->shippedIrs.length()) / state->shippedIrs.sampleRate;
+    state->tailSeconds = notesTail + irSeconds + 2.0 * partitionSize / lowestSampleRate;
 }
 
 Engine::~Engine() = default;
@@ -152,6 +179,8 @@ void Engine::prepare (double newSampleRate, int newMaxBlockSize)
     for (int midiNote = detail::lowestNote; midiNote <= detail::highestNote; ++midiNote)
         state->note (midiNote).prepare (model.note (midiNote), model.unisonSpreadCents, model.outputGain, sampleRate);
 
+    state->soundboard.prepare (detail::resampleIrs (state->shippedIrs, sampleRate));
+
     state->sustainStepPerTick = static_cast<float> (controlInterval / (pedalSmoothingSeconds * sampleRate));
     reset();
 }
@@ -161,6 +190,7 @@ void Engine::reset() noexcept
     for (auto& n : state->notes)
         n.reset();
 
+    state->soundboard.reset();
     state->keyDownCount.fill (0);
     state->sustainTarget = state->sustainLift = 0.0f;
     state->softPedal = 0.0f;
@@ -209,24 +239,41 @@ void Engine::render (float* left, float* right, int numSamples) noexcept
     const detail::ScopedFlushDenormals noDenormals;
     auto& s = *state;
 
-    std::fill_n (left, numSamples, 0.0f);
-
+    // Stretches that end at the soundboard's partition boundaries. Both grids count from the
+    // same sample clock, and a partition holds whole control intervals.
     for (int position = 0; position < numSamples;)
     {
-        const auto phase = static_cast<int> (s.sampleClock % controlInterval);
+        const int stretch = std::min (numSamples - position, s.soundboard.samplesToPartitionEnd());
 
-        if (phase == 0)
-            s.controlTick();
+        for (auto& bus : s.regionBus)
+            std::fill_n (bus.begin(), stretch, 0.0f);
 
-        const int length = std::min (numSamples - position, controlInterval - phase);
+        for (int done = 0; done < stretch;)
+        {
+            const auto phase = static_cast<int> (s.sampleClock % controlInterval);
 
-        for (auto& n : s.notes)
-            n.render (left + position, s.noteScratch.data(), length);
+            if (phase == 0)
+                s.controlTick();
 
-        position += length;
-        s.sampleClock += length;
+            const int length = std::min (stretch - done, controlInterval - phase);
+
+            for (std::size_t i = 0; i < s.notes.size(); ++i)
+                s.notes[i].render (s.regionBus[s.noteRegion[i]].data() + done, s.noteScratch.data(), length);
+
+            done += length;
+            s.sampleClock += length;
+        }
+
+        const std::array<const float*, detail::numBridgeRegions> buses { s.regionBus[0].data(), s.regionBus[1].data(),
+                                                                         s.regionBus[2].data(), s.regionBus[3].data() };
+        s.soundboard.process (buses, left + position, right + position, stretch);
+        position += stretch;
     }
+}
 
-    std::copy_n (left, numSamples, right);
+void Engine::setListeningPerspective (ListeningPerspective perspective) noexcept
+{
+    state->soundboard.setPerspective (perspective == ListeningPerspective::pianist ? detail::pianistPerspective
+                                                                                    : detail::microphonesPerspective);
 }
 } // namespace forte

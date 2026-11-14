@@ -41,6 +41,13 @@ NoteParameters seedNote (int midiNote)
     NoteParameters p;
     p.midiNote = midiNote;
 
+    // Bridge regions (SPEC §2.8), as the listening-test prototype split them: bass up to B2,
+    // tenor C3–B3, middle C4–D#5, treble E5 up. The real split comes from the Steinway D data.
+    p.bridgeRegion = midiNote < 48 ? BridgeRegion::bass
+                   : midiNote < 60 ? BridgeRegion::tenor
+                   : midiNote < 76 ? BridgeRegion::middle
+                                   : BridgeRegion::treble;
+
     // Inharmonicity: ~2e-4 at A0, ~1.3e-4 in the low tenor, ~1e-2 at C8 (CPU benchmark curve,
     // close to the prototype's Iowa measurements at C2 and C4).
     const double log10B = index < 26.0 ? -3.7 - 0.3 * index / 26.0 : -4.0 + 2.0 * (index - 26.0) / 61.0;

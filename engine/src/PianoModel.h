@@ -16,10 +16,22 @@ inline constexpr int numNotes = highestNote - lowestNote + 1;
     return midiNote >= lowestNote && midiNote <= highestNote;
 }
 
-/** Everything the engine needs to build one note model (SPEC §2.3–2.5). */
+/** The soundboard's bridge regions (SPEC §2.8). Each note's strings drive one of them. */
+enum class BridgeRegion
+{
+    bass,
+    tenor,
+    middle,
+    treble
+};
+
+inline constexpr int numBridgeRegions = 4;
+
+/** Everything the engine needs to build one note model (SPEC §2.3–2.5, §2.8). */
 struct NoteParameters
 {
     int midiNote = 69;
+    BridgeRegion bridgeRegion = BridgeRegion::middle;
 
     // Strings
     double fundamental = 440.0;      // Hz. The average string's first partial is fundamental·√(1 + B).

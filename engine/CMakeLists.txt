@@ -9,17 +9,34 @@ configure_file(Version.h.in "${CMAKE_CURRENT_BINARY_DIR}/generated/forte/Version
 add_library(forte_engine STATIC
     include/forte/engine/Engine.h
     include/forte/engine/MidiEvent.h
+    src/EmbeddedFiles.h
     src/Engine.cpp
+    src/Fft.h
     src/NoteModel.cpp
     src/NoteModel.h
     src/PianoModel.cpp
     src/PianoModel.h
     src/ScopedFlushDenormals.h
+    src/Soundboard.cpp
+    src/Soundboard.h
+    src/SoundboardIrs.cpp
+    src/SoundboardIrs.h
     src/UnisonModes.cpp
     src/UnisonModes.h
     src/VelocityCurve.cpp
     src/VelocityCurve.h)
 add_library(forte::engine ALIAS forte_engine)
+
+# The soundboard IRs (SPEC §3.5): data/ir/<perspective>-<region>.wav, built into the engine.
+set(ir_files "")
+foreach(perspective IN ITEMS microphones pianist)
+    foreach(region IN ITEMS bass tenor middle treble)
+        list(APPEND ir_files "${perspective}-${region}.wav=${PROJECT_SOURCE_DIR}/data/ir/${perspective}-${region}.wav")
+    endforeach()
+endforeach()
+forte_embed_files(forte_engine
+    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/generated/EmbeddedFiles.cpp"
+    FILES ${ir_files})
 
 target_include_directories(forte_engine
     PUBLIC
