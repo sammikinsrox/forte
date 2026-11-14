@@ -40,8 +40,19 @@ jobs:
         shell: pwsh
         run: ./tools/get-pluginval.ps1
 
+      - name: Cache VST3 validator
+        uses: actions/cache@v6
+        with:
+          path: .tools/vst3-validator
+          key: vst3-validator-${{ runner.os }}-${{ hashFiles('tools/get-vst3-validator.ps1') }}
+
+      - name: Get VST3 validator
+        shell: pwsh
+        run: ./tools/get-vst3-validator.ps1
+
+      # FORTE_REQUIRE_CHECK_TOOLS: a missing pluginval or validator fails here, not silently later.
       - name: Configure
-        run: cmake --preset vs2026
+        run: cmake --preset vs2026 -DFORTE_REQUIRE_CHECK_TOOLS=ON
 
       - name: Build
         run: cmake --build --preset ${{ matrix.config == 'Debug' && 'debug' || 'release' }} --parallel

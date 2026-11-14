@@ -82,21 +82,56 @@ set_tests_properties("tier1: render is deterministic" PROPERTIES LABELS "tier1")
 
 # --- pluginval ---------------------------------------------------------------------------------
 
+# pluginval also runs Steinberg's VST3 validator when given its path. JUCE's bundled SDK
+# doesn't include the validator, so tools/get-vst3-validator.ps1 builds it from the full SDK.
+# CI sets FORTE_REQUIRE_CHECK_TOOLS=ON, so a missing tool fails the configure step instead of
+# quietly dropping a check.
+
+option(FORTE_REQUIRE_CHECK_TOOLS "Fail if pluginval or the VST3 validator is missing" OFF)
+
 find_program(FORTE_PLUGINVAL_EXE pluginval
     HINTS "${PROJECT_SOURCE_DIR}/.tools/pluginval"
     DOC "pluginval executable (tools/get-pluginval.ps1 downloads the pinned version)")
 
+find_program(FORTE_VST3_VALIDATOR_EXE validator
+    HINTS "${PROJECT_SOURCE_DIR}/.tools/vst3-validator"
+    NO_DEFAULT_PATH
+    DOC "Steinberg VST3 validator (tools/get-vst3-validator.ps1 builds the pinned version)")
+
+set(missing_check_tools "")
+if(NOT FORTE_PLUGINVAL_EXE)
+    list(APPEND missing_check_tools "pluginval (run tools/get-pluginval.ps1)")
+endif()
+if(NOT FORTE_VST3_VALIDATOR_EXE)
+    list(APPEND missing_check_tools "VST3 validator (run tools/get-vst3-validator.ps1)")
+endif()
+
+if(missing_check_tools)
+    list(JOIN missing_check_tools ", " missing_list)
+    if(FORTE_REQUIRE_CHECK_TOOLS)
+        message(FATAL_ERROR "Missing check tools: ${missing_list}")
+    endif()
+    message(WARNING "Missing check tools: ${missing_list}. Then reconfigure.")
+endif()
+
 if(FORTE_PLUGINVAL_EXE)
+    set(vst3_validator_args "")
+    if(FORTE_VST3_VALIDATOR_EXE)
+        set(vst3_validator_args --vst3validator "${FORTE_VST3_VALIDATOR_EXE}")
+    endif()
+
     add_test(NAME "pluginval: VST3 at strictness 10"
         COMMAND "${FORTE_PLUGINVAL_EXE}"
             --strictness-level 10
             --validate-in-process
             --timeout-ms 600000
+            ${vst3_validator_args}
             --output-dir "${CMAKE_CURRENT_BINARY_DIR}/pluginval/$<CONFIG>"
             # JUCE stores the bundle path as a generator expression, hence GENEX_EVAL.
             --validate "$<GENEX_EVAL:$<TARGET_PROPERTY:Forte_VST3,JUCE_PLUGIN_ARTEFACT_FILE>>")
-    set_tests_properties("pluginval: VST3 at strictness 10" PROPERTIES LABELS "pluginval" TIMEOUT 900)
-else()
-    message(WARNING "pluginval not found, so the pluginval test is skipped. "
-                    "Run tools/get-pluginval.ps1, then reconfigure.")
+    set_tests_properties("pluginval: VST3 at strictness 10" PROPERTIES
+        LABELS "pluginval"
+        TIMEOUT 900
+        # Belt and braces: pluginval reports a skipped validator as success.
+        FAIL_REGULAR_EXPRESSION "Skipping vst3 validator")
 endif()

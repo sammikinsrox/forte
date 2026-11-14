@@ -12,6 +12,7 @@ Needs Visual Studio 2026 (Desktop development with C++), CMake 3.25+ and Git.
 git clone --recursive <repo-url> forte      # or: git submodule update --init --recursive
 cd forte
 ./tools/get-pluginval.ps1                    # optional: enables the pluginval test
+./tools/get-vst3-validator.ps1               # optional: adds Steinberg's validator to it (a few minutes)
 cmake --preset vs2026
 cmake --build --preset release
 ctest --preset release
@@ -45,7 +46,7 @@ Output, under `build/`:
 - **Audio-thread allocation guard:** `tests/support/AudioThreadGuard.*` replaces the global `operator new`/`delete` in the test executable, and in Debug also hooks the CRT heap (`malloc`/`free`). Code run inside an `AudioThreadScope` must make zero heap calls.
 - **Realtime rule:** `cmake/CheckRealtimeSources.cmake` fails the build if anything under `engine/` includes `<mutex>`, `<thread>`, `<condition_variable>`, `<windows.h>`, JUCE headers and the like, or uses lock types.
 - **Tier 1:** `forte-render` determinism (two renders are bit-identical).
-- **pluginval** at strictness 10 on the VST3.
+- **pluginval** at strictness 10 on the VST3, including Steinberg's VST3 validator. JUCE's bundled SDK leaves the validator out, so `tools/get-vst3-validator.ps1` builds it from a pinned `vst3sdk` tag. The test fails if pluginval reports the validator as skipped.
 
 ## Licence
 
