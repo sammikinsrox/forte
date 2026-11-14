@@ -9,7 +9,6 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
-#include <limits>
 
 namespace forte
 {
@@ -48,7 +47,10 @@ struct Engine::State
     float sustainTarget = 0.0f;  // the pedal as last received
     float sustainLift = 0.0f;    // smoothed, drives the dampers
     float sustainStepPerTick = 1.0f;
-    float softPedal = 0.0f;      // read at each strike; the hammer shift itself is still to come
+    float softPedal = 0.0f;      // the action's shift, read at each strike (SPEC §2.7)
+
+    /** Engine::getTailSeconds(), computed once from the model. */
+    double tailSeconds = 0.0;
 
     /** Touch, until the parameter exists (SPEC §6.3). */
     double touch = detail::touchCalibrated;
@@ -73,7 +75,7 @@ struct Engine::State
 
         auto& n = note (midiNote);
         n.setKeyDown (true);
-        n.strike (velocity, touch);
+        n.strike (velocity, touch, softPedal);
     }
 
     void noteOff (int midiNote) noexcept
@@ -129,20 +131,15 @@ struct Engine::State
 Engine::Engine()
     : state (std::make_unique<State>())
 {
+    for (const auto& note : state->model.notes)
+        state->tailSeconds = std::max (state->tailSeconds, detail::noteTailSeconds (note, state->model.unisonSpreadCents));
 }
 
 Engine::~Engine() = default;
 
 double Engine::getTailSeconds() const noexcept
 {
-    // The slowest decay is a fundamental's: σ = b1 + b3·f0², with no damper on it. Full scale
-    // down to the resting level takes ln(1 / restingAmplitude) / σ.
-    double slowestDecay = std::numeric_limits<double>::max();
-
-    for (const auto& note : state->model.notes)
-        slowestDecay = std::min (slowestDecay, note.decayConstant + note.decayPerHertzSquared * note.fundamental * note.fundamental);
-
-    return std::log (1.0 / static_cast<double> (detail::NoteModel::restingAmplitude)) / slowestDecay;
+    return state->tailSeconds;
 }
 
 void Engine::prepare (double newSampleRate, int newMaxBlockSize)

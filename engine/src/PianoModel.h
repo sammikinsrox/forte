@@ -27,8 +27,21 @@ struct NoteParameters
     int numStrings = 3;              // strings in the unison
     double stringLength = 0.62;      // m
     double stringTension = 700.0;    // N
-    double decayConstant = 1.0;      // b1 in σ = b1 + b3·f², 1/s (amplitude)
-    double decayPerHertzSquared = 0; // b3, s
+
+    // Decay (SPEC §2.3, §3.3), as amplitude decay rates σ = c1 + c3·f² in 1/s. The prompt sound
+    // is how fast a partial decays on its own: the whole decay of a single string or an
+    // uncoupled partial, and the first stage of a coupled one. The aftersound is one string's
+    // own, slower decay, and the coupling through the bridge (SPEC §3.3) makes up the difference.
+    double decayConstant = 1.0;                  // prompt sound: c1
+    double decayPerHertzSquared = 0;             // prompt sound: c3, s
+    double aftersoundDecayConstant = 0.25;       // aftersound: c1
+    double aftersoundDecayPerHertzSquared = 0;   // aftersound: c3, s
+
+    // Phantom partials (SPEC §2.3): longitudinal modes driven by the strings' stretching
+    double phantomLevel = 0.0;              // 0 = none
+    double longitudinalFrequency = 1100.0;  // Hz, the first longitudinal mode; mode k is at k times this
+    double longitudinalQ = 60.0;
+    double axialStiffness = 3.6e5;          // EA, N
 
     // Hammer
     double strikePosition = 0.125;   // fraction of the string length from the agraffe
@@ -38,6 +51,9 @@ struct NoteParameters
     double feltHysteresis = 1e-5;    // s
     HammerSpeeds hammerSpeeds;       // at velocities 32, 64 and 112 (SPEC §4.1)
     double maxHammerSpeed = 8.0;     // m/s, velocity 127 never exceeds it
+
+    // Soft pedal (SPEC §2.7)
+    double softPedalFeltScale = 1.0; // felt stiffness multiplier with the action fully shifted
 
     // Damper
     bool hasDamper = true;

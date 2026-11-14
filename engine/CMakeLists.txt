@@ -15,6 +15,8 @@ add_library(forte_engine STATIC
     src/PianoModel.cpp
     src/PianoModel.h
     src/ScopedFlushDenormals.h
+    src/UnisonModes.cpp
+    src/UnisonModes.h
     src/VelocityCurve.cpp
     src/VelocityCurve.h)
 add_library(forte::engine ALIAS forte_engine)

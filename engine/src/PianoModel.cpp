@@ -49,7 +49,7 @@ NoteParameters seedNote (int midiNote)
     const double equalTemperament = 440.0 * std::pow (2.0, (key - 69.0) / 12.0);
     p.fundamental = equalTemperament / std::sqrt (1.0 + p.inharmonicity);
 
-    // About 10 single, 18 double and the rest triple (SPEC §2.3). Exact boundaries come from the
+    // About 10 single, 18 double and the rest triple (SPEC Â§2.3). Exact boundaries come from the
     // Steinway D data.
     p.numStrings = midiNote <= 30 ? 1 : midiNote <= 48 ? 2 : 3;
 
@@ -59,11 +59,22 @@ NoteParameters seedNote (int midiNote)
     p.stringLength = interpolateLog (key, anchors, lengths);
     p.stringTension = 700.0 + 50.0 * std::cos (std::clamp ((key - 36.0) / 48.0, 0.0, 1.0) * std::numbers::pi);
 
-    // Decay: T60 of the fundamental from 20 s (A0) to 2 s (C8), and σ = b1 + b3·f².
-    // Single-stage until the coupled unisons arrive (SPEC §2.3).
+    // Decay: the prompt sound's T60 for the fundamental runs from 20 s (A0) to 2 s (C8), with
+    // Ïƒ = c1 + c3Â·fÂ². The aftersound decays 4Ã— slower. The prototype's Iowa fits put it nearer
+    // 10â€“20Ã— slower, but they were limited by the recordings' noise floor; the fit (SPEC Â§3.3)
+    // sets the real values per partial.
     const double t60 = 20.0 * std::pow (0.1, index / 87.0);
     p.decayConstant = std::log (1000.0) / t60;
     p.decayPerHertzSquared = 1.5e-7;
+    p.aftersoundDecayConstant = 0.25 * p.decayConstant;
+    p.aftersoundDecayPerHertzSquared = 0.25 * p.decayPerHertzSquared;
+
+    // Phantom partials on the lowest 30 notes (A0â€“D3), at the listening-test prototype's level
+    // and longitudinal modes until they're fitted against Iowa ff (SPEC Â§3.3).
+    p.phantomLevel = midiNote <= 50 ? 0.3 : 0.0;
+    p.longitudinalFrequency = midiNote < 45 ? 1100.0 : 1500.0;
+    p.longitudinalQ = 60.0;
+    p.axialStiffness = 2e11 * std::numbers::pi * 0.6e-3 * 0.6e-3 * 1.6;  // steel core plus winding, roughly
 
     constexpr double hammerAnchors[] { 36.0, 60.0, 84.0, 96.0, 108.0 };
     constexpr double strikePositions[] { 0.12, 0.12, 0.10, 0.0625, 0.0625 };
@@ -79,11 +90,15 @@ NoteParameters seedNote (int midiNote)
     p.feltStiffness = interpolateLog (key, hammerAnchors, stiffnesses) * interpolate (key, hammerAnchors, stiffnessScales);
     p.feltHysteresis = 1e-5;
 
-    // Typical pp/mf/ff hammer speeds until the fit hands over each note's own (SPEC §3.3).
+    // Typical pp/mf/ff hammer speeds until the fit hands over each note's own (SPEC Â§3.3).
     p.hammerSpeeds = { 0.7, 2.0, 4.5 };
     p.maxHammerSpeed = 8.0;
 
-    // Roughly the top 18 notes have no damper (SPEC §2.5): G#6 (MIDI 91) and up.
+    // The shifted hammer meets less-compacted felt. A literature-style offset until it's set by
+    // ear (SPEC Â§3.3, Â§10).
+    p.softPedalFeltScale = 0.7;
+
+    // Roughly the top 18 notes have no damper (SPEC Â§2.5): G#6 (MIDI 91) and up.
     p.hasDamper = midiNote <= 90;
     p.damperDecayConstant = p.hasDamper ? 8.0 : 0.0;  // the prototype's damper law
     p.damperDecayPerRootKilohertz = p.hasDamper ? 15.0 : 0.0;
@@ -102,7 +117,7 @@ PianoModel makeSeedPianoModel()
     model.unisonSpreadCents = 0.7;
 
     // Placeholder level until the soundboard and the fitted levels exist: an ff C4 peaks around
-    // −15 dBFS, and a full 88-key sustain glissando at velocity 90 peaks just under 0 dBFS.
+    // âˆ’15 dBFS, and a full 88-key sustain glissando at velocity 90 peaks just under 0 dBFS.
     model.outputGain = 5.6e-3;
     return model;
 }

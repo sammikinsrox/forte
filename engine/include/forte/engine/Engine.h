@@ -45,7 +45,7 @@ public:
     void render (float* left, float* right, int numSamples) noexcept;
 
     /** The longest a note can go on sounding after the last MIDI event: an undamped (or
-        pedalled) note decaying from full scale to rest at the piano model's slowest decay.
+        pedalled) note decaying from full scale to rest, through its slowest coupled mode.
         Depends only on the piano model, not on the sample rate. Safe from any thread. */
     [[nodiscard]] double getTailSeconds() const noexcept;
 

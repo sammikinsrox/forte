@@ -1,6 +1,9 @@
 #include "support/AudioThreadGuard.h"
 #include "support/EngineRender.h"
 
+#include "NoteModel.h"
+#include "PianoModel.h"
+
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 
@@ -89,6 +92,7 @@ TEST_CASE ("Engine audio-thread calls never touch the heap", "[engine][audio-thr
             engine.render (left.data(), right.data(), 1 + (note * 37) % 1024);
             engine.handleMidi (shortMessage (0x80, note, 0));
             engine.handleMidi (shortMessage (0xb0, 64, note));
+            engine.handleMidi (shortMessage (0xb0, 67, static_cast<std::uint8_t> (127 - note)));
         }
 
         engine.handleMidi (shortMessage (0x90, 10, 100));   // off the keyboard
@@ -151,21 +155,48 @@ TEST_CASE ("A released note goes idle and renders exact silence", "[engine]")
 
 TEST_CASE ("The reported tail covers the longest-ringing note", "[engine]")
 {
-    // A0 has the slowest decay. With the pedal down, struck as hard as possible and released at
-    // once, it must still sound halfway through the tail and be silent by its end.
+    // The longest-ringing note is the one whose slowest coupled mode takes longest to rest.
+    // With the pedal down, struck as hard as possible and released at once, with or without the
+    // soft pedal, it must be silent by the tail's end. And the tail isn't padded: the note still
+    // sounds a third of the way through.
     constexpr double sampleRate = 44100.0;
+
+    const auto model = forte::detail::makeSeedPianoModel();
+    int longest = forte::detail::lowestNote;
+    double longestTail = 0.0;
+
+    for (int note = forte::detail::lowestNote; note <= forte::detail::highestNote; ++note)
+    {
+        const double noteTail = forte::detail::noteTailSeconds (model.note (note), model.unisonSpreadCents);
+        if (noteTail > longestTail)
+        {
+            longestTail = noteTail;
+            longest = note;
+        }
+    }
 
     Engine engine;
     engine.prepare (sampleRate, 4096);
     const double tail = engine.getTailSeconds();
+    REQUIRE (tail == longestTail);
     REQUIRE (tail > 10.0);
-    REQUIRE (tail < 60.0);
+    REQUIRE (tail < 120.0);
 
     const auto length = static_cast<std::int64_t> (tail * sampleRate);
-    const auto out = render (engine, { controller (0, 64, 127), noteOn (0, 21, 127), noteOff (1, 21) }, length, 4096);
+    bool soundsAtAThird = false;
 
-    CHECK_FALSE (allZero (slice (out.left, length / 2, length / 2 + 4096)));
-    CHECK (allZero (slice (out.left, length - 4096, length)));
+    for (int soft : { 0, 127 })
+    {
+        engine.reset();
+        const auto out = render (engine, { controller (0, 64, 127), controller (0, 67, soft), noteOn (0, longest, 127), noteOff (1, longest) },
+                                 length, 4096);
+
+        INFO ("note " << longest << ", soft pedal " << soft << ", tail " << tail << " s");
+        CHECK (allZero (slice (out.left, length - 4096, length)));
+        soundsAtAThird = soundsAtAThird || ! allZero (slice (out.left, length / 3, length / 3 + 4096));
+    }
+
+    CHECK (soundsAtAThird);
 }
 
 TEST_CASE ("A restrike strikes the strings that are still ringing", "[engine]")

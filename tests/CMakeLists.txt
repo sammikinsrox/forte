@@ -33,7 +33,9 @@ target_sources(forte_tests PRIVATE
     BridgeTests.cpp
     EngineTests.cpp
     MidiTests.cpp
+    NoteModelTests.cpp
     Tier1Tests.cpp
+    UnisonModesTests.cpp
     VelocityCurveTests.cpp)
 
 # The engine's own headers too, so DSP parts (the velocity curve, the piano model) can be

@@ -3,6 +3,7 @@
 #include "PianoModel.h"
 #include "VelocityCurve.h"
 
+#include <array>
 #include <cstdint>
 #include <vector>
 
@@ -12,27 +13,48 @@ namespace forte::detail
     hammer and its damper. There are no voices: a note-on always restrikes this model's current
     string state.
 
-    Strings (SPEC §2.3): one resonator per partial per string, up to 20 kHz or 0.45 × the sample
-    rate. Each string is detuned by its fixed unison offset, the same in cents on every partial.
+    Strings (SPEC §2.3): N resonators per partial for an N-string unison, up to 20 kHz or
+    0.45 × the sample rate. Each string is detuned by its fixed unison offset, the same in cents
+    on every partial. For partials 1–32 of 2- and 3-string unisons the strings are coupled
+    through the bridge (Weinreich), so the N resonators are the unison's coupled modes and give
+    the two-stage decay; see UnisonModes. The coupling makes up the difference between the
+    partial's prompt-sound and aftersound decay. Above partial 32, and on single strings, each
+    resonator is one string decaying at the prompt-sound rate.
     The output is the bridge force, taken from the string slope at the bridge end, so its sign
     alternates per partial. Notes above 100 Hz pass through a 2nd-order high-pass at f0/2.
 
-    Hammer (SPEC §2.4): a mass on a felt spring F = K·(c^p + α·d(c^p)/dt), computed sample by
-    sample at 4× oversampling while it's in contact with the strings.
+    Phantom partials (SPEC §2.3): on notes with a phantom level, the strings' stretching pulls on
+    the bridge (Bank, Zambon & Fontana 2010). The force is the string's uniform tension, the
+    squared sum of partials 1–30's mean slopes, plus the dynamic response of the longitudinal
+    modes (at k × the longitudinal frequency, up to 10) that resonate inside the tension's band.
+    Odd modes share one drive and even modes another. The force passes a 40 Hz high-pass to the
+    bridge. The path runs at every sample, including during hammer contact.
 
-    Damper (SPEC §2.5): a 0–1 lift adds per-partial damping (1 − lift)·σ_damper(f). Key-down
+    Hammer (SPEC §2.4): a mass on a felt spring F = K·(c^p + α·d(c^p)/dt), computed sample by
+    sample at 4× oversampling while it's in contact with the strings. The force is shared by the
+    strings it strikes, and it feels their mean displacement.
+
+    Soft pedal (SPEC §2.7): a 0–1 shift of the action, read at each strike. On 2- and 3-string
+    unisons the hammer's share of string 0 fades to nothing as the shift goes to 1, so it strikes
+    one string of two or two of three, and the missed string rings only through the coupling.
+    On every note the felt stiffness moves towards softPedalFeltScale × K.
+
+    Damper (SPEC §2.5): a 0–1 lift adds per-partial damping (1 − lift)·σ_damper(f). It damps
+    every string of a unison alike, so it doesn't change the coupled modes' shapes. Key-down
     lifts it at once; key-up lowers it over ~20 ms. The half-pedal gap model is linear in lift
     for now; its real shape is fitted and then set by ear.
 
-    Resting (SPEC §2.2): a mode below −100 dBFS stops. Once every mode has stopped and the
-    hammer has left the strings, the note is idle and costs nothing.
+    Resting (SPEC §2.2): a mode below −100 dBFS stops. Once every mode has stopped, the
+    longitudinal modes have died away and the hammer has left the strings, the note is idle and
+    costs nothing.
 
-    Not yet modelled: coupled unisons (two-stage decay), phantom partials, the soft pedal's
-    hammer shift, tuning glides.
+    Not yet modelled: tuning glides.
 
-    Each mode is a complex one-pole z ← z·e^{(−σ + iω)T} + drive·T·F, whose imaginary part is the
-    modal displacement. That form lets the hammer step at T/4 and the damper change σ without
-    disturbing the mode's phase or amplitude.
+    Each mode is a complex one-pole w ← w·e^{(−σ + iω)T} + drive·T·F. Uncoupled, Im w is the
+    string's displacement; coupled, the strings' displacements are Im(shape·w), so the hammer's
+    drive into a mode and its view of it are complex. The bridge weights are real either way
+    (see UnisonModes), so free-running modes cost the same as uncoupled strings. That form lets
+    the hammer step at T/4 and the damper change σ without disturbing a mode's phase or amplitude.
 
     Threading: prepare() allocates and runs off the audio thread. Everything else is realtime-safe.
 */
@@ -45,10 +67,20 @@ public:
     /** A mode quieter than this at the output stops computing: −100 dBFS (SPEC §2.2). */
     static constexpr float restingAmplitude = 1e-5f;
 
+    /** Partials 1 to this many are coupled across the unison (SPEC §2.3). */
+    static constexpr int coupledPartials = 32;
+
+    /** Partials 1 to this many drive the phantom partials. */
+    static constexpr int phantomDrivingPartials = 30;
+
+    /** Longitudinal modes behind the phantom partials. */
+    static constexpr int maxLongitudinalModes = 10;
+
     /** Rebuilds the note for a sample rate, and silences it. Allocates. */
     void prepare (const NoteParameters& parameters, double unisonSpreadCents, double outputGain, double sampleRate);
 
-    /** Stops the strings and the hammer at once (CC120). Key and damper state are unchanged. */
+    /** Stops the strings, the phantom partials and the hammer at once (CC120). Key and damper
+        state are unchanged. */
     void silence() noexcept;
 
     /** Silences the note and puts its key and damper back at rest, with no ramp. */
@@ -57,8 +89,9 @@ public:
     /** Key-down lifts the damper at once. Key-up starts the damper's ~20 ms ramp down. */
     void setKeyDown (bool down) noexcept;
 
-    /** A hammer blow at a MIDI velocity (1–127, fractional allowed), on the current string state. */
-    void strike (double velocity, double touch) noexcept;
+    /** A hammer blow at a MIDI velocity (1–127, fractional allowed), on the current string state,
+        with the soft pedal's action shift (0–1) at this moment. */
+    void strike (double velocity, double touch, double softShift) noexcept;
 
     /** Runs the note's control-rate work. Call at every controlInterval boundary of absolute
         sample time, so that output doesn't depend on how the host splits blocks. */
@@ -72,16 +105,20 @@ public:
     [[nodiscard]] bool isSounding() const noexcept { return sounding; }
 
     [[nodiscard]] int getNumModes() const noexcept { return numModes; }
+    [[nodiscard]] bool hasPhantomPartials() const noexcept { return numDrivingPartials > 0; }
 
 private:
     void updateMultipliers() noexcept;
     float renderContactSample() noexcept;
     void renderFree (float* out, int numSamples) noexcept;
+    float phantomSample() noexcept;
     void restQuietModes() noexcept;
+    [[nodiscard]] bool phantomsAtRest() const noexcept;
     [[nodiscard]] float strikePointDisplacement() const noexcept;
 
     // Fixed after prepare()
     int numModes = 0;
+    int numStrings = 1;
     bool hasDamper = true;
     double samplePeriod = 1.0 / 48000.0;
     float liftStepPerTick = 1.0f;
@@ -89,27 +126,56 @@ private:
     double feltStiffness = 0.0;
     double feltExponent = 2.5;
     double feltHysteresis = 0.0;
+    double softPedalFeltScale = 1.0;
     int maxContactSubsteps = 0;
     VelocityCurve velocityCurve;
 
     bool hasHighPass = false;
     float hpB0 = 1.0f, hpB1 = 0.0f, hpB2 = 0.0f, hpA1 = 0.0f, hpA2 = 0.0f;
 
-    // Per mode, fixed after prepare(). Modes are ordered by partial, then string, so the
-    // upper partials, which rest first, sit at the end.
+    // Per mode, fixed after prepare(). Modes are ordered by partial, then by mode within the
+    // partial, so the upper partials, which rest first, sit at the end.
     std::vector<float> cosStep, sinStep;          // e^{iωT}
     std::vector<float> cosSubstep, sinSubstep;    // e^{iωT/4}
-    std::vector<float> stringDecay;               // −σ_string·T
+    std::vector<float> stringDecay;               // −σ·T
     std::vector<float> damperDecay;               // −σ_damper·T
-    std::vector<float> drive;                     // displacement per (N·s) of hammer force
-    std::vector<float> strikeWeight;              // share in the hammer's view of the strings
-    std::vector<float> outputWeight;              // bridge-end slope × tension × output gain
+    std::vector<float> outputWeight;              // bridge-end slope × bridge weight × output gain
+
+    // Per mode, the hammer's complex drive (displacement per N·s) and view (strike-point
+    // displacement per unit of the mode), with every string struck and for string 0 alone.
+    // strike() mixes them for the soft pedal's shift.
+    std::vector<float> driveAllRe, driveAllIm, driveMissedRe, driveMissedIm;
+    std::vector<float> viewAllRe, viewAllIm, viewMissedRe, viewMissedIm;
 
     // Per mode, live
     std::vector<float> stateRe, stateIm;
     std::vector<float> stepRe, stepIm;            // multiplier per sample
     std::vector<float> substepRe, substepIm;      // multiplier per hammer substep
+    std::vector<float> driveRe, driveIm;          // this strike's drive
+    std::vector<float> strikeWeightRe, strikeWeightIm;  // this strike's view
     int activeEnd = 0;                            // modes at and above this index are at rest
+
+    // Phantom partials, fixed after prepare()
+    int numLongitudinalModes = 0;                 // 0 = this note has none
+    int numDrivingPartials = 0;
+    std::vector<float> phantomWeight;             // per driving mode: partial number × bridge weight
+    float phantomForceScale = 0.0f;               // Σ P_m·P_n → longitudinal force, in output units
+    float phantomHpB0 = 1.0f, phantomHpA1 = 0.0f; // 1st-order 40 Hz high-pass, b1 = −b0
+
+    // The phantom path's sums and longitudinal modes run over fixed, zero-padded widths, so they
+    // vectorise. Unused lanes have zero coefficients and stay at zero.
+    static constexpr int motionLanes = 32;        // ≥ phantomDrivingPartials, a multiple of 8
+    static constexpr int longitudinalLanes = 16;  // ≥ maxLongitudinalModes, a multiple of 8
+    static_assert (motionLanes >= phantomDrivingPartials && motionLanes % 8 == 0);
+    static_assert (longitudinalLanes >= maxLongitudinalModes && longitudinalLanes % 8 == 0);
+    std::array<float, longitudinalLanes> lmB0 {}, lmB1 {}, lmA1 {}, lmA2 {};  // b2 = b0
+    std::array<float, longitudinalLanes> lmOdd {}, lmEven {};  // 1 where the mode takes that drive
+    std::array<float, longitudinalLanes> lmSign {};            // the dynamic response's sign, 0 = unused
+
+    // Phantom partials, live
+    std::array<float, motionLanes + 8> partialMotion {};  // P_n at [n − 1], zero beyond the driving partials
+    std::array<float, longitudinalLanes> lmState1 {}, lmState2 {};
+    float phantomHpInput = 0.0f, phantomHpOutput = 0.0f;
 
     // Key and damper
     bool keyDown = false;
@@ -120,6 +186,7 @@ private:
     bool inContact = false;
     double hammerPosition = 0.0;  // m, along the strings' displacement
     double hammerVelocity = 0.0;  // m/s
+    double strikeFeltStiffness = 0.0;
     double previousCompressionPower = 0.0;
     int contactSubsteps = 0;
     int separatedSubsteps = 0;
@@ -129,4 +196,9 @@ private:
 
     bool sounding = false;
 };
+
+/** How long the note can ring once struck, from full scale to rest with its damper lifted, at
+    any soft-pedal shift. Depends only on the note's parameters, not on the sample rate. Not
+    realtime: it solves the coupled modes. */
+[[nodiscard]] double noteTailSeconds (const NoteParameters& parameters, double unisonSpreadCents);
 } // namespace forte::detail
