@@ -27,7 +27,8 @@ public:
     bool acceptsMidi() const override { return true; }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
-    double getTailLengthSeconds() const override { return 0.0; }
+    // Hosts use this to keep rendering after the last note, e.g. a pedalled A0 ringing out.
+    double getTailLengthSeconds() const override { return engine.getTailSeconds(); }
 
     // One fixed program. MIDI program change is out of scope (SPEC §1), and presets are a separate
     // system (SPEC §7.1). VST3 requires every program to have a name.
