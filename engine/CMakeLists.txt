@@ -14,6 +14,7 @@ add_library(forte_engine STATIC
     src/Fft.h
     src/NoteModel.cpp
     src/NoteModel.h
+    src/DecayFit.inc
     src/HammerFit.inc
     src/PianoModel.cpp
     src/PianoModel.h

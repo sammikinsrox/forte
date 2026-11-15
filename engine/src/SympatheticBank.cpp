@@ -43,7 +43,7 @@ void SympatheticBank::prepare (const PianoModel& model, double sampleRate) noexc
             const auto i = static_cast<std::size_t> (n);
             const double frequency = partialFrequency (p, n + 1);
             const double theta = 2.0 * std::numbers::pi * frequency * samplePeriod;
-            const double sigma = promptDecay (p, frequency);
+            const double sigma = promptDecayOfPartial (p, n + 1);
 
             key.cosStep[i] = static_cast<float> (std::cos (theta));
             key.sinStep[i] = static_cast<float> (std::sin (theta));
@@ -265,7 +265,7 @@ double sympatheticTailSeconds (const PianoModel& model, double notesTailSeconds,
         const int modes = bankModes (p, maxModeHz);
         for (int n = 1; n <= modes; ++n)
         {
-            const double sigmaB = promptDecay (p, partialFrequency (p, n));
+            const double sigmaB = promptDecayOfPartial (p, n);
             // Equal decays would make the bound infinite; it's then G·σ·t·e^{−σt}, which this
             // overestimates for any realistic t.
             const double separation = std::max (std::abs (sigmaB - sigmaS), 0.01 * sigmaB);

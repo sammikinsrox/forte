@@ -61,9 +61,15 @@ std::vector<float> difference (const std::vector<float>& a, const std::vector<fl
 TEST_CASE ("Coupled unisons ring on in a long aftersound", "[note][unison]")
 {
     // Same note with the coupling taken out (aftersound = prompt sound): the early sound is about
-    // the same, and the coupled one rings far longer.
+    // the same, and the coupled one rings far longer. The mechanism, not the fitted data: both
+    // follow the laws (the seed's, aftersound 4× slower), with no measured partials.
     const int midiNote = GENERATE (40, 60, 72);
-    const auto coupled = seedModel().note (midiNote);
+    auto coupled = seedModel().note (midiNote);
+    coupled.numMeasuredPartials = 0;
+    coupled.decayConstant = std::log (1000.0) / (20.0 * std::pow (0.1, (midiNote - 21) / 87.0));
+    coupled.decayPerHertzSquared = 1.5e-7;
+    coupled.aftersoundDecayConstant = 0.25 * coupled.decayConstant;
+    coupled.aftersoundDecayPerHertzSquared = 0.25 * coupled.decayPerHertzSquared;
     auto uncoupled = coupled;
     uncoupled.aftersoundDecayConstant = uncoupled.decayConstant;
     uncoupled.aftersoundDecayPerHertzSquared = uncoupled.decayPerHertzSquared;
@@ -258,6 +264,66 @@ TEST_CASE ("The hammer table is calibrated and smooth across the keyboard", "[no
             CHECK (p.feltStiffness / below.feltStiffness < 1.5);
             CHECK (below.feltStiffness / p.feltStiffness < 1.5);
             CHECK (std::abs ((1.0 - p.feltRelaxation) / (1.0 - below.feltRelaxation) - 1.0) < 0.25);
+        }
+    }
+}
+
+TEST_CASE ("Measured partials keep their own decay rates; the laws take over above them", "[note][decay]")
+{
+    // SPEC §3.3. A single string: each mode decays at its partial's prompt rate. Measured
+    // partials at 2 and 3 /s under a law of 10 /s: the slowest mode is the measured 2 /s.
+    auto single = seedModel().note (25);
+    REQUIRE (single.numStrings == 1);
+    single.decayConstant = 10.0;
+    single.decayPerHertzSquared = 0.0;
+    single.numMeasuredPartials = 2;
+    single.measuredPromptDecay[0] = 2.0;
+    single.measuredPromptDecay[1] = 3.0;
+    CHECK (std::abs (forte::detail::slowestStringDecay (single, 0.7) - 2.0) < 1e-9);
+    CHECK (forte::detail::promptDecayOfPartial (single, 3) == 10.0);
+    single.numMeasuredPartials = 0;
+    CHECK (std::abs (forte::detail::slowestStringDecay (single, 0.7) - 10.0) < 1e-9);
+
+    // A triple unison: a measured partial's slow aftersound outlasts everything the law sets.
+    auto triple = seedModel().note (60);
+    REQUIRE (triple.numStrings == 3);
+    for (auto* law : { &triple.decayConstant, &triple.aftersoundDecayConstant })
+        *law = 10.0;
+    triple.decayPerHertzSquared = triple.aftersoundDecayPerHertzSquared = 0.0;
+    triple.numMeasuredPartials = 1;
+    triple.measuredPromptDecay[0] = 4.0;
+    triple.measuredAftersoundDecay[0] = 0.5;
+    const double slowest = forte::detail::slowestStringDecay (triple, 0.7);
+    CHECK (slowest >= 0.5 - 1e-9);
+    CHECK (slowest < 1.0);
+}
+
+TEST_CASE ("The decay table is in range across the keyboard", "[note][decay]")
+{
+    // The fitted decays (engine/src/DecayFit.inc, from fit_decay.py): every rate positive and
+    // no slower than a 57 s T60, every aftersound no faster than its prompt sound, and the
+    // measured partials where Iowa has notes.
+    const auto& model = seedModel();
+
+    for (int midiNote = forte::detail::lowestNote; midiNote <= forte::detail::highestNote; ++midiNote)
+    {
+        const auto& p = model.note (midiNote);
+        INFO ("note " << midiNote);
+        CHECK (p.numMeasuredPartials >= 0);
+        CHECK (p.numMeasuredPartials <= NoteParameters::maxMeasuredPartials);
+        CHECK (p.decayConstant >= 0.12 - 1e-9);
+        CHECK (p.aftersoundDecayConstant >= 0.12 - 1e-9);
+        CHECK (p.decayPerHertzSquared >= 0.0);
+        CHECK (p.aftersoundDecayPerHertzSquared >= 0.0);
+        if (midiNote >= 36 && midiNote <= 81)
+            CHECK (p.numMeasuredPartials >= 3);
+
+        for (int n = 1; n <= p.numMeasuredPartials; ++n)
+        {
+            INFO ("partial " << n);
+            CHECK (forte::detail::aftersoundDecayOfPartial (p, n) >= 0.12 - 1e-9);
+            CHECK (forte::detail::aftersoundDecayOfPartial (p, n) <= forte::detail::promptDecayOfPartial (p, n));
+            CHECK (forte::detail::promptDecayOfPartial (p, n) <= 60.0);
         }
     }
 }

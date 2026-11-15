@@ -149,7 +149,10 @@ TEST_CASE ("A bank decays to exact silence and goes idle", "[sympathetic]")
 
     // Drive for half a second, then let it ring with the damper lifted: it takes a while...
     const auto drive = sine (forte::detail::partialFrequency (p, 1), second / 2);
-    const double slowest = forte::detail::promptDecay (p, forte::detail::partialFrequency (p, 1));
+    // The drive at partial 1 rings every bank mode a little; the slowest of them rests last.
+    double slowest = 1e9;
+    for (int n = 1; forte::detail::partialFrequency (p, n) < 20000.0; ++n)
+        slowest = std::min (slowest, forte::detail::promptDecayOfPartial (p, n));
     const auto ringing = static_cast<std::int64_t> ((std::log (model.sympatheticLevel / 1e-5) / slowest + 1.0) * rate);
 
     const auto lifted = runBank (bank, key, drive, ringing, 1.0f);

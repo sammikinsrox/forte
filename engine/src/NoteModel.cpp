@@ -23,11 +23,6 @@ constexpr float highPassRestingState = 1e-9f;
 constexpr double longitudinalHighPassHz = 40.0;  // SPEC §2.3
 constexpr float phantomRestingState = 1e-9f;     // in output units, like the high-pass's
 
-double aftersoundDecay (const NoteParameters& p, double frequency) noexcept
-{
-    return p.aftersoundDecayConstant + p.aftersoundDecayPerHertzSquared * frequency * frequency;
-}
-
 int stringsInUnison (const NoteParameters& p) noexcept
 {
     return std::clamp (p.numStrings, 1, UnisonModes::maxStrings);
@@ -40,22 +35,26 @@ double stringFrequency (double partialHz, double offsetCents) noexcept
 
 /** One partial's modes. Coupled partials run each string at its aftersound decay, and the
     coupling ε = (σ_prompt − σ_aftersound) / N brings the in-phase motion up to the prompt
-    sound's: with the strings in perfect unison, that mode decays at exactly σ_prompt. */
+    sound's: with the strings in perfect unison, that mode decays at exactly σ_prompt. A measured
+    partial's rates hold for every string of the unison; above them, each string follows the
+    laws at its own frequency. */
 UnisonModes modesOfPartial (const NoteParameters& p, int partial, const double (&offsetsCents)[3]) noexcept
 {
     const int strings = stringsInUnison (p);
     const double frequency = partialFrequency (p, partial);
+    const bool measured = isMeasuredPartial (p, partial);
 
     double coupling = 0.0;
     if (strings > 1 && partial <= NoteModel::coupledPartials)
-        coupling = std::max (0.0, (promptDecay (p, frequency) - aftersoundDecay (p, frequency)) / strings);
+        coupling = std::max (0.0, (promptDecayOfPartial (p, partial) - aftersoundDecayOfPartial (p, partial)) / strings);
 
     std::complex<double> exponents[UnisonModes::maxStrings];
 
     for (int k = 0; k < strings; ++k)
     {
         const double f = stringFrequency (frequency, offsetsCents[k]);
-        const double sigma = coupling > 0.0 ? aftersoundDecay (p, f) : promptDecay (p, f);
+        const double sigma = measured ? (coupling > 0.0 ? aftersoundDecayOfPartial (p, partial) : promptDecayOfPartial (p, partial))
+                                      : (coupling > 0.0 ? aftersoundDecay (p, f) : promptDecay (p, f));
         exponents[k] = { -sigma, 2.0 * std::numbers::pi * f };
     }
 

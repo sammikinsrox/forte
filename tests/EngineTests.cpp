@@ -246,12 +246,15 @@ TEST_CASE ("The reported tail covers the longest-ringing note", "[engine]")
         }
     }
 
-    // The sympathetic bank could ring on past the strings; at the seed level it doesn't.
+    // The sympathetic bank can ring on past the strings: with the fitted decays, a bank mode as
+    // slow as the slowest string's aftersound (the bass's prompt sound comes close) answers it
+    // for a little longer. Only a little, at the model's level.
     double slowestDecay = 1e9;
     for (const auto& p : model.notes)
         slowestDecay = std::min (slowestDecay, forte::detail::slowestStringDecay (p, model.unisonSpreadCents));
     const double stringsTail = forte::detail::sympatheticTailSeconds (model, longestTail, slowestDecay);
-    CHECK (stringsTail == longestTail);
+    CHECK (stringsTail >= longestTail);
+    CHECK (stringsTail < longestTail + 5.0);
 
     // Then the soundboard rings on for its IR, plus two partitions of rounding at 44.1 kHz.
     const auto irs = forte::detail::loadEmbeddedIrs();

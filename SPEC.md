@@ -151,9 +151,9 @@ There is one command per step, plus `all`. Fixed seeds make every run's output b
   - Fallback if the D tables can't be obtained: Iowa's B scaled by B ∝ 1/L².
 - **f0** is not fitted. The tuner computes it (§5).
 - **Decay**, from Iowa mf:
-  - Partials at least 10 dB above the noise floor keep their own measured values.
+  - Partials at least 10 dB above the noise floor keep their own measured values: a prompt-sound and an aftersound rate each, fitted through the engine's coupled unison to the partial's level over windows from 0.05 to 16 s. The targets are medians over ±3 semitones, since a single Iowa note carries its own unison's tuning ([Voicing against Iowa](issues/0021-voicing-against-iowa.md) §10).
   - Higher partials follow σ = b1 + b3·f², with the coefficients smoothed across keys and outliers rejected.
-  - The top octave borrows its law from its neighbours.
+  - Notes outside Iowa's range borrow the rates at the same frequency from the nearest measured note.
   - A noisy tail is never trusted over the law.
 - **Unison coupling** per partial: derived from the fast and slow decay and the fixed spread.
 - **Phantom levels:** fitted against Iowa ff.

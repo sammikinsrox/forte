@@ -48,6 +48,23 @@ constexpr HammerEntry hammerTable[] {
 static_assert (std::size (hammerTable) == numNotes);
 static_assert (hammerTable[0].midiNote == lowestNote && hammerTable[numNotes - 1].midiNote == highestNote);
 
+/** One note's decay: the laws σ = b1 + b3·f² for the prompt sound and the aftersound, and the
+    measured partials' own rates (1/s). */
+struct DecayEntry
+{
+    int midiNote;
+    double promptB1, promptB3, aftersoundB1, aftersoundB3;
+    int measured;
+    double prompt[NoteParameters::maxMeasuredPartials];
+    double aftersound[NoteParameters::maxMeasuredPartials];
+};
+
+constexpr DecayEntry decayTable[] {
+#include "DecayFit.inc"
+};
+static_assert (std::size (decayTable) == numNotes);
+static_assert (decayTable[0].midiNote == lowestNote && decayTable[numNotes - 1].midiNote == highestNote);
+
 NoteParameters seedNote (int midiNote)
 {
     const double key = midiNote;
@@ -81,15 +98,19 @@ NoteParameters seedNote (int midiNote)
     p.stringLength = interpolateLog (key, anchors, lengths);
     p.stringTension = 700.0 + 50.0 * std::cos (std::clamp ((key - 36.0) / 48.0, 0.0, 1.0) * std::numbers::pi);
 
-    // Decay: the prompt sound's T60 for the fundamental runs from 20 s (A0) to 2 s (C8), with
-    // σ = c1 + c3·f². The aftersound decays 4× slower. The prototype's Iowa fits put it nearer
-    // 10–20× slower, but they were limited by the recordings' noise floor; the fit (SPEC §3.3)
-    // sets the real values per partial.
-    const double t60 = 20.0 * std::pow (0.1, index / 87.0);
-    p.decayConstant = std::log (1000.0) / t60;
-    p.decayPerHertzSquared = 1.5e-7;
-    p.aftersoundDecayConstant = 0.25 * p.decayConstant;
-    p.aftersoundDecayPerHertzSquared = 0.25 * p.decayPerHertzSquared;
+    // Decay, fitted to Iowa mf (tools/fitting/fit_decay.py, SPEC §3.3, issue 0021 step 2): the
+    // measured partials' prompt and aftersound rates, and the laws above them.
+    const auto& decay = decayTable[static_cast<std::size_t> (index)];
+    p.decayConstant = decay.promptB1;
+    p.decayPerHertzSquared = decay.promptB3;
+    p.aftersoundDecayConstant = decay.aftersoundB1;
+    p.aftersoundDecayPerHertzSquared = decay.aftersoundB3;
+    p.numMeasuredPartials = decay.measured;
+    for (int n = 0; n < decay.measured; ++n)
+    {
+        p.measuredPromptDecay[static_cast<std::size_t> (n)] = decay.prompt[n];
+        p.measuredAftersoundDecay[static_cast<std::size_t> (n)] = decay.aftersound[n];
+    }
 
     // Phantom partials on the lowest 30 notes (A0–D3), at the listening-test prototype's level
     // and longitudinal modes until they're fitted against Iowa ff (SPEC §3.3).

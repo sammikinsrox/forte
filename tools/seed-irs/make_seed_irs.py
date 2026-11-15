@@ -66,6 +66,12 @@ DIRECT_GAIN = 2.0
 # Where the modes' radiation rolls off at the top.
 MODE_ROLLOFF_HZ = 6000.0
 
+# A tilt on the modes' gains above 1 kHz, dB per octave (0 = as generated). Each mode's gain goes
+# as 1/sqrt(damping), and damping rises with frequency, so the generated modes' energy falls
+# steeply through the treble (issue 0021 §11).
+MODE_TILT_DB_PER_OCTAVE = 0.0
+MODE_TILT_FROM_HZ = 1000.0
+
 REGIONS = ["bass", "tenor", "middle", "treble"]
 # The keys each region's bridge carries (SPEC §2.8; the boundaries are the prototype's region_of()).
 REGION_KEYS = {"bass": (21, 47), "tenor": (48, 59), "middle": (60, 75), "treble": (76, 108)}
@@ -101,7 +107,7 @@ def low_shelf(gain_db, corner_hz, sr, taps):
 
 def soundboard_ir(region_seed, sr, taps, radiation_corner=500.0, statistical_from=300.0,
                   low_mode_damping=1.0, direct_shelf_db=0.0, direct_shelf_hz=250.0, direct_gain=2.0,
-                  mode_rolloff=6000.0):
+                  mode_rolloff=6000.0, mode_tilt=0.0):
     """The prototype's soundboard_ir(region_seed, length) with COLOUR = None, at rate sr. The
     prototype's radiation curve rises to radiation_corner, and its statistical modes start at
     statistical_from. Modes below LOW_MODE_LIMIT_HZ are damped low_mode_damping times more, and
@@ -123,6 +129,8 @@ def soundboard_ir(region_seed, sr, taps, radiation_corner=500.0, statistical_fro
     # colour: radiation rises to ~500 Hz, mobility flat 500 Hz-5 kHz, gentle roll-off above
     rise = (freqs / radiation_corner) ** 1.5
     col = rise / (1 + rise) / (1 + (freqs / mode_rolloff) ** 2)
+    if mode_tilt != 0.0:
+        col = col * np.maximum(freqs / MODE_TILT_FROM_HZ, 1.0) ** (mode_tilt / (20 * math.log10(2)))
     ir = np.zeros((t.size, 2))
     for c in range(2):
         for _ in range(1):
@@ -164,7 +172,7 @@ def perspective_irs(name):
     for i, region in enumerate(REGIONS):
         ir = soundboard_ir(first_seed + i, SR, TAPS, RADIATION_CORNER_HZ, STATISTICAL_MODES_FROM_HZ,
                            LOW_MODE_DAMPING, DIRECT_LOW_SHELF_DB, DIRECT_LOW_SHELF_HZ, DIRECT_GAIN,
-                           MODE_ROLLOFF_HZ)
+                           MODE_ROLLOFF_HZ, MODE_TILT_DB_PER_OCTAVE)
         gl, gr = placement_gains(region, spread)
         irs[region] = ir * np.array([gl, gr])[None, :] * w[:, None]
     gain = np.mean([band_power_gain(ir) for ir in irs.values()])
