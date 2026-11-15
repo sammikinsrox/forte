@@ -5,9 +5,11 @@ at 48 kHz, stereo, one per bridge region and Listening perspective, 20000 taps (
     python tools/seed-irs/make_seed_irs.py            (numpy; output is byte-identical every run)
 
 Each IR is the listening-test prototype's modal-noise generator (soundboard_ir() in
-prototypes/listening-test/forte_proto.py), copied below with only the rate and length made
-arguments. The prototype is throwaway, so the generator lives here; --check confirms the copy
-still matches it. The prototype seeded each region with its number, 1-4; Microphones keeps those
+prototypes/listening-test/forte_proto.py), copied below with the rate and length made arguments.
+Its fixed values are settings too (the board settings below), all at the prototype's own values,
+so the seed is the prototype's board; issue 0021 records what moving each one did by ear. The
+prototype is throwaway, so the generator lives here; --check confirms that, at the prototype's
+values, the copy still matches it. The prototype seeded each region with its number, 1-4; Microphones keeps those
 seeds, so it is the soundboard the listening test heard (without its fitted colour curve), and
 Pianist uses 5-8. That makes the two perspectives audibly different soundboards, which is all a
 seed needs: §3.4 replaces both with one generator and two calibrated colours.
@@ -38,6 +40,32 @@ SR = 48000
 TAPS = 20000
 FADE_SECONDS = 0.1
 
+# Board settings, all at the prototype's values (issue 0021 has what each did by ear). SPEC §3.4's
+# calibration sets them.
+
+# Where the board's radiation stops rising. At 500 Hz the modes are 21 dB down at 100 Hz, so the
+# bass and low mids come through the smooth direct path alone.
+RADIATION_CORNER_HZ = 500.0
+
+# Where the statistical modes start. Below it are only nine fixed modes, none between 127 and
+# 187 Hz.
+STATISTICAL_MODES_FROM_HZ = 300.0
+
+# How many times more the modes below LOW_MODE_LIMIT_HZ are damped (1 = as generated), and a
+# minimum-phase low shelf on the direct path (0 dB = none).
+LOW_MODE_LIMIT_HZ = 300.0
+LOW_MODE_DAMPING = 1.0
+DIRECT_LOW_SHELF_DB = 0.0
+DIRECT_LOW_SHELF_HZ = 250.0
+
+# The smooth direct path's weight against the resonant modes (normalised to unit energy). At 2.0
+# the output is mostly the bridge force itself, like a pickup under the bridge; SPEC §3.4 fits
+# this "irregularity" to the reference's partial-level scatter.
+DIRECT_GAIN = 2.0
+
+# Where the modes' radiation rolls off at the top.
+MODE_ROLLOFF_HZ = 6000.0
+
 REGIONS = ["bass", "tenor", "middle", "treble"]
 # The keys each region's bridge carries (SPEC §2.8; the boundaries are the prototype's region_of()).
 REGION_KEYS = {"bass": (21, 47), "tenor": (48, 59), "middle": (60, 75), "treble": (76, 108)}
@@ -48,21 +76,53 @@ PERSPECTIVES = {
 }
 
 
-def soundboard_ir(region_seed, sr, taps):
-    """The prototype's soundboard_ir(region_seed, length) with COLOUR = None, at rate sr."""
+def low_shelf(gain_db, corner_hz, sr, taps):
+    """Impulse response of an RBJ-cookbook low shelf (slope 1): minimum phase, so it adds no
+    pre-ringing, and flat above the corner."""
+    a = 10 ** (gain_db / 40)
+    w0 = 2 * math.pi * corner_hz / sr
+    alpha = math.sin(w0) / 2 * math.sqrt(2)
+    c = math.cos(w0)
+    b = [a * ((a + 1) - (a - 1) * c + 2 * math.sqrt(a) * alpha),
+         2 * a * ((a - 1) - (a + 1) * c),
+         a * ((a + 1) - (a - 1) * c - 2 * math.sqrt(a) * alpha)]
+    den = [(a + 1) + (a - 1) * c + 2 * math.sqrt(a) * alpha,
+           -2 * ((a - 1) + (a + 1) * c),
+           (a + 1) + (a - 1) * c - 2 * math.sqrt(a) * alpha]
+    h = np.zeros(taps)
+    x1 = x2 = y1 = y2 = 0.0
+    for n in range(taps):
+        x0 = 1.0 if n == 0 else 0.0
+        y0 = (b[0] * x0 + b[1] * x1 + b[2] * x2 - den[1] * y1 - den[2] * y2) / den[0]
+        h[n] = y0
+        x2, x1, y2, y1 = x1, x0, y1, y0
+    return h
+
+
+def soundboard_ir(region_seed, sr, taps, radiation_corner=500.0, statistical_from=300.0,
+                  low_mode_damping=1.0, direct_shelf_db=0.0, direct_shelf_hz=250.0, direct_gain=2.0,
+                  mode_rolloff=6000.0):
+    """The prototype's soundboard_ir(region_seed, length) with COLOUR = None, at rate sr. The
+    prototype's radiation curve rises to radiation_corner, and its statistical modes start at
+    statistical_from. Modes below LOW_MODE_LIMIT_HZ are damped low_mode_damping times more, and
+    the direct path gets a low shelf of direct_shelf_db at direct_shelf_hz. The defaults are the
+    prototype's own."""
     r = np.random.default_rng(region_seed)
     t = np.arange(taps) / sr
     low = [50, 62, 90, 105, 127, 187, 222, 245, 325]
     f_hi = []
-    f = 300.0
+    f = statistical_from
     while f < 12000:                              # concert grand: ~2x upright density below 1.1 kHz
         dens = 0.12 if f < 1100 else 0.12 * (1100 / f) ** 0.5
         f += r.exponential(1 / dens); f_hi.append(f)
     freqs = np.array(low + f_hi)
     eta = r.uniform(0.01, 0.03, freqs.size)
+    if low_mode_damping != 1.0:
+        eta = np.where(freqs < LOW_MODE_LIMIT_HZ, eta * low_mode_damping, eta)
     alpha = math.pi * freqs * eta
     # colour: radiation rises to ~500 Hz, mobility flat 500 Hz-5 kHz, gentle roll-off above
-    col = (freqs / 500) ** 1.5 / (1 + (freqs / 500) ** 1.5) / (1 + (freqs / 6000) ** 2)
+    rise = (freqs / radiation_corner) ** 1.5
+    col = rise / (1 + rise) / (1 + (freqs / mode_rolloff) ** 2)
     ir = np.zeros((t.size, 2))
     for c in range(2):
         for _ in range(1):
@@ -75,7 +135,9 @@ def soundboard_ir(region_seed, sr, taps):
     ir[:, :] /= np.sqrt((ir ** 2).sum(0).max())
     # Smooth (non-resonant) part. At 0.35 the random modes alone swung partial levels by up to
     # +/-20 dB (C4 came out hollow); 2.0 keeps the swings around +/-3-6 dB. Plath calibration must set this.
-    direct = np.zeros_like(ir); direct[0] = [2.0, 2.0]
+    direct = np.zeros_like(ir); direct[0] = [direct_gain, direct_gain]
+    if direct_shelf_db != 0.0:
+        direct = direct_gain * np.repeat(low_shelf(direct_shelf_db, direct_shelf_hz, sr, taps)[:, None], 2, axis=1)
     ir = ir + direct
     return ir
 
@@ -100,7 +162,9 @@ def perspective_irs(name):
     w = fade_out(TAPS, SR)
     irs = {}
     for i, region in enumerate(REGIONS):
-        ir = soundboard_ir(first_seed + i, SR, TAPS)
+        ir = soundboard_ir(first_seed + i, SR, TAPS, RADIATION_CORNER_HZ, STATISTICAL_MODES_FROM_HZ,
+                           LOW_MODE_DAMPING, DIRECT_LOW_SHELF_DB, DIRECT_LOW_SHELF_HZ, DIRECT_GAIN,
+                           MODE_ROLLOFF_HZ)
         gl, gr = placement_gains(region, spread)
         irs[region] = ir * np.array([gl, gr])[None, :] * w[:, None]
     gain = np.mean([band_power_gain(ir) for ir in irs.values()])
