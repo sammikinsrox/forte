@@ -206,10 +206,12 @@ TEST_CASE ("Hammer is stable on every note at maximum velocity at every sample r
         engine.reset();
         const auto out = render (engine, { noteOn (0, note, 127) }, static_cast<std::int64_t> (sampleRate * 0.05), 512);
 
+        // Both channels: the treble sits to the right.
         INFO ("note " << note << " at " << sampleRate << " Hz");
         REQUIRE (allFinite (out.left));
-        REQUIRE (peak (out.left) < 1.0f);
-        REQUIRE (peak (out.left) > 1e-3f);
+        REQUIRE (allFinite (out.right));
+        REQUIRE (std::max (peak (out.left), peak (out.right)) < 1.0f);
+        REQUIRE (std::max (peak (out.left), peak (out.right)) > 1e-3f);
     }
 }
 

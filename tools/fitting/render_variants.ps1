@@ -19,6 +19,9 @@ param(
 
 $tools = $PSScriptRoot
 New-Item -ItemType Directory -Force $OutDir | Out-Null
+# The jobs start elsewhere, so every path they get must be absolute.
+$OutDir = (Resolve-Path $OutDir).Path
+$Midi = (Resolve-Path $Midi).Path
 $jobs = foreach ($exe in Get-ChildItem "$Renderers\*.exe") {
     Start-Job -ArgumentList $exe.FullName, $Midi, (Join-Path $OutDir "$($exe.BaseName).wav"), $Tail -ScriptBlock {
         param($e, $m, $w, $t)

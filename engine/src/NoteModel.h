@@ -30,9 +30,13 @@ namespace forte::detail
     Odd modes share one drive and even modes another. The force passes a 40 Hz high-pass to the
     bridge. The path runs at every sample, including during hammer contact.
 
-    Hammer (SPEC §2.4): a mass on a felt spring F = K·(c^p + α·d(c^p)/dt), computed sample by
-    sample at 4× oversampling while it's in contact with the strings. The force is shared by the
-    strings it strikes, and it feels their mean displacement.
+    Hammer (SPEC §2.4): a mass on a hysteretic felt, computed sample by sample at 4× oversampling
+    while it's in contact with the strings. The felt is Stulov's hereditary model,
+    F = Q0·[c^p − (ε/τ)·∫ c^p(ξ)·e^{−(t−ξ)/τ} dξ]: compression changes faster than τ meet the
+    instantaneous stiffness Q0, slower ones the relaxed Q0·(1 − ε). The faster the blow, the
+    stiffer the felt it meets, so brightness rises steeply with velocity, as a real felt's does.
+    The force never exceeds Q0·c^p and never pulls. It is shared by the strings the hammer
+    strikes, and it feels their mean displacement.
 
     Soft pedal (SPEC §2.7): a 0–1 shift of the action, read at each strike. On 2- and 3-string
     unisons the hammer's share of string 0 fades to nothing as the shift goes to 1, so it strikes
@@ -129,7 +133,8 @@ private:
     double hammerMass = 3e-3;
     double feltStiffness = 0.0;
     double feltExponent = 2.5;
-    double feltHysteresis = 0.0;
+    double feltRelaxation = 0.0;
+    double feltMemoryDecay = 0.0;  // e^{−(T/4)/τ}
     double softPedalFeltScale = 1.0;
     int maxContactSubsteps = 0;
     VelocityCurve velocityCurve;
@@ -191,7 +196,7 @@ private:
     double hammerPosition = 0.0;  // m, along the strings' displacement
     double hammerVelocity = 0.0;  // m/s
     double strikeFeltStiffness = 0.0;
-    double previousCompressionPower = 0.0;
+    double feltMemory = 0.0;      // c^p low-passed with the felt's relaxation time
     int contactSubsteps = 0;
     int separatedSubsteps = 0;
 

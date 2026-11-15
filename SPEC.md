@@ -75,10 +75,10 @@ Energy flows **one way**: strings → bridge regions and the sympathetic bank, w
 
 ### 2.4 Hammer
 
-- **Model:** a lumped mass with a nonlinear felt spring that stiffens under compression and has slight hysteresis (after Bank/Zambon/Fontana 2010).
+- **Model:** a lumped mass with a nonlinear, hysteretic felt: Stulov's hereditary model, F = Q0·[c^p − (ε/τ)·∫ c^p(ξ)·e^{−(t−ξ)/τ} dξ]. Compression changes faster than τ meet the instantaneous stiffness Q0, slower ones the relaxed Q0·(1 − ε). The faster the blow, the stiffer the felt it meets, so brightness rises with velocity as steeply as Iowa's does from pp to ff. An elastic felt can't follow that: matched at mf, it is far too bright at pp and too dull at ff. The fitted hysteresis is large (ε ≈ 0.75–0.97; [Voicing against Iowa](issues/0021-voicing-against-iowa.md)).
 - **Contact:** computed sample by sample at **4× oversampling** during the contact window only.
 - **Strike position:** ~1/8 of the string length. It shapes which partials are excited.
-- **Per-note values:** mass, stiffness and exponent come from the model file.
+- **Per-note values:** mass, stiffness Q0, exponent p, relaxation ε and relaxation time τ come from the model file.
 - **Stability test:** every note at maximum velocity, with the hardest felt, at every supported sample rate.
 
 ### 2.5 Dampers and half-pedaling

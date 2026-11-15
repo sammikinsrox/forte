@@ -33,6 +33,21 @@ double interpolateLog (double x, const double (&xs)[N], const double (&ys)[N]) n
     return std::exp (interpolate (x, xs, logs));
 }
 
+/** One note's fitted hammer: the Stulov felt and the velocity calibration. */
+struct FittedHammer
+{
+    int midiNote;
+    double stiffness, exponent, relaxation, relaxationTime;  // Q0, p, ε, τ (s)
+    double pp, mf, ff;                                        // hammer speeds at velocities 32, 64, 112 (m/s)
+    double hardest;                                           // velocity 127's speed (m/s)
+};
+
+constexpr FittedHammer fittedHammers[] {
+#include "HammerFit.inc"
+};
+static_assert (std::size (fittedHammers) == numNotes);
+static_assert (fittedHammers[0].midiNote == lowestNote && fittedHammers[numNotes - 1].midiNote == highestNote);
+
 NoteParameters seedNote (int midiNote)
 {
     const double key = midiNote;
@@ -56,7 +71,7 @@ NoteParameters seedNote (int midiNote)
     const double equalTemperament = 440.0 * std::pow (2.0, (key - 69.0) / 12.0);
     p.fundamental = equalTemperament / std::sqrt (1.0 + p.inharmonicity);
 
-    // About 10 single, 18 double and the rest triple (SPEC Â§2.3). Exact boundaries come from the
+    // About 10 single, 18 double and the rest triple (SPEC §2.3). Exact boundaries come from the
     // Steinway D data.
     p.numStrings = midiNote <= 30 ? 1 : midiNote <= 48 ? 2 : 3;
 
@@ -67,8 +82,8 @@ NoteParameters seedNote (int midiNote)
     p.stringTension = 700.0 + 50.0 * std::cos (std::clamp ((key - 36.0) / 48.0, 0.0, 1.0) * std::numbers::pi);
 
     // Decay: the prompt sound's T60 for the fundamental runs from 20 s (A0) to 2 s (C8), with
-    // Ïƒ = c1 + c3Â·fÂ². The aftersound decays 4Ã— slower. The prototype's Iowa fits put it nearer
-    // 10â€“20Ã— slower, but they were limited by the recordings' noise floor; the fit (SPEC Â§3.3)
+    // σ = c1 + c3·f². The aftersound decays 4× slower. The prototype's Iowa fits put it nearer
+    // 10–20× slower, but they were limited by the recordings' noise floor; the fit (SPEC §3.3)
     // sets the real values per partial.
     const double t60 = 20.0 * std::pow (0.1, index / 87.0);
     p.decayConstant = std::log (1000.0) / t60;
@@ -76,36 +91,36 @@ NoteParameters seedNote (int midiNote)
     p.aftersoundDecayConstant = 0.25 * p.decayConstant;
     p.aftersoundDecayPerHertzSquared = 0.25 * p.decayPerHertzSquared;
 
-    // Phantom partials on the lowest 30 notes (A0â€“D3), at the listening-test prototype's level
-    // and longitudinal modes until they're fitted against Iowa ff (SPEC Â§3.3).
+    // Phantom partials on the lowest 30 notes (A0–D3), at the listening-test prototype's level
+    // and longitudinal modes until they're fitted against Iowa ff (SPEC §3.3).
     p.phantomLevel = midiNote <= 50 ? 0.3 : 0.0;
     p.longitudinalFrequency = midiNote < 45 ? 1100.0 : 1500.0;
     p.longitudinalQ = 60.0;
     p.axialStiffness = 2e11 * std::numbers::pi * 0.6e-3 * 0.6e-3 * 1.6;  // steel core plus winding, roughly
 
+    // Hammer mass and strike position: Chaigne & Askenfelt seeds, as interpolated by the
+    // listening-test prototype (SPEC §3.3: the mass is a smooth curve from the seeds, not fitted).
     constexpr double hammerAnchors[] { 36.0, 60.0, 84.0, 96.0, 108.0 };
     constexpr double strikePositions[] { 0.12, 0.12, 0.10, 0.0625, 0.0625 };
     constexpr double masses[] { 4.9e-3, 2.97e-3, 2.5e-3, 2.2e-3, 2.0e-3 };
-    constexpr double exponents[] { 2.3, 2.5, 2.8, 3.0, 3.0 };
-    constexpr double stiffnesses[] { 4e8, 4.5e9, 3e10, 1e11, 3e11 };
-    // The prototype's fits up to C6. Above, the felt stiffens back towards the unscaled seeds:
-    // with the C6 fit held, the top octave's contact was so long that it barely excited C8.
-    constexpr double stiffnessScales[] { 0.681, 0.681, 0.215, 0.6, 1.0 };
     p.strikePosition = interpolate (key, hammerAnchors, strikePositions);
     p.hammerMass = interpolate (key, hammerAnchors, masses);
-    p.feltExponent = interpolate (key, hammerAnchors, exponents);
-    p.feltStiffness = interpolateLog (key, hammerAnchors, stiffnesses) * interpolate (key, hammerAnchors, stiffnessScales);
-    p.feltHysteresis = 1e-5;
 
-    // Typical pp/mf/ff hammer speeds until the fit hands over each note's own (SPEC Â§3.3).
-    p.hammerSpeeds = { 0.7, 2.0, 4.5 };
-    p.maxHammerSpeed = 8.0;
+    // The felt and the velocity calibration: fitted against Iowa (tools/fitting/fit_hammer.py,
+    // SPEC §3.3, §4.1).
+    const auto& fitted = fittedHammers[static_cast<std::size_t> (index)];
+    p.feltStiffness = fitted.stiffness;
+    p.feltExponent = fitted.exponent;
+    p.feltRelaxation = fitted.relaxation;
+    p.feltRelaxationTime = fitted.relaxationTime;
+    p.hammerSpeeds = { fitted.pp, fitted.mf, fitted.ff };
+    p.maxHammerSpeed = fitted.hardest;
 
     // The shifted hammer meets less-compacted felt. A literature-style offset until it's set by
-    // ear (SPEC Â§3.3, Â§10).
+    // ear (SPEC §3.3, §10).
     p.softPedalFeltScale = 0.7;
 
-    // Roughly the top 18 notes have no damper (SPEC Â§2.5): G#6 (MIDI 91) and up.
+    // Roughly the top 18 notes have no damper (SPEC §2.5): G#6 (MIDI 91) and up.
     p.hasDamper = midiNote <= 90;
     p.damperDecayConstant = p.hasDamper ? 8.0 : 0.0;  // the prototype's damper law
     p.damperDecayPerRootKilohertz = p.hasDamper ? 15.0 : 0.0;
@@ -124,7 +139,7 @@ PianoModel makeSeedPianoModel()
     model.unisonSpreadCents = 0.7;
 
     // Placeholder level until the soundboard and the fitted levels exist: an ff C4 peaks around
-    // âˆ’15 dBFS, and a full 88-key sustain glissando at velocity 90 peaks just under 0 dBFS.
+    // −15 dBFS, and a full 88-key sustain glissando at velocity 90 peaks just under 0 dBFS.
     model.outputGain = 5.6e-3;
 
     // Placeholder until Piano in 162 calibrates it (SPEC §3.3): a round gain that puts a held

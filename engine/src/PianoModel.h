@@ -59,9 +59,13 @@ struct NoteParameters
     // Hammer
     double strikePosition = 0.125;   // fraction of the string length from the agraffe
     double hammerMass = 3e-3;        // kg
-    double feltStiffness = 4.5e9;    // K in F = K·compression^p
+    // Felt (Stulov): F = Q0·[c^p − ε·m], with m the compression power c^p low-passed with time
+    // constant τ. Fast compression meets the instantaneous stiffness Q0, slow compression the
+    // relaxed Q0·(1 − ε).
+    double feltStiffness = 4.5e9;    // Q0
     double feltExponent = 2.5;       // p
-    double feltHysteresis = 1e-5;    // s
+    double feltRelaxation = 0.0;     // ε, 0–1; 0 = an elastic felt
+    double feltRelaxationTime = 5e-4; // τ, s
     HammerSpeeds hammerSpeeds;       // at velocities 32, 64 and 112 (SPEC §4.1)
     double maxHammerSpeed = 8.0;     // m/s, velocity 127 never exceeds it
 

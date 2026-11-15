@@ -70,7 +70,8 @@ void NoteModel::prepare (const NoteParameters& p, double unisonSpreadCents, doub
     hammerMass = p.hammerMass;
     feltStiffness = p.feltStiffness;
     feltExponent = p.feltExponent;
-    feltHysteresis = p.feltHysteresis;
+    feltRelaxation = p.feltRelaxationTime > 0.0 ? std::clamp (p.feltRelaxation, 0.0, 1.0) : 0.0;
+    feltMemoryDecay = p.feltRelaxationTime > 0.0 ? std::exp (-samplePeriod / hammerOversampling / p.feltRelaxationTime) : 0.0;
     softPedalFeltScale = p.softPedalFeltScale;
     maxContactSubsteps = static_cast<int> (maxContactSeconds * sampleRate) * hammerOversampling;
     liftStepPerTick = static_cast<float> (controlInterval * samplePeriod / damperRampSeconds);
@@ -292,7 +293,7 @@ void NoteModel::strike (double velocity, double touch, double softShift) noexcep
     // The hammer arrives just touching the strings, wherever they are.
     hammerPosition = strikePointDisplacement();
     hammerVelocity = velocityCurve.hammerSpeed (velocity, touch);
-    previousCompressionPower = 0.0;
+    feltMemory = 0.0;
     contactSubsteps = 0;
     separatedSubsteps = 0;
 }
@@ -423,17 +424,12 @@ float NoteModel::renderContactSample() noexcept
     for (int substep = 0; substep < hammerOversampling; ++substep)
     {
         const double compression = hammerPosition - strikePointDisplacement();
-        double force = 0.0;
-        double compressionPower = 0.0;
+        const double compressionPower = compression > 0.0 ? std::pow (compression, feltExponent) : 0.0;
 
-        if (compression > 0.0)
-        {
-            compressionPower = std::pow (compression, feltExponent);
-            const double rate = (compressionPower - previousCompressionPower) / substepPeriod;
-            force = std::max (0.0, strikeFeltStiffness * (compressionPower + feltHysteresis * rate));
-        }
-
-        previousCompressionPower = compressionPower;
+        // The felt's memory relaxes towards the compression power, also while it's clear of the
+        // strings, so a quick re-contact meets partly relaxed felt.
+        feltMemory = feltMemoryDecay * feltMemory + (1.0 - feltMemoryDecay) * compressionPower;
+        const double force = std::max (0.0, strikeFeltStiffness * (compressionPower - feltRelaxation * feltMemory));
         const auto impulse = static_cast<float> (force * substepPeriod);
 
         for (int i = 0; i < numModes; ++i)

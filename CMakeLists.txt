@@ -28,6 +28,7 @@ add_subdirectory(engine)
 add_subdirectory(bridge)
 add_subdirectory(plugin)
 add_subdirectory(tools/forte-render)
+add_subdirectory(tools/fitting/probes)
 
 if(FORTE_BUILD_TESTS)
     enable_testing()

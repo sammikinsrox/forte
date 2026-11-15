@@ -10,6 +10,7 @@
 #include <catch2/generators/catch_generators.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <vector>
 
 using forte::detail::NoteModel;
@@ -191,6 +192,75 @@ TEST_CASE ("The soft pedal darkens the strike", "[note][soft-pedal]")
 
     if (p.numStrings > 1)
         CHECK (rms (soft, 0, second / 2) < rms (normal, 0, second / 2));
+}
+
+TEST_CASE ("The hysteretic felt is stiffer than its relaxed self and brightens with velocity", "[note][hammer]")
+{
+    // SPEC §2.4: Stulov's felt meets fast compression with Q0, not the relaxed Q0·(1 − ε), so
+    // its strike is brighter than an elastic felt at the relaxed stiffness. And ff is brighter
+    // than mf everywhere. pp is darker than mf where the fit had Iowa's dynamics for the felt's
+    // shape (C2, C4); in the treble the brightness dips at mf and pp is a little brighter
+    // (issue 0021: the treble's relaxation time is C4's, unfitted). Brightness as in the
+    // soft-pedal test.
+    const int midiNote = GENERATE (36, 60, 76, 96);
+    const auto stulov = seedModel().note (midiNote);
+    REQUIRE (stulov.feltRelaxation > 0.5);
+
+    auto relaxed = stulov;
+    relaxed.feltStiffness *= 1.0 - stulov.feltRelaxation;
+    relaxed.feltRelaxation = 0.0;
+
+    constexpr std::int64_t window = second / 6;
+
+    const auto brightness = [] (const std::vector<float>& x)
+    {
+        std::vector<float> slope (x.size(), 0.0f);
+        for (std::size_t i = 1; i < x.size(); ++i)
+            slope[i] = x[i] - x[i - 1];
+        return rms (slope, 0, window) / rms (x, 0, window);
+    };
+
+    const auto pp = brightness (strikeNote (stulov, 32, window));
+    const auto mf = brightness (strikeNote (stulov, 64, window));
+    const auto ff = brightness (strikeNote (stulov, 112, window));
+    const auto mfRelaxed = brightness (strikeNote (relaxed, 64, window));
+
+    INFO ("note " << midiNote << ": pp " << pp << ", mf " << mf << ", ff " << ff << "; mf relaxed " << mfRelaxed);
+    CHECK (mfRelaxed < mf);
+    CHECK (mf < ff);
+    if (midiNote <= 60)
+        CHECK (pp < mf);
+}
+
+TEST_CASE ("The fitted hammer is calibrated and smooth across the keyboard", "[note][hammer]")
+{
+    // SPEC §3.3, §4.1: the fit's table (engine/src/HammerFit.inc), checked for what the velocity
+    // curve and the felt need, and for jumps between neighbouring notes that a fit gone wrong
+    // would leave.
+    const auto& model = seedModel();
+
+    for (int midiNote = forte::detail::lowestNote; midiNote <= forte::detail::highestNote; ++midiNote)
+    {
+        const auto& p = model.note (midiNote);
+        INFO ("note " << midiNote);
+        CHECK (p.hammerSpeeds.pp > 0.0);
+        CHECK (p.hammerSpeeds.pp < p.hammerSpeeds.mf);
+        CHECK (p.hammerSpeeds.mf < p.hammerSpeeds.ff);
+        CHECK (p.hammerSpeeds.ff < p.maxHammerSpeed);
+        CHECK (p.feltRelaxation >= 0.0);
+        CHECK (p.feltRelaxation < 1.0);
+        CHECK (p.feltRelaxationTime > 0.0);
+        CHECK (p.feltExponent >= 1.5);
+        CHECK (p.feltExponent <= 5.0);
+
+        if (midiNote > forte::detail::lowestNote)
+        {
+            const auto& below = model.note (midiNote - 1);
+            CHECK (p.feltStiffness / below.feltStiffness < 1.5);
+            CHECK (below.feltStiffness / p.feltStiffness < 1.5);
+            CHECK (std::abs ((1.0 - p.feltRelaxation) / (1.0 - below.feltRelaxation) - 1.0) < 0.25);
+        }
+    }
 }
 
 TEST_CASE ("The soft pedal is read at each strike", "[engine][soft-pedal]")

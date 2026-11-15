@@ -86,13 +86,81 @@ quiet to judge the bass by. Above that, single velocity-127 notes clip (D3 reach
   note-to-note brightness scatter is 10–20 dB. The fit must measure the strings without the board.
 - Raising the felt exponent without compensating stiffness: makes the felt ~50× softer.
 
+### 6. Step 1 done: the hammer and felt fit (2026-11-14, branch hammer-felt-fit)
+
+`tools/fitting/fit_hammer.py` (measure → fit → build; its docstring has the method), measuring the
+strings without the board through `forte-string-probe`.
+
+**Where the twang came from.** On the bare strings the seed's C4 contact lasted ~1 ms (real: 2–4
+ms), so the force spectrum was flat to ~1 kHz and partials 2–7 came out level with the fundamental
+at every speed and felt. A softer felt lengthens the pulse but filters out the strings' reflections,
+which takes the top away: the closed lid.
+
+**The felt model is now Stulov's hereditary felt** (SPEC §2.4), F = Q0·[cᵖ − ε·(cᵖ low-passed with
+τ)], replacing the α·d(cᵖ)/dt term (its τ → 0 limit). Fitted to C4's band changes between pp, mf
+and ff: no hysteresis 12.6 dB rms, α-law 4.1, Stulov 3.7 (C2: 6.1 for both hysteretic laws). An
+elastic felt can't brighten from pp to ff as steeply as Iowa does (15–36 dB per band). Stulov was
+chosen over the α-law for its bounded force and its time scale. The fitted hysteresis is large: ε
+0.75–0.97, τ 0.64 ms (C2) to 1.06 ms (C4 up).
+
+**Measurement lessons** (in `hammer_measure.py`):
+
+- `forte_audio.onset`'s 5 % threshold fires on Iowa pp's lead-in noise, 0.25 s early; that, not
+  the noise floor, made "pp brighter than mf". With a 30 % onset, a per-partial noise floor and a
+  peak-prominence test, C2 and C4 pp are usable (half weight); C6 pp is still brighter than its mf.
+- Iowa's C4 is not an outlier on the old metric (mean of partials 2–12 re 1): Iowa darkens steadily
+  up the keyboard, C3 +2.5, G3 −15, B3 −20, C4 −34, A4 −35, C5 −48 dB. But a single note's octave
+  bands scatter ±15 dB, so the targets are running medians over ±4 semitones.
+- Band brightness must be a median of partial levels, not a power mean: a power mean follows the
+  loudest partial, often one picked out by a board mode. The first fit, on power means, kept the
+  twang.
+- Iowa mf is at its noise floor above ~4 kHz from C4 up, and C6 has one usable band. So Iowa can't
+  say how bright the top should be: the felt's shape (p, ε, τ) comes from C2 and C4, and the top is
+  what the hysteresis gives.
+- Band changes between dynamics belong to the felt alone (the board, microphones and room are
+  linear and cancel). Fitting those is what made the fit work.
+
+**What changed, at velocity 64, in the attack (bare strings, octave bands re the fundamental):**
+1–2 kHz and 2–4 kHz down 3–16 dB from C3 to G4; partials 2–3 down 5–17 dB from E4 up. C5 and E5,
+which had nothing above 2 kHz (−120 dB), now have a top at −35 to −60 dB. Through board #9, the
+mean of C4's partials 2–12 is −25.8 dB (seed −16.3; Iowa mf −35, ff −27): no longer brighter than
+Iowa's ff, though still 9 dB brighter than Iowa's single (dark) C4. C6 −48.8 (seed −58.4; Iowa mf
+−49.5).
+
+**Pieces** (board #9, level-matched): energy above 4 kHz up 4–10 dB, above 8 kHz up 23–27 dB, peaks
+up to 6 dB higher at the same RMS (sharper strikes). But the share at 1–3.5 kHz is unchanged
+within ±2 dB. Over a piece that band is mostly the sustain, so the lingering layer is step 2's (the
+decay), as §2 suggested.
+
+**Where the fit stops matching Iowa:**
+
+- C5–Gb5: the best per-note felt there is nearly elastic (ε ≈ 0.02). Iowa's mf treble has its 2–5
+  kHz band ~60 dB under the fundamental, and the hysteresis's flash can't go that low. The smoothed
+  ε (0.73–0.86) keeps the flash, ~25 dB brighter than Iowa there. That's the brightness asked for,
+  at Iowa's expense; `fit-softer` leans the other way.
+- Treble brightness is U-shaped in velocity: from E5 up, pp is a little brighter than mf, then ff
+  brightest. Iowa's C6 pp is also brighter than its mf, but likely the treble's τ is wrong, held at
+  C4's because Iowa has no treble dynamics to fit.
+- C4's ff speed is 9.2 m/s (real ff ~5–6) to reach Iowa's +13 dB from mf. Forte's loudness rises
+  more slowly with speed than Iowa's gap asks for. The mf speed (2 m/s) is a seed; Iowa can't
+  identify it.
+
+**The top octave and velocity 127.** Above C6 the stiffest, fastest blows outran the 4×-oversampled
+contact: at 44.1 kHz a velocity-127 note peaked up to 9 dB hotter than at 96 kHz, and clipped (+6.7
+dBFS at A7). The hammer stability test missed it, because it checked the left channel only and the
+treble sits right. Now: Q0 rises 1.155× per semitone above C6 (capped so every note stays within
+1 dB of 96 kHz at ff), velocity 127 falls from 12.4 m/s at A6 to 7.8 at C8 (the fastest accurate
+speed), and the test checks both channels. Every note at 127 peaks ≤ −1.25 dBFS at 44.1 and 96 kHz
+with the committed board. C8 speaks: its fundamental at velocity 64 is 4 dB under C6's (seed: 31 dB
+under).
+
 ## Plan
 
 How to get bright + full + shimmer + rumble without twang. Twang and brightness live in different
 places: twang is a loud, lingering 0.5–3.5 kHz layer over a weak fundamental; brightness and shimmer
 are high partials (4–12 kHz) that flash at the strike and fade, over a strong fundamental. So:
 
-1. **Hammer and felt fit (SPEC §3.3), with the felt's hysteresis.** Fit stiffness, exponent and
+1. **Done (§6); listening pending.** **Hammer and felt fit (SPEC §3.3), with the felt's hysteresis.** Fit stiffness, exponent and
    hysteresis per note, plus the velocity calibration, against Iowa pp/mf/ff (C2/C4/C6) and mf
    (all notes), measuring the strings without the board. Felt hysteresis is the key extra freedom:
    a felt that is stiffer the faster it's compressed (Stulov) has a steep spectrum through the mids,
@@ -116,11 +184,14 @@ Order matters: the board and taste steps are only judgeable once the strings are
 
 ## Where things stand
 
-The seed sound is unchanged from commit 8d80ff0 plus the sympathetic bank: none of the values tried
-here were kept, since the fits will set them. The values to reproduce what was heard:
+Step 1 is in (§6): the felt and velocity calibration come from `data/model/hammer.json` through the
+generated `engine/src/HammerFit.inc` (`python tools/fitting/fit_hammer.py all` rebuilds both,
+byte-identical). Everything else is the seed sound of commit 8d80ff0 plus the sympathetic bank.
+The values to reproduce what was heard:
 
-- **Felt:** a uniform multiplier on `feltStiffness` in `engine/src/PianoModel.cpp`'s `seedNote()`.
-  ×2 was "harder felt"; ×0.25 removed the twang but sounded like a closed lid.
+- **Felt:** before step 1, a uniform multiplier on `feltStiffness` in `seedNote()`. ×2 was "harder
+  felt"; ×0.25 removed the twang but sounded like a closed lid. Step 1's A/B variants were Q0 ×2
+  (`fit-harder`) and ×0.5 (`fit-softer`) on every row of `HammerFit.inc`.
 - **Output gain:** `model.outputGain` 1.35e-2 instead of 5.6e-3 (+7.6 dB). Check that single
   velocity-127 notes stay below 0 dBFS (the hammer stability test checks it).
 - **Board** (`tools/seed-irs/make_seed_irs.py`, all at prototype values now):
