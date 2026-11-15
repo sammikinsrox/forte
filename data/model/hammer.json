@@ -1,852 +1,797 @@
 {
- "about": "Fitted hammer and felt values per note (tools/fitting/fit_hammer.py fit). Felt: Stulov, F = Q0·[c^p − ε·(c^p low-passed with τ)]. Speeds in m/s at velocities 32, 64 and 112; maxHammerSpeed is velocity 127.",
- "shapeAnchors": {
-  "C2": {
-   "rmsDb": 9.84
-  },
-  "C4": {
-   "rmsDb": 6.68
-  }
- },
+ "about": "Hammer and felt values per note, set by ear (tools/fitting/fit_hammer.py voice; issue 0021 §7). Felt: Stulov, F = Q0·[c^p − ε·(c^p low-passed with τ)]; the relaxed stiffness Q0·(1 − ε) is the seed felt × 0.25. Speeds in m/s at velocities 32, 64 and 112; maxHammerSpeed caps velocity 127.",
  "notes": {
   "A0": {
    "midi": 21,
-   "feltStiffness": 2787000000.0,
-   "feltExponent": 2.722,
-   "feltRelaxation": 0.96422,
-   "feltRelaxationTime": 0.0006355,
-   "hammerSpeeds": [0.477, 2.0, 3.455],
-   "maxHammerSpeed": 5.801
+   "feltStiffness": 681000000.0,
+   "feltExponent": 2.3,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Bb0": {
    "midi": 22,
-   "feltStiffness": 2875000000.0,
-   "feltExponent": 2.722,
-   "feltRelaxation": 0.96422,
-   "feltRelaxationTime": 0.0006355,
-   "hammerSpeeds": [0.477, 2.0, 3.455],
-   "maxHammerSpeed": 5.801
+   "feltStiffness": 681000000.0,
+   "feltExponent": 2.3,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "B0": {
    "midi": 23,
-   "feltStiffness": 2966000000.0,
-   "feltExponent": 2.722,
-   "feltRelaxation": 0.96422,
-   "feltRelaxationTime": 0.0006355,
-   "hammerSpeeds": [0.477, 2.0, 3.455],
-   "maxHammerSpeed": 5.801
+   "feltStiffness": 681000000.0,
+   "feltExponent": 2.3,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "C1": {
    "midi": 24,
-   "feltStiffness": 3060000000.0,
-   "feltExponent": 2.722,
-   "feltRelaxation": 0.96422,
-   "feltRelaxationTime": 0.0006355,
-   "hammerSpeeds": [0.477, 2.0, 3.455],
-   "maxHammerSpeed": 5.801
+   "feltStiffness": 681000000.0,
+   "feltExponent": 2.3,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Db1": {
    "midi": 25,
-   "feltStiffness": 3157000000.0,
-   "feltExponent": 2.722,
-   "feltRelaxation": 0.96422,
-   "feltRelaxationTime": 0.0006355,
-   "hammerSpeeds": [0.477, 2.0, 3.455],
-   "maxHammerSpeed": 5.801
+   "feltStiffness": 681000000.0,
+   "feltExponent": 2.3,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "D1": {
    "midi": 26,
-   "feltStiffness": 3257000000.0,
-   "feltExponent": 2.722,
-   "feltRelaxation": 0.96422,
-   "feltRelaxationTime": 0.0006355,
-   "hammerSpeeds": [0.477, 2.0, 3.455],
-   "maxHammerSpeed": 5.801
+   "feltStiffness": 681000000.0,
+   "feltExponent": 2.3,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Eb1": {
    "midi": 27,
-   "feltStiffness": 3360000000.0,
-   "feltExponent": 2.722,
-   "feltRelaxation": 0.96422,
-   "feltRelaxationTime": 0.0006355,
-   "hammerSpeeds": [0.477, 2.0, 3.455],
-   "maxHammerSpeed": 5.801
+   "feltStiffness": 681000000.0,
+   "feltExponent": 2.3,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "E1": {
    "midi": 28,
-   "feltStiffness": 3466000000.0,
-   "feltExponent": 2.722,
-   "feltRelaxation": 0.96422,
-   "feltRelaxationTime": 0.0006355,
-   "hammerSpeeds": [0.477, 2.0, 3.455],
-   "maxHammerSpeed": 5.801
+   "feltStiffness": 681000000.0,
+   "feltExponent": 2.3,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "F1": {
    "midi": 29,
-   "feltStiffness": 3576000000.0,
-   "feltExponent": 2.722,
-   "feltRelaxation": 0.96422,
-   "feltRelaxationTime": 0.0006355,
-   "hammerSpeeds": [0.477, 2.0, 3.455],
-   "maxHammerSpeed": 5.801
+   "feltStiffness": 681000000.0,
+   "feltExponent": 2.3,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Gb1": {
    "midi": 30,
-   "feltStiffness": 3689000000.0,
-   "feltExponent": 2.722,
-   "feltRelaxation": 0.96422,
-   "feltRelaxationTime": 0.0006355,
-   "hammerSpeeds": [0.477, 2.0, 3.455],
-   "maxHammerSpeed": 5.801
+   "feltStiffness": 681000000.0,
+   "feltExponent": 2.3,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "G1": {
    "midi": 31,
-   "feltStiffness": 3806000000.0,
-   "feltExponent": 2.722,
-   "feltRelaxation": 0.96422,
-   "feltRelaxationTime": 0.0006355,
-   "hammerSpeeds": [0.477, 2.0, 3.455],
-   "maxHammerSpeed": 5.801
+   "feltStiffness": 681000000.0,
+   "feltExponent": 2.3,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Ab1": {
    "midi": 32,
-   "feltStiffness": 3926000000.0,
-   "feltExponent": 2.722,
-   "feltRelaxation": 0.96422,
-   "feltRelaxationTime": 0.0006355,
-   "hammerSpeeds": [0.477, 2.0, 3.455],
-   "maxHammerSpeed": 5.801
+   "feltStiffness": 681000000.0,
+   "feltExponent": 2.3,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "A1": {
    "midi": 33,
-   "feltStiffness": 4050000000.0,
-   "feltExponent": 2.722,
-   "feltRelaxation": 0.96422,
-   "feltRelaxationTime": 0.0006355,
-   "hammerSpeeds": [0.477, 2.0, 3.455],
-   "maxHammerSpeed": 5.801
+   "feltStiffness": 681000000.0,
+   "feltExponent": 2.3,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Bb1": {
    "midi": 34,
-   "feltStiffness": 4178000000.0,
-   "feltExponent": 2.722,
-   "feltRelaxation": 0.96422,
-   "feltRelaxationTime": 0.0006355,
-   "hammerSpeeds": [0.477, 2.0, 3.455],
-   "maxHammerSpeed": 5.801
+   "feltStiffness": 681000000.0,
+   "feltExponent": 2.3,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "B1": {
    "midi": 35,
-   "feltStiffness": 4311000000.0,
-   "feltExponent": 2.722,
-   "feltRelaxation": 0.96422,
-   "feltRelaxationTime": 0.0006355,
-   "hammerSpeeds": [0.477, 2.0, 3.455],
-   "maxHammerSpeed": 5.801
+   "feltStiffness": 681000000.0,
+   "feltExponent": 2.3,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "C2": {
    "midi": 36,
-   "feltStiffness": 4447000000.0,
-   "feltExponent": 2.722,
-   "feltRelaxation": 0.96422,
-   "feltRelaxationTime": 0.0006355,
-   "hammerSpeeds": [0.477, 2.0, 3.455],
-   "maxHammerSpeed": 5.801,
-   "targetRmsDb": 1.58
+   "feltStiffness": 681000000.0,
+   "feltExponent": 2.3,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Db2": {
    "midi": 37,
-   "feltStiffness": 4588000000.0,
-   "feltExponent": 2.727,
-   "feltRelaxation": 0.96247,
-   "feltRelaxationTime": 0.0006492,
-   "hammerSpeeds": [0.4825, 2.0, 3.599],
-   "maxHammerSpeed": 6.042,
-   "targetRmsDb": 1.71
+   "feltStiffness": 753300000.0,
+   "feltExponent": 2.308,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "D2": {
    "midi": 38,
-   "feltStiffness": 4733000000.0,
-   "feltExponent": 2.733,
-   "feltRelaxation": 0.96065,
-   "feltRelaxationTime": 0.0006631,
-   "hammerSpeeds": [0.4881, 2.0, 3.749],
-   "maxHammerSpeed": 6.293,
-   "targetRmsDb": 1.81
+   "feltStiffness": 833200000.0,
+   "feltExponent": 2.317,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Eb2": {
    "midi": 39,
-   "feltStiffness": 4883000000.0,
-   "feltExponent": 2.739,
-   "feltRelaxation": 0.95873,
-   "feltRelaxationTime": 0.0006774,
-   "hammerSpeeds": [0.4937, 2.0, 3.904],
-   "maxHammerSpeed": 6.555,
-   "targetRmsDb": 3.49
+   "feltStiffness": 921600000.0,
+   "feltExponent": 2.325,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "E2": {
    "midi": 40,
-   "feltStiffness": 5037000000.0,
-   "feltExponent": 2.745,
-   "feltRelaxation": 0.95673,
-   "feltRelaxationTime": 0.0006919,
-   "hammerSpeeds": [0.4994, 2.0, 4.067],
-   "maxHammerSpeed": 6.827,
-   "targetRmsDb": 0.88
+   "feltStiffness": 1019000000.0,
+   "feltExponent": 2.333,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "F2": {
    "midi": 41,
-   "feltStiffness": 5196000000.0,
-   "feltExponent": 2.75,
-   "feltRelaxation": 0.95464,
-   "feltRelaxationTime": 0.0007068,
-   "hammerSpeeds": [0.5051, 2.0, 4.236],
-   "maxHammerSpeed": 7.111,
-   "targetRmsDb": 1.15
+   "feltStiffness": 1128000000.0,
+   "feltExponent": 2.342,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Gb2": {
    "midi": 42,
-   "feltStiffness": 5361000000.0,
-   "feltExponent": 2.756,
-   "feltRelaxation": 0.95246,
-   "feltRelaxationTime": 0.000722,
-   "hammerSpeeds": [0.511, 2.0, 4.412],
-   "maxHammerSpeed": 7.407,
-   "targetRmsDb": 1.77
+   "feltStiffness": 1247000000.0,
+   "feltExponent": 2.35,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "G2": {
    "midi": 43,
-   "feltStiffness": 5531000000.0,
-   "feltExponent": 2.762,
-   "feltRelaxation": 0.95017,
-   "feltRelaxationTime": 0.0007375,
-   "hammerSpeeds": [0.5168, 2.0, 4.595],
-   "maxHammerSpeed": 7.715,
-   "targetRmsDb": 2.08
+   "feltStiffness": 1380000000.0,
+   "feltExponent": 2.358,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Ab2": {
    "midi": 44,
-   "feltStiffness": 5706000000.0,
-   "feltExponent": 2.767,
-   "feltRelaxation": 0.94778,
-   "feltRelaxationTime": 0.0007533,
-   "hammerSpeeds": [0.5228, 2.0, 4.786],
-   "maxHammerSpeed": 8.036,
-   "targetRmsDb": 2.32
+   "feltStiffness": 1526000000.0,
+   "feltExponent": 2.367,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "A2": {
    "midi": 45,
-   "feltStiffness": 5886000000.0,
-   "feltExponent": 2.773,
-   "feltRelaxation": 0.94528,
-   "feltRelaxationTime": 0.0007695,
-   "hammerSpeeds": [0.5288, 2.0, 4.986],
-   "maxHammerSpeed": 8.37,
-   "targetRmsDb": 2.8
+   "feltStiffness": 1688000000.0,
+   "feltExponent": 2.375,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Bb2": {
    "midi": 46,
-   "feltStiffness": 6072000000.0,
-   "feltExponent": 2.779,
-   "feltRelaxation": 0.94266,
-   "feltRelaxationTime": 0.000786,
-   "hammerSpeeds": [0.5349, 2.0, 5.193],
-   "maxHammerSpeed": 8.718,
-   "targetRmsDb": 3.05
+   "feltStiffness": 1867000000.0,
+   "feltExponent": 2.383,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "B2": {
    "midi": 47,
-   "feltStiffness": 6264000000.0,
-   "feltExponent": 2.784,
-   "feltRelaxation": 0.93993,
-   "feltRelaxationTime": 0.0008029,
-   "hammerSpeeds": [0.5411, 2.0, 5.409],
-   "maxHammerSpeed": 9.08,
-   "targetRmsDb": 6.05
+   "feltStiffness": 2065000000.0,
+   "feltExponent": 2.392,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "C3": {
    "midi": 48,
-   "feltStiffness": 6463000000.0,
-   "feltExponent": 2.79,
-   "feltRelaxation": 0.93708,
-   "feltRelaxationTime": 0.0008202,
-   "hammerSpeeds": [0.5473, 2.0, 5.634],
-   "maxHammerSpeed": 9.458,
-   "targetRmsDb": 3.23
+   "feltStiffness": 2284000000.0,
+   "feltExponent": 2.4,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Db3": {
    "midi": 49,
-   "feltStiffness": 6502000000.0,
-   "feltExponent": 2.796,
-   "feltRelaxation": 0.94125,
-   "feltRelaxationTime": 0.0008378,
-   "hammerSpeeds": [0.5536, 2.0, 5.868],
-   "maxHammerSpeed": 9.851,
-   "targetRmsDb": 3.9
+   "feltStiffness": 2527000000.0,
+   "feltExponent": 2.408,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "D3": {
    "midi": 50,
-   "feltStiffness": 6541000000.0,
-   "feltExponent": 2.801,
-   "feltRelaxation": 0.94515,
-   "feltRelaxationTime": 0.0008558,
-   "hammerSpeeds": [0.56, 2.0, 6.112],
-   "maxHammerSpeed": 10.26,
-   "targetRmsDb": 4.97
+   "feltStiffness": 2795000000.0,
+   "feltExponent": 2.417,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Eb3": {
    "midi": 51,
-   "feltStiffness": 6580000000.0,
-   "feltExponent": 2.807,
-   "feltRelaxation": 0.94881,
-   "feltRelaxationTime": 0.0008742,
-   "hammerSpeeds": [0.5665, 2.0, 6.366],
-   "maxHammerSpeed": 10.69,
-   "targetRmsDb": 5.05
+   "feltStiffness": 3091000000.0,
+   "feltExponent": 2.425,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "E3": {
    "midi": 52,
-   "feltStiffness": 6620000000.0,
-   "feltExponent": 2.813,
-   "feltRelaxation": 0.95224,
-   "feltRelaxationTime": 0.000893,
-   "hammerSpeeds": [0.573, 2.0, 6.631],
-   "maxHammerSpeed": 11.13,
-   "targetRmsDb": 7.75
+   "feltStiffness": 3419000000.0,
+   "feltExponent": 2.433,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "F3": {
    "midi": 53,
-   "feltStiffness": 6660000000.0,
-   "feltExponent": 2.818,
-   "feltRelaxation": 0.95545,
-   "feltRelaxationTime": 0.0009122,
-   "hammerSpeeds": [0.5796, 2.0, 6.906],
-   "maxHammerSpeed": 11.59,
-   "targetRmsDb": 4.24
+   "feltStiffness": 3782000000.0,
+   "feltExponent": 2.442,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Gb3": {
    "midi": 54,
-   "feltStiffness": 6700000000.0,
-   "feltExponent": 2.824,
-   "feltRelaxation": 0.95845,
-   "feltRelaxationTime": 0.0009318,
-   "hammerSpeeds": [0.5863, 2.0, 7.194],
-   "maxHammerSpeed": 12.08,
-   "targetRmsDb": 1.77
+   "feltStiffness": 4183000000.0,
+   "feltExponent": 2.45,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "G3": {
    "midi": 55,
-   "feltStiffness": 6740000000.0,
-   "feltExponent": 2.83,
-   "feltRelaxation": 0.96126,
-   "feltRelaxationTime": 0.0009518,
-   "hammerSpeeds": [0.593, 2.0, 7.493],
-   "maxHammerSpeed": 12.58,
-   "targetRmsDb": 1.05
+   "feltStiffness": 4627000000.0,
+   "feltExponent": 2.458,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Ab3": {
    "midi": 56,
-   "feltStiffness": 6781000000.0,
-   "feltExponent": 2.835,
-   "feltRelaxation": 0.96389,
-   "feltRelaxationTime": 0.0009722,
-   "hammerSpeeds": [0.5999, 2.0, 7.804],
-   "maxHammerSpeed": 13.1,
-   "targetRmsDb": 4.03
+   "feltStiffness": 5118000000.0,
+   "feltExponent": 2.467,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "A3": {
    "midi": 57,
-   "feltStiffness": 6822000000.0,
-   "feltExponent": 2.841,
-   "feltRelaxation": 0.96634,
-   "feltRelaxationTime": 0.0009931,
-   "hammerSpeeds": [0.6068, 2.0, 8.129],
-   "maxHammerSpeed": 13.65,
-   "targetRmsDb": 4.52
+   "feltStiffness": 5661000000.0,
+   "feltExponent": 2.475,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Bb3": {
    "midi": 58,
-   "feltStiffness": 6863000000.0,
-   "feltExponent": 2.847,
-   "feltRelaxation": 0.96863,
-   "feltRelaxationTime": 0.001014,
-   "hammerSpeeds": [0.6138, 2.0, 8.467],
-   "maxHammerSpeed": 14.21,
-   "targetRmsDb": 3.86
+   "feltStiffness": 6262000000.0,
+   "feltExponent": 2.483,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "B3": {
    "midi": 59,
-   "feltStiffness": 6904000000.0,
-   "feltExponent": 2.852,
-   "feltRelaxation": 0.97077,
-   "feltRelaxationTime": 0.001036,
-   "hammerSpeeds": [0.6208, 2.0, 8.819],
-   "maxHammerSpeed": 14.81,
-   "targetRmsDb": 3.78
+   "feltStiffness": 6926000000.0,
+   "feltExponent": 2.492,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "C4": {
    "midi": 60,
-   "feltStiffness": 6946000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.97277,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.628, 2.0, 9.186],
-   "maxHammerSpeed": 15.42,
-   "targetRmsDb": 3.4
+   "feltStiffness": 7661000000.0,
+   "feltExponent": 2.5,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Db4": {
    "midi": 61,
-   "feltStiffness": 5948000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.96653,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.6217, 2.0, 9.102],
-   "maxHammerSpeed": 15.28,
-   "targetRmsDb": 3.81
+   "feltStiffness": 8055000000.0,
+   "feltExponent": 2.513,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "D4": {
    "midi": 62,
-   "feltStiffness": 5093000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.95891,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.6155, 2.0, 9.02],
-   "maxHammerSpeed": 15.14,
-   "targetRmsDb": 5.07
+   "feltStiffness": 8462000000.0,
+   "feltExponent": 2.525,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Eb4": {
    "midi": 63,
-   "feltStiffness": 4361000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.94964,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.6093, 2.0, 8.938],
-   "maxHammerSpeed": 15.01,
-   "targetRmsDb": 6.34
+   "feltStiffness": 8881000000.0,
+   "feltExponent": 2.538,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "E4": {
    "midi": 64,
-   "feltStiffness": 3735000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.93843,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.6032, 2.0, 8.857],
-   "maxHammerSpeed": 14.87,
-   "targetRmsDb": 7.1
+   "feltStiffness": 9312000000.0,
+   "feltExponent": 2.55,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "F4": {
    "midi": 65,
-   "feltStiffness": 3198000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.92491,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.5972, 2.0, 8.777],
-   "maxHammerSpeed": 14.74,
-   "targetRmsDb": 4.64
+   "feltStiffness": 9753000000.0,
+   "feltExponent": 2.562,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Gb4": {
    "midi": 66,
-   "feltStiffness": 2739000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.90871,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.5912, 2.0, 8.698],
-   "maxHammerSpeed": 14.6,
-   "targetRmsDb": 4.06
+   "feltStiffness": 10200000000.0,
+   "feltExponent": 2.575,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "G4": {
    "midi": 67,
-   "feltStiffness": 2345000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.88944,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.5853, 2.0, 8.619],
-   "maxHammerSpeed": 14.47,
-   "targetRmsDb": 4.08
+   "feltStiffness": 10660000000.0,
+   "feltExponent": 2.587,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Ab4": {
    "midi": 68,
-   "feltStiffness": 2008000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.8667,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.5794, 2.0, 8.541],
-   "maxHammerSpeed": 14.34,
-   "targetRmsDb": 1.93
+   "feltStiffness": 11130000000.0,
+   "feltExponent": 2.6,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "A4": {
    "midi": 69,
-   "feltStiffness": 1720000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.84011,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.5736, 2.0, 8.464],
-   "maxHammerSpeed": 14.21,
-   "targetRmsDb": 1.4
+   "feltStiffness": 11600000000.0,
+   "feltExponent": 2.612,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Bb4": {
    "midi": 70,
-   "feltStiffness": 1473000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.80939,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.5678, 2.0, 8.387],
-   "maxHammerSpeed": 14.08,
-   "targetRmsDb": 1.59
+   "feltStiffness": 12070000000.0,
+   "feltExponent": 2.625,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "B4": {
    "midi": 71,
-   "feltStiffness": 1261000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.77436,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.5622, 2.0, 8.311],
-   "maxHammerSpeed": 13.95,
-   "targetRmsDb": 2.44
+   "feltStiffness": 12550000000.0,
+   "feltExponent": 2.637,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "C5": {
    "midi": 72,
-   "feltStiffness": 1080000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.73499,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.5565, 2.0, 8.236],
-   "maxHammerSpeed": 13.83,
-   "targetRmsDb": 5.86
+   "feltStiffness": 13010000000.0,
+   "feltExponent": 2.65,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Db5": {
    "midi": 73,
-   "feltStiffness": 1443000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.76122,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.5509, 2.0, 8.161],
-   "maxHammerSpeed": 13.7,
-   "targetRmsDb": 6.05
+   "feltStiffness": 13470000000.0,
+   "feltExponent": 2.663,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "D5": {
    "midi": 74,
-   "feltStiffness": 1928000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.78561,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.5454, 2.0, 8.087],
-   "maxHammerSpeed": 13.58,
-   "targetRmsDb": 3.25
+   "feltStiffness": 13920000000.0,
+   "feltExponent": 2.675,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Eb5": {
    "midi": 75,
-   "feltStiffness": 2575000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.80813,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.54, 2.0, 8.014],
-   "maxHammerSpeed": 13.45,
-   "targetRmsDb": 14.23
+   "feltStiffness": 14350000000.0,
+   "feltExponent": 2.688,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "E5": {
    "midi": 76,
-   "feltStiffness": 3441000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.82881,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.5346, 2.0, 7.942],
-   "maxHammerSpeed": 13.33,
-   "targetRmsDb": 2.15
+   "feltStiffness": 14760000000.0,
+   "feltExponent": 2.7,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "F5": {
    "midi": 77,
-   "feltStiffness": 4597000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.84767,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.5292, 2.0, 7.87],
-   "maxHammerSpeed": 13.21,
-   "targetRmsDb": 4.54
+   "feltStiffness": 15130000000.0,
+   "feltExponent": 2.712,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Gb5": {
    "midi": 78,
-   "feltStiffness": 6142000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.8648,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.5239, 2.0, 7.798],
-   "maxHammerSpeed": 13.09,
-   "targetRmsDb": 4.04
+   "feltStiffness": 15470000000.0,
+   "feltExponent": 2.725,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "G5": {
    "midi": 79,
-   "feltStiffness": 8207000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.88027,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.5186, 2.0, 7.728],
-   "maxHammerSpeed": 12.97,
-   "targetRmsDb": 15.29
+   "feltStiffness": 15760000000.0,
+   "feltExponent": 2.737,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Ab5": {
    "midi": 80,
-   "feltStiffness": 10960000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.89419,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.5135, 2.0, 7.658],
-   "maxHammerSpeed": 12.86,
-   "targetRmsDb": 15.44
+   "feltStiffness": 16000000000.0,
+   "feltExponent": 2.75,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "A5": {
    "midi": 81,
-   "feltStiffness": 14650000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.90666,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.5083, 2.0, 7.588],
-   "maxHammerSpeed": 12.74,
-   "targetRmsDb": 0.01
+   "feltStiffness": 16170000000.0,
+   "feltExponent": 2.762,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Bb5": {
    "midi": 82,
-   "feltStiffness": 19570000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.9178,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.5032, 2.0, 7.52],
-   "maxHammerSpeed": 12.62
+   "feltStiffness": 16250000000.0,
+   "feltExponent": 2.775,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "B5": {
    "midi": 83,
-   "feltStiffness": 26150000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.92771,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.4982, 2.0, 7.452],
-   "maxHammerSpeed": 12.51
+   "feltStiffness": 16250000000.0,
+   "feltExponent": 2.787,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "C6": {
    "midi": 84,
-   "feltStiffness": 34940000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.93651,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.4932, 2.0, 7.384],
-   "maxHammerSpeed": 12.4,
-   "targetRmsDb": 0.7
+   "feltStiffness": 16130000000.0,
+   "feltExponent": 2.8,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Db6": {
    "midi": 85,
-   "feltStiffness": 40340000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.93651,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.4932, 2.0, 7.384],
-   "maxHammerSpeed": 12.4
+   "feltStiffness": 20490000000.0,
+   "feltExponent": 2.817,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "D6": {
    "midi": 86,
-   "feltStiffness": 46580000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.93651,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.4932, 2.0, 7.384],
-   "maxHammerSpeed": 12.4
+   "feltStiffness": 25590000000.0,
+   "feltExponent": 2.833,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Eb6": {
    "midi": 87,
-   "feltStiffness": 53780000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.93651,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.4932, 2.0, 7.384],
-   "maxHammerSpeed": 12.4
+   "feltStiffness": 31540000000.0,
+   "feltExponent": 2.85,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "E6": {
    "midi": 88,
-   "feltStiffness": 62090000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.93651,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.4932, 2.0, 7.384],
-   "maxHammerSpeed": 12.4
+   "feltStiffness": 38470000000.0,
+   "feltExponent": 2.867,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "F6": {
    "midi": 89,
-   "feltStiffness": 71690000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.93651,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.4932, 2.0, 7.384],
-   "maxHammerSpeed": 12.4
+   "feltStiffness": 46500000000.0,
+   "feltExponent": 2.883,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Gb6": {
    "midi": 90,
-   "feltStiffness": 82780000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.93651,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.4932, 2.0, 7.384],
-   "maxHammerSpeed": 12.4
+   "feltStiffness": 55800000000.0,
+   "feltExponent": 2.9,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "G6": {
    "midi": 91,
-   "feltStiffness": 95580000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.93651,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.4932, 2.0, 7.384],
-   "maxHammerSpeed": 12.4
+   "feltStiffness": 66540000000.0,
+   "feltExponent": 2.917,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Ab6": {
    "midi": 92,
-   "feltStiffness": 110400000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.93651,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.4932, 2.0, 7.384],
-   "maxHammerSpeed": 12.4
+   "feltStiffness": 78940000000.0,
+   "feltExponent": 2.933,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "A6": {
    "midi": 93,
-   "feltStiffness": 127400000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.93651,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.4932, 2.0, 7.384],
-   "maxHammerSpeed": 12.4
+   "feltStiffness": 93200000000.0,
+   "feltExponent": 2.95,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Bb6": {
    "midi": 94,
-   "feltStiffness": 147100000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.93651,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.4932, 2.0, 7.384],
-   "maxHammerSpeed": 12.4
+   "feltStiffness": 109600000000.0,
+   "feltExponent": 2.967,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "B6": {
    "midi": 95,
-   "feltStiffness": 169900000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.93651,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.4932, 2.0, 7.384],
-   "maxHammerSpeed": 12.0
+   "feltStiffness": 128400000000.0,
+   "feltExponent": 2.983,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "C7": {
    "midi": 96,
-   "feltStiffness": 196100000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.93651,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.4932, 2.0, 7.384],
-   "maxHammerSpeed": 12.0
+   "feltStiffness": 150000000000.0,
+   "feltExponent": 3.0,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Db7": {
    "midi": 97,
-   "feltStiffness": 226500000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.93651,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.4932, 2.0, 7.384],
-   "maxHammerSpeed": 12.0
+   "feltStiffness": 173500000000.0,
+   "feltExponent": 3.0,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "D7": {
    "midi": 98,
-   "feltStiffness": 261500000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.93651,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.4932, 2.0, 7.384],
-   "maxHammerSpeed": 12.0
+   "feltStiffness": 200200000000.0,
+   "feltExponent": 3.0,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Eb7": {
    "midi": 99,
-   "feltStiffness": 301900000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.93651,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.4932, 2.0, 7.384],
-   "maxHammerSpeed": 11.48
+   "feltStiffness": 230300000000.0,
+   "feltExponent": 3.0,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "E7": {
    "midi": 100,
-   "feltStiffness": 348600000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.93651,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.4932, 2.0, 7.384],
-   "maxHammerSpeed": 11.11
+   "feltStiffness": 264400000000.0,
+   "feltExponent": 3.0,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "F7": {
    "midi": 101,
-   "feltStiffness": 402500000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.93651,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.4932, 2.0, 7.384],
-   "maxHammerSpeed": 10.5
+   "feltStiffness": 302900000000.0,
+   "feltExponent": 3.0,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Gb7": {
    "midi": 102,
-   "feltStiffness": 464700000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.93651,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.4932, 2.0, 7.384],
-   "maxHammerSpeed": 10.5
+   "feltStiffness": 346400000000.0,
+   "feltExponent": 3.0,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "G7": {
    "midi": 103,
-   "feltStiffness": 536500000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.93651,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.4932, 2.0, 7.384],
-   "maxHammerSpeed": 10.5
+   "feltStiffness": 395400000000.0,
+   "feltExponent": 3.0,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Ab7": {
    "midi": 104,
-   "feltStiffness": 619500000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.93651,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.4932, 2.0, 7.384],
-   "maxHammerSpeed": 10.5
+   "feltStiffness": 450700000000.0,
+   "feltExponent": 3.0,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "A7": {
    "midi": 105,
-   "feltStiffness": 715300000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.93651,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.4932, 2.0, 7.384],
-   "maxHammerSpeed": 9.414
+   "feltStiffness": 512900000000.0,
+   "feltExponent": 3.0,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "Bb7": {
    "midi": 106,
-   "feltStiffness": 825900000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.93651,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.4932, 2.0, 7.384],
-   "maxHammerSpeed": 8.682
+   "feltStiffness": 582900000000.0,
+   "feltExponent": 3.0,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "B7": {
    "midi": 107,
-   "feltStiffness": 953600000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.93651,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.4932, 2.0, 7.384],
-   "maxHammerSpeed": 8.337
+   "feltStiffness": 661600000000.0,
+   "feltExponent": 3.0,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   },
   "C8": {
    "midi": 108,
-   "feltStiffness": 1101000000000.0,
-   "feltExponent": 2.858,
-   "feltRelaxation": 0.93651,
-   "feltRelaxationTime": 0.001059,
-   "hammerSpeeds": [0.4932, 2.0, 7.384],
-   "maxHammerSpeed": 7.753
+   "feltStiffness": 750000000000.0,
+   "feltExponent": 3.0,
+   "feltRelaxation": 0.9,
+   "feltRelaxationTime": 2e-05,
+   "hammerSpeeds": [0.7, 2.0, 4.5],
+   "maxHammerSpeed": 8.0
   }
  }
 }

@@ -86,7 +86,11 @@ quiet to judge the bass by. Above that, single velocity-127 notes clip (D3 reach
   note-to-note brightness scatter is 10–20 dB. The fit must measure the strings without the board.
 - Raising the felt exponent without compensating stiffness: makes the felt ~50× softer.
 
-### 6. Step 1 done: the hammer and felt fit (2026-11-14, branch hammer-felt-fit)
+### 6. Step 1, first try: the hammer and felt fit against Iowa (2026-11-14, branch hammer-felt-fit)
+
+**By ear this fit was a step back** (§7): more twang, and a cheap, plasticky strike. It's kept as
+`fit_hammer.py fit` for reference, and the felt is now set by ear. The measurements below still
+hold; the conclusions drawn from attack windows don't.
 
 `tools/fitting/fit_hammer.py` (measure → fit → build; its docstring has the method), measuring the
 strings without the board through `forte-string-probe`.
@@ -154,13 +158,79 @@ speed), and the test checks both channels. Every note at 127 peaks ≤ −1.25 d
 with the committed board. C8 speaks: its fundamental at velocity 64 is 4 dB under C6's (seed: 31 dB
 under).
 
+### 7. Listening: the fit was worse; the felt is now set by ear (2026-11-14)
+
+**The fit sounded worse than the seed**: "the twang is so much worse", "cheap and plasticky". Best
+so far by ear was the seed felt ×0.25 ("D", from the earlier listening). On Yesterdays (board #9,
+level-matched), as shares of the whole piece's energy:
+
+| Render | 1–3.5 kHz | 3.5–8 kHz | >8 kHz | Crest factor |
+|---|---|---|---|---|
+| D (felt ×0.25) | −18.0 dB | −66.6 | −104 | 22.1 dB |
+| seed | −13.1 | −50.5 | −92 | 22.1 |
+| §6's fit | −11.1 | −44.9 | −66 | 27.9 |
+
+Why it went wrong:
+
+- It matched attack-window spectra (0.15 s). The twang is the whole note's 1–3.5 kHz layer, which
+  went up 2 dB over the seed and 7 over D.
+- Its relaxation time (~1 ms) is as long as the hammer's contact, so the relaxation reshaped the
+  whole pulse and put the mids back. Its large ε made a spike at every strike: crest factor +6 dB,
+  the plastic click.
+- Making the top octave speak raised C8 ~30 dB. Notes from C6 up have their fundamentals at
+  1–4 kHz, the twang band.
+
+**The fix: D plus a short relaxation time.** Keep D's softness for slow compression (relaxed
+stiffness = 0.25 × the seed felt) and let only the fastest compression meet a stiff felt: Q0 =
+relaxed / (1 − ε), τ 0.02–0.05 ms. On the bare strings this adds 25–80 dB at 4–12 kHz with the 1–3.5
+kHz share moving ≤ 2 dB. Yesterdays, board #9, level-matched:
+
+| Variant (ε, τ) | 1–3.5 kHz | 3.5–8 kHz | >8 kHz | Crest | By ear |
+|---|---|---|---|---|---|
+| D | −17.7 | −67.3 | −109 | 22.1 | |
+| 0.5, 0.05 ms | −17.9 | −60.5 | −91 | 22.1 | hardly different from D |
+| 0.8, 0.05 ms | −16.8 | −52.3 | −82 | 22.2 | some air back; "pretty decent", twang "almost non-existent" |
+| 0.9, 0.02 ms | −17.8 | −53.4 | −83 | 22.2 | **chosen** (differences "very subtle") |
+| 0.95, 0.02 ms | −16.1 | −47.6 | −76 | 22.3 | |
+| 0.9, 0.05 ms | −14.9 | −45.8 | −77 | 22.4 | |
+| 0.95, 0.05 ms | −12.9 | −40.7 | −70 | 22.5 | twang band back at the seed's |
+| D, felt eased to ×0.5 above C5 | −16.3 | −66.0 | −106 | 22.1 | (more twang, no air) |
+
+So from the hammer, air and twang trade against each other; a shorter τ buys a little air for
+free. The chosen felt is committed (`fit_hammer.py voice`). Its air shrinks slightly with velocity
+at C7 (a test notes it). Velocity 127 peaks ≤ −9 dBFS on board #9.
+
+**"Boxy", "like a speaker in a box".** Summed over Iowa's mf notes (first 2 s, third-octave shares),
+Forte follows Iowa within ±7 dB up to 5 kHz, then falls off a cliff: −80 dB at 6.3 kHz, −95 at 8
+kHz, −103 at 10 kHz, against Iowa's −50 to −56. But Iowa's top is its hiss: 6–16 kHz sits at the
+same level before the note as during it, and the strike lifts it only 1–4 dB. So a real piano at
+mf has little string energy above ~6 kHz either. What a recording has is a −50 dB floor of hiss and
+room; Forte has digital silence. Other candidates for "boxy": board #9's low end (+9–10 dB at 62
+and 125 Hz, +2.5–3 dB at 315–400 Hz against Iowa: the 12 dB shelf at 250 Hz lifts the low mids),
+and no room. **A reverb in Reaper "sounds a little better"**: the room is missing.
+
+**Against Pianoteq and Keyscape ("much clearer and richer")**, in the likely order of effect:
+
+1. Compare level-matched: Forte's renders sit around −31 dBFS RMS.
+2. The decay (step 2): the fundamental dies 2× too fast and the upper partials linger. Richness is
+   how the tone evolves; this is also where the remaining twang lives.
+3. The board and the room (step 3, plus new work): denser, better-placed board modes radiating
+   to ~10 kHz, less single-overtone pick-out, the low shelf at 80–120 Hz instead of 250 Hz, a room
+   (early reflections and a short tail) in the Listening perspectives (the spec has no room yet),
+   and stereo width checked against a real microphone pair.
+4. Quick tries for shimmer: unison spread 1.0–1.5 cents (now 0.7), the sympathetic level (a
+   placeholder 0.1), and the duplex scale (not modelled).
+5. Mechanical noises: the hammer's knock, dampers, release, pedal.
+6. Renders of the same MIDI from Pianoteq or Keyscape, kept locally, would let the tools measure
+   against the sound wanted, not only Iowa.
+
 ## Plan
 
 How to get bright + full + shimmer + rumble without twang. Twang and brightness live in different
 places: twang is a loud, lingering 0.5–3.5 kHz layer over a weak fundamental; brightness and shimmer
 are high partials (4–12 kHz) that flash at the strike and fade, over a strong fundamental. So:
 
-1. **Done (§6); listening pending.** **Hammer and felt fit (SPEC §3.3), with the felt's hysteresis.** Fit stiffness, exponent and
+1. **Felt set by ear (§7); the fit against Iowa didn't work by ear (§6).** **Hammer and felt fit (SPEC §3.3), with the felt's hysteresis.** Fit stiffness, exponent and
    hysteresis per note, plus the velocity calibration, against Iowa pp/mf/ff (C2/C4/C6) and mf
    (all notes), measuring the strings without the board. Felt hysteresis is the key extra freedom:
    a felt that is stiffer the faster it's compressed (Stulov) has a steep spectrum through the mids,
@@ -184,14 +254,15 @@ Order matters: the board and taste steps are only judgeable once the strings are
 
 ## Where things stand
 
-Step 1 is in (§6): the felt and velocity calibration come from `data/model/hammer.json` through the
+The felt is set by ear (§7): `data/model/hammer.json` (written by `fit_hammer.py voice`) through the
 generated `engine/src/HammerFit.inc` (`python tools/fitting/fit_hammer.py all` rebuilds both,
-byte-identical). Everything else is the seed sound of commit 8d80ff0 plus the sympathetic bank.
+byte-identical). Velocity calibration: the seed's speeds. Everything else is the seed sound of commit 8d80ff0 plus the sympathetic bank.
 The values to reproduce what was heard:
 
 - **Felt:** before step 1, a uniform multiplier on `feltStiffness` in `seedNote()`. ×2 was "harder
   felt"; ×0.25 removed the twang but sounded like a closed lid. Step 1's A/B variants were Q0 ×2
-  (`fit-harder`) and ×0.5 (`fit-softer`) on every row of `HammerFit.inc`.
+  (`fit-harder`) and ×0.5 (`fit-softer`) on every row of `HammerFit.inc`. §7's variants changed
+  `FELT_SCALE`, `RELAXATION` and `RELAXATION_TIME` in `fit_hammer.py`.
 - **Output gain:** `model.outputGain` 1.35e-2 instead of 5.6e-3 (+7.6 dB). Check that single
   velocity-127 notes stay below 0 dBFS (the hammer stability test checks it).
 - **Board** (`tools/seed-irs/make_seed_irs.py`, all at prototype values now):

@@ -1,21 +1,27 @@
-"""The hammer and felt fit (SPEC §3.3, issue 0021 step 1), in the pipeline's three steps:
+"""The hammer and felt (SPEC §3.3, issue 0021 step 1), in the pipeline's shape:
 
     python tools/fitting/fit_hammer.py measure   Iowa → data/reference-measurements/iowa-hammer.json
-    python tools/fitting/fit_hammer.py fit       measurements → data/model/hammer.json
+    python tools/fitting/fit_hammer.py voice     the felt set by ear → data/model/hammer.json
     python tools/fitting/fit_hammer.py build     data/model/hammer.json → engine/src/HammerFit.inc
-    python tools/fitting/fit_hammer.py all
+    python tools/fitting/fit_hammer.py all       measure, voice, build
+    python tools/fitting/fit_hammer.py fit       the Iowa fit → build/fitting/hammer-iowa-fit.json
+
+Each committed step's output is byte-identical on every run.
+
+The committed felt is set by ear (`voice`), not fitted. The Iowa fit (`fit`) is kept as a
+reference, but its felt sounded worse than the seed: more twang (the pieces' 1-3.5 kHz share up
+7 dB on the user's favourite) and a plastic click at every strike (crest factor +6 dB). It matched
+attack-window spectra, and what the ear objects to is the whole note (issue 0021 §7). The voiced felt:
+
+- relaxed stiffness Q0·(1 − ε): the seed felt × FELT_SCALE (0.25 removed the twang by ear);
+- ε = RELAXATION, τ = RELAXATION_TIME: a short relaxation, so only the fastest compression meets
+  the stiff felt. That adds air above 4 kHz with the 1-3.5 kHz layer barely moving (a long τ,
+  as the fit chose, brings the mids back);
+- the seed's exponents, and the seed's pp/mf/ff speeds (0.7 / 2.0 / 4.5 m/s, 8 m/s at most).
 
 `measure` needs refs/iowa; `fit` needs the Release forte-string-probe (built with the engine, so
-it renders the engine's own note models). Each step's output is committed. Fixed starting points
-and seeds make every run byte-identical on the same machine.
+it renders the engine's own note models). Its method, for the record:
 
-What's fitted, per note: the felt's stiffness Q0, exponent p, relaxation ε and relaxation time τ
-(Stulov), and the pp/mf/ff hammer speeds (the velocity calibration, SPEC §4.1). Hammer mass and
-strike position stay at the seeds. Everything is measured on the strings without the soundboard
-(hammer_measure.py has the definitions): through the board its modes colour single partials by
-10-20 dB and swamp the felt.
-
-How:
 1. Targets. Iowa's note-to-note brightness scatters by 10-20 dB, so the absolute target for a
    note's mf attack is the running median of Iowa mf's octave bands over the notes within
    NEIGHBOURS semitones, never the single note.
@@ -60,6 +66,7 @@ from forte_audio import ROOT, iowa_file, note_name
 
 MEASUREMENTS = ROOT / "data" / "reference-measurements" / "iowa-hammer.json"
 PARAMETERS = ROOT / "data" / "model" / "hammer.json"
+IOWA_FIT = ROOT / "build" / "fitting" / "hammer-iowa-fit.json"   # a reference, never built
 TABLE = ROOT / "engine" / "src" / "HammerFit.inc"
 
 SHAPE_ANCHORS = [36, 60]          # C2, C4: the felt's p, ε, τ (C6 has one usable band)
@@ -77,6 +84,13 @@ EVALUATIONS = 120
 RELAXATION_PULL = 2.0           # dB² per unit of logit ε away from the anchors' curve
 VELOCITY_127_ABOVE_FF_DB = 4.5    # SPEC §4.1
 ACCURACY_DB = 1.0                 # 44.1 kHz against 96 kHz, a strike's peak on the strings
+
+# The voiced felt (issue 0021 §7): chosen by ear on Yesterdays, board #9.
+FELT_SCALE = 0.25                 # relaxed stiffness, × the seed felt
+RELAXATION = 0.9                  # ε
+RELAXATION_TIME = 2e-5            # τ, s
+SEED_SPEEDS = (0.7, 2.0, 4.5)     # m/s at velocities 32, 64, 112
+SEED_MAX_SPEED = 8.0              # m/s, velocity 127 never exceeds it
 
 
 # --- measure ------------------------------------------------------------------------------------
@@ -384,8 +398,9 @@ def fit(_args):
             **({"targetRmsDb": _round(per_note_rms[midi])} if midi in per_note_rms else {}),
         }
 
-    _write_json(PARAMETERS, {
-        "about": "Fitted hammer and felt values per note (tools/fitting/fit_hammer.py fit). "
+    _write_json(IOWA_FIT, {
+        "about": "The Iowa fit's hammer and felt values per note (tools/fitting/fit_hammer.py fit), "
+                 "a reference: not built into the engine. "
                  "Felt: Stulov, F = Q0·[c^p − ε·(c^p low-passed with τ)]. Speeds in m/s at velocities "
                  "32, 64 and 112; maxHammerSpeed is velocity 127.",
         "shapeAnchors": {note_name(m): {"rmsDb": _round(anchors[m][1])} for m in SHAPE_ANCHORS},
@@ -429,12 +444,55 @@ def _stiffness_for_loudness(job):
     return midi, float(result.x)
 
 
+# --- voice --------------------------------------------------------------------------------------
+
+def _interp_seed(x, xs, ys):
+    if x <= xs[0]:
+        return ys[0]
+    for i in range(1, len(xs)):
+        if x <= xs[i]:
+            return ys[i - 1] + (ys[i] - ys[i - 1]) * (x - xs[i - 1]) / (xs[i] - xs[i - 1])
+    return ys[-1]
+
+
+def seed_felt(midi):
+    """The seed's elastic felt (stiffness, exponent), as engine/src/PianoModel.cpp had it before
+    step 1: Chaigne & Askenfelt seeds with the listening-test prototype's stiffness scales."""
+    anchors = [36.0, 60.0, 84.0, 96.0, 108.0]
+    log_stiffness = _interp_seed(midi, anchors, [math.log(v) for v in (4e8, 4.5e9, 3e10, 1e11, 3e11)])
+    scale = _interp_seed(midi, anchors, [0.681, 0.681, 0.215, 0.6, 1.0])
+    return math.exp(log_stiffness) * scale, _interp_seed(midi, anchors, [2.3, 2.5, 2.8, 3.0, 3.0])
+
+
+def voice(_args):
+    out = {}
+    pp, mf, ff = SEED_SPEEDS
+    for midi in range(21, 109):
+        stiffness, exponent = seed_felt(midi)
+        out[note_name(midi)] = {
+            "midi": midi,
+            "feltStiffness": _round_sig(FELT_SCALE * stiffness / (1.0 - RELAXATION)),
+            "feltExponent": _round_sig(exponent),
+            "feltRelaxation": RELAXATION,
+            "feltRelaxationTime": RELAXATION_TIME,
+            "hammerSpeeds": [pp, mf, ff],
+            "maxHammerSpeed": SEED_MAX_SPEED,
+        }
+    _write_json(PARAMETERS, {
+        "about": "Hammer and felt values per note, set by ear (tools/fitting/fit_hammer.py voice; "
+                 "issue 0021 §7). Felt: Stulov, F = Q0·[c^p − ε·(c^p low-passed with τ)]; the relaxed "
+                 "stiffness Q0·(1 − ε) is the seed felt × " + repr(FELT_SCALE) + ". Speeds in m/s at "
+                 "velocities 32, 64 and 112; maxHammerSpeed caps velocity 127.",
+        "notes": out,
+    })
+
+
 # --- build --------------------------------------------------------------------------------------
 
 def build(_args):
     data = json.loads(PARAMETERS.read_text())
     lines = [
-        "// Generated by tools/fitting/fit_hammer.py build from data/model/hammer.json. Don't edit.",
+        "// Generated by tools/fitting/fit_hammer.py build from data/model/hammer.json (set by ear). Don't edit.",
         "// midi, Q0, p, ε, τ (s), pp/mf/ff hammer speeds (m/s), velocity 127's speed (m/s)",
     ]
     for entry in data["notes"].values():
@@ -477,14 +535,16 @@ def _write_json(path, data):
 def main():
     sys.stdout.reconfigure(encoding="utf-8")  # ε and τ on a cp1252 console
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("step", choices=["measure", "fit", "build", "all"])
+    parser.add_argument("step", choices=["measure", "voice", "build", "all", "fit"])
     args = parser.parse_args()
     if args.step in ("measure", "all"):
         measure(args)
-    if args.step in ("fit", "all"):
-        fit(args)
+    if args.step in ("voice", "all"):
+        voice(args)
     if args.step in ("build", "all"):
         build(args)
+    if args.step == "fit":
+        fit(args)
 
 
 if __name__ == "__main__":

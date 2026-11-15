@@ -197,11 +197,11 @@ TEST_CASE ("The soft pedal darkens the strike", "[note][soft-pedal]")
 TEST_CASE ("The hysteretic felt is stiffer than its relaxed self and brightens with velocity", "[note][hammer]")
 {
     // SPEC §2.4: Stulov's felt meets fast compression with Q0, not the relaxed Q0·(1 − ε), so
-    // its strike is brighter than an elastic felt at the relaxed stiffness. And ff is brighter
-    // than mf everywhere. pp is darker than mf where the fit had Iowa's dynamics for the felt's
-    // shape (C2, C4); in the treble the brightness dips at mf and pp is a little brighter
-    // (issue 0021: the treble's relaxation time is C4's, unfitted). Brightness as in the
-    // soft-pedal test.
+    // with a short relaxation time only the fastest compression meets the stiff felt: the strike
+    // gains air over an elastic felt at the relaxed stiffness, without the middle partials
+    // rising (no twang). And ff has more air than pp, up to E5; at C7 the air shrinks a little
+    // as velocity rises (issue 0021 §7). Air is the rms of the third difference (+18 dB/octave,
+    // so the top dominates) over the signal's.
     const int midiNote = GENERATE (36, 60, 76, 96);
     const auto stulov = seedModel().note (midiNote);
     REQUIRE (stulov.feltRelaxation > 0.5);
@@ -212,31 +212,30 @@ TEST_CASE ("The hysteretic felt is stiffer than its relaxed self and brightens w
 
     constexpr std::int64_t window = second / 6;
 
-    const auto brightness = [] (const std::vector<float>& x)
+    const auto air = [] (const std::vector<float>& x)
     {
-        std::vector<float> slope (x.size(), 0.0f);
-        for (std::size_t i = 1; i < x.size(); ++i)
-            slope[i] = x[i] - x[i - 1];
-        return rms (slope, 0, window) / rms (x, 0, window);
+        std::vector<float> d (x.begin(), x.end());
+        for (int pass = 0; pass < 3; ++pass)
+            for (std::size_t i = d.size() - 1; i > 0; --i)
+                d[i] -= d[i - 1];
+        return rms (d, 3, window) / rms (x, 0, window);
     };
 
-    const auto pp = brightness (strikeNote (stulov, 32, window));
-    const auto mf = brightness (strikeNote (stulov, 64, window));
-    const auto ff = brightness (strikeNote (stulov, 112, window));
-    const auto mfRelaxed = brightness (strikeNote (relaxed, 64, window));
+    const auto pp = air (strikeNote (stulov, 32, window));
+    const auto mf = air (strikeNote (stulov, 64, window));
+    const auto ff = air (strikeNote (stulov, 112, window));
+    const auto mfRelaxed = air (strikeNote (relaxed, 64, window));
 
-    INFO ("note " << midiNote << ": pp " << pp << ", mf " << mf << ", ff " << ff << "; mf relaxed " << mfRelaxed);
-    CHECK (mfRelaxed < mf);
-    CHECK (mf < ff);
-    if (midiNote <= 60)
-        CHECK (pp < mf);
+    INFO ("note " << midiNote << ": air pp " << pp << ", mf " << mf << ", ff " << ff << "; mf relaxed " << mfRelaxed);
+    CHECK (mf > 1.2 * mfRelaxed);
+    if (midiNote <= 76)
+        CHECK (pp < ff);
 }
 
-TEST_CASE ("The fitted hammer is calibrated and smooth across the keyboard", "[note][hammer]")
+TEST_CASE ("The hammer table is calibrated and smooth across the keyboard", "[note][hammer]")
 {
-    // SPEC §3.3, §4.1: the fit's table (engine/src/HammerFit.inc), checked for what the velocity
-    // curve and the felt need, and for jumps between neighbouring notes that a fit gone wrong
-    // would leave.
+    // SPEC §3.3, §4.1: the hammer table (engine/src/HammerFit.inc, from fit_hammer.py), checked
+    // for what the velocity curve and the felt need, and for jumps between neighbouring notes.
     const auto& model = seedModel();
 
     for (int midiNote = forte::detail::lowestNote; midiNote <= forte::detail::highestNote; ++midiNote)

@@ -75,7 +75,7 @@ Energy flows **one way**: strings → bridge regions and the sympathetic bank, w
 
 ### 2.4 Hammer
 
-- **Model:** a lumped mass with a nonlinear, hysteretic felt: Stulov's hereditary model, F = Q0·[c^p − (ε/τ)·∫ c^p(ξ)·e^{−(t−ξ)/τ} dξ]. Compression changes faster than τ meet the instantaneous stiffness Q0, slower ones the relaxed Q0·(1 − ε). The faster the blow, the stiffer the felt it meets, so brightness rises with velocity as steeply as Iowa's does from pp to ff. An elastic felt can't follow that: matched at mf, it is far too bright at pp and too dull at ff. The fitted hysteresis is large (ε ≈ 0.75–0.97; [Voicing against Iowa](issues/0021-voicing-against-iowa.md)).
+- **Model:** a lumped mass with a nonlinear, hysteretic felt: Stulov's hereditary model, F = Q0·[c^p − (ε/τ)·∫ c^p(ξ)·e^{−(t−ξ)/τ} dξ]. Compression changes faster than τ meet the instantaneous stiffness Q0, slower ones the relaxed Q0·(1 − ε). With a short τ (0.02 ms) only the fastest compression meets the stiff felt. A soft relaxed felt then keeps the 1–3.5 kHz layer down (no twang), while the stiff onset adds air above 4 kHz. A τ comparable to the contact (~1 ms) reshapes the whole pulse instead and brings the twang back. The current values are set by ear: relaxed stiffness 0.25 × the seed felt, ε 0.9, τ 0.02 ms ([Voicing against Iowa](issues/0021-voicing-against-iowa.md) §7).
 - **Contact:** computed sample by sample at **4× oversampling** during the contact window only.
 - **Strike position:** ~1/8 of the string length. It shapes which partials are excited.
 - **Per-note values:** mass, stiffness Q0, exponent p, relaxation ε and relaxation time τ come from the model file.
@@ -161,6 +161,7 @@ There is one command per step, plus `all`. Fixed seeds make every run's output b
   - **Mass:** a smooth curve from the seeds, not fitted.
   - **Felt stiffness and exponent:** fitted per note across pp, mf and ff together. For each dynamic, the hammer speed that matches the loudness is solved first, then the felt is fitted to match brightness at all three dynamics. Salamander checks the curve shape between those points.
   - **Hand-off:** the three matched speeds per note become the velocity calibration points (§4).
+  - **For now, set by ear.** A first fit along these lines (`tools/fitting/fit_hammer.py fit`) matched Iowa's attack spectra but sounded worse: more twang over whole notes, and a click at each strike. Until a fit works by ear, the felt and the speeds are set by ear (`fit_hammer.py voice`). A working fit will need whole-note targets, not attack windows ([Voicing against Iowa](issues/0021-voicing-against-iowa.md) §7).
 - **Soft-pedal felt:** a literature offset from the normal felt, then set by ear.
 - **Dampers:**
   - damper-down law from Salamander's releases;

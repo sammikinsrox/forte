@@ -11,7 +11,7 @@ another (several where it says `label=path`), such as a copy built with a change
 
 | Tool | What it does |
 |---|---|
-| `fit_hammer.py` | The hammer and felt fit (SPEC §3.3): `measure` → `data/reference-measurements/iowa-hammer.json`, `fit` → `data/model/hammer.json`, `build` → `engine/src/HammerFit.inc`, or `all`. The docstring has the method. |
+| `fit_hammer.py` | The hammer and felt (SPEC §3.3): `measure` → `data/reference-measurements/iowa-hammer.json`, `voice` (the felt set by ear) → `data/model/hammer.json`, `build` → `engine/src/HammerFit.inc`, or `all`. `fit` runs the Iowa fit into `build/fitting/` as a reference: it matched Iowa's attack spectra but sounded worse (issue 0021 §7). |
 | `hammer_measure.py` | The fit's measurements: attack partial levels, Iowa's noise floor, octave-band brightness and a board-independent loudness, for Iowa and for Forte's bare strings. Run alone to print one note. |
 | `partial_attack_decay.py` | Per partial: attack level (dB re partial 1) and decay rate while held, Forte against Iowa mf. The twang and decay findings. |
 | `brightness_by_velocity.py` | A note's attack brightness at several velocities against Iowa pp/mf/ff (C2, C4, C6). The felt and velocity calibration. |
@@ -33,8 +33,12 @@ Things learned the hard way (issue 0021 has the full findings):
   so pp reads brighter than mf). With a 30 % onset, a per-partial noise floor and a peak-prominence
   test (hammer_measure.py), pp is usable at half weight, except C6 pp, still brighter than its mf.
 - Band changes between dynamics belong to the felt alone: the board, microphones and room are
-  linear, so they cancel. Fitting those, not single-note absolute spectra, is what made the felt
-  fit work.
+  linear, so they cancel.
+- Attack-window spectra are the wrong target for the ear. The Iowa felt fit matched them and
+  sounded worse: the twang is the whole note's 1-3.5 kHz layer. Check any fit on whole pieces
+  (`piece_levels.py`, band shares) and by ear before trusting it.
+- Iowa above ~6 kHz is the recording's hiss (the same level before the note starts), so it can't
+  say how much air a piano has.
 - Keep decay fits inside the held part of the note (`render_note` holds for 2.5 s), or the damper
   gets fitted too.
 - Compare renders level-matched: louder sounds better.

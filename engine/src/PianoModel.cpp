@@ -33,8 +33,8 @@ double interpolateLog (double x, const double (&xs)[N], const double (&ys)[N]) n
     return std::exp (interpolate (x, xs, logs));
 }
 
-/** One note's fitted hammer: the Stulov felt and the velocity calibration. */
-struct FittedHammer
+/** One note's hammer: the Stulov felt and the velocity calibration. */
+struct HammerEntry
 {
     int midiNote;
     double stiffness, exponent, relaxation, relaxationTime;  // Q0, p, ε, τ (s)
@@ -42,11 +42,11 @@ struct FittedHammer
     double hardest;                                           // velocity 127's speed (m/s)
 };
 
-constexpr FittedHammer fittedHammers[] {
+constexpr HammerEntry hammerTable[] {
 #include "HammerFit.inc"
 };
-static_assert (std::size (fittedHammers) == numNotes);
-static_assert (fittedHammers[0].midiNote == lowestNote && fittedHammers[numNotes - 1].midiNote == highestNote);
+static_assert (std::size (hammerTable) == numNotes);
+static_assert (hammerTable[0].midiNote == lowestNote && hammerTable[numNotes - 1].midiNote == highestNote);
 
 NoteParameters seedNote (int midiNote)
 {
@@ -106,15 +106,15 @@ NoteParameters seedNote (int midiNote)
     p.strikePosition = interpolate (key, hammerAnchors, strikePositions);
     p.hammerMass = interpolate (key, hammerAnchors, masses);
 
-    // The felt and the velocity calibration: fitted against Iowa (tools/fitting/fit_hammer.py,
-    // SPEC §3.3, §4.1).
-    const auto& fitted = fittedHammers[static_cast<std::size_t> (index)];
-    p.feltStiffness = fitted.stiffness;
-    p.feltExponent = fitted.exponent;
-    p.feltRelaxation = fitted.relaxation;
-    p.feltRelaxationTime = fitted.relaxationTime;
-    p.hammerSpeeds = { fitted.pp, fitted.mf, fitted.ff };
-    p.maxHammerSpeed = fitted.hardest;
+    // The felt and the velocity calibration, set by ear (tools/fitting/fit_hammer.py voice, issue
+    // 0021 §7) until a fit that works by ear replaces them (SPEC §3.3, §4.1).
+    const auto& hammer = hammerTable[static_cast<std::size_t> (index)];
+    p.feltStiffness = hammer.stiffness;
+    p.feltExponent = hammer.exponent;
+    p.feltRelaxation = hammer.relaxation;
+    p.feltRelaxationTime = hammer.relaxationTime;
+    p.hammerSpeeds = { hammer.pp, hammer.mf, hammer.ff };
+    p.maxHammerSpeed = hammer.hardest;
 
     // The shifted hammer meets less-compacted felt. A literature-style offset until it's set by
     // ear (SPEC §3.3, §10).
