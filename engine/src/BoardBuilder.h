@@ -21,6 +21,11 @@ struct BoardVoicing
 /** The board the shipped IRs were built with. */
 [[nodiscard]] BoardVoicing committedBoardVoicing() noexcept;
 
+/** The lab's colour shelves (low, mid, high dB) at each of the fitted colour curve's centres
+    (board::colourCentresHz): what they add to it. Each crossover, at 250 Hz and 2.5 kHz, blends
+    over an octave. */
+[[nodiscard]] std::vector<double> labColourAtCentres (const std::array<double, 3>& shelvesDb);
+
 /** The key a region's per-register values are read at: the middle of the keys its bridge carries. */
 [[nodiscard]] double regionCentreKey (int region) noexcept;
 

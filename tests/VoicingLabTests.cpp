@@ -10,6 +10,7 @@
 #include "PianoModel.h"
 #include "Soundboard.h"
 #include "SoundboardIrs.h"
+#include "VoicingOverrides.h"
 #include "VoicingExport.h"
 
 #include <catch2/catch_test_macros.hpp>
@@ -429,7 +430,7 @@ TEST_CASE ("Voicing lab: string controls reach a note only when it next starts f
     CHECK (slice (changed.left, fromRest, length) != slice (committed.left, fromRest, length));
 }
 
-TEST_CASE ("Voicing lab: time a full 88-note strings rebuild", "[.][timing][lab]")
+TEST_CASE ("Voicing lab: time a full 88-note strings rebuild", "[.][timing]")
 {
     // Hidden: run by hand in Release, forte-tests "[timing]".
     Engine e;
@@ -826,7 +827,109 @@ TEST_CASE ("Voicing lab: board rebuilt on another thread while notes play", "[la
     CHECK (finite);
 }
 
-TEST_CASE ("Voicing lab: time a board rebuild", "[.][timing][lab]")
+namespace
+{
+constexpr detail::overrides::NoteOverride neutralOverride (int midiNote)
+{
+    return { midiNote, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0 };
+}
+} // namespace
+
+TEST_CASE ("Voicing fold: neutral overrides leave every note as fitted", "[lab][fold]")
+{
+    const auto model = detail::makeSeedPianoModel();
+    for (const auto& p : model.notes)
+    {
+        const auto q = detail::applyVoicingOverrides (p, neutralOverride (p.midiNote));
+        CHECK (q.feltStiffness == p.feltStiffness);
+        CHECK (q.feltRelaxation == p.feltRelaxation);
+        CHECK (q.contactSpeedExponent == p.contactSpeedExponent);
+        CHECK (q.strikePosition == p.strikePosition);
+        CHECK (q.hammerMass == p.hammerMass);
+        CHECK (q.knockLevel == p.knockLevel);
+        CHECK (q.inharmonicity == p.inharmonicity);
+        CHECK (q.fundamental == p.fundamental);
+        CHECK (q.decayConstant == p.decayConstant);
+        CHECK (q.phantomLevel == p.phantomLevel);
+    }
+}
+
+TEST_CASE ("Voicing fold: overrides from the lab's values are the notes the lab played", "[lab][fold]")
+{
+    // What tools/fitting/fold_voicing.py writes on a first fold: the engine's physical values
+    // (forte-render --lab-values) as each note's overrides.
+    lab::Settings s;
+    s.set (Control::feltHardness, Register::treble, 30.0f);
+    s.set (Control::feltSpike, Register::middle, 80.0f);
+    s.set (Control::velocityBrightness, Register::bass, 70.0f);
+    s.set (Control::strikePosition, Register::bass, 20.0f);
+    s.set (Control::hammerMass, Register::middle, 65.0f);
+    s.set (Control::knockLevel, Register::treble, 90.0f);
+    s.set (Control::inharmonicity, Register::treble, 35.0f);
+    s.set (Control::unisonSpread, Register::middle, 75.0f);
+    s.set (Control::sustain, Register::bass, 60.0f);
+    s.set (Control::overtoneDecay, Register::treble, 70.0f);
+    s.set (Control::secondStage, Register::middle, 40.0f);
+    s.set (Control::phantomLevel, Register::bass, 100.0f);
+
+    const Engine engine;
+    const auto model = detail::makeSeedPianoModel();
+
+    for (const auto& p : model.notes)
+    {
+        const auto value = [&] (Control c) { return engine.getLabPhysicalValue (s, c, p.midiNote); };
+        const detail::overrides::NoteOverride o {
+            p.midiNote,
+            value (Control::feltHardness), value (Control::feltSpike), value (Control::velocityBrightness),
+            value (Control::strikePosition), value (Control::hammerMass), value (Control::knockLevel),
+            value (Control::inharmonicity), value (Control::unisonSpread), value (Control::sustain),
+            value (Control::overtoneDecay), value (Control::secondStage), value (Control::phantomLevel),
+        };
+        const auto folded = detail::applyVoicingOverrides (p, o);
+        INFO ("note " << p.midiNote);
+
+        // The strings: what the lab re-prepares the note with.
+        const auto strung = detail::applyStringVoicing (p, detail::labStringVoicing (s, p));
+        CHECK (folded.inharmonicity == strung.inharmonicity);
+        CHECK (folded.fundamental == strung.fundamental);
+        CHECK (folded.unisonSpreadScale == strung.unisonSpreadScale);
+        CHECK (folded.decayConstant == strung.decayConstant);
+        CHECK (folded.aftersoundDecayConstant == strung.aftersoundDecayConstant);
+        CHECK (folded.measuredPromptDecay == strung.measuredPromptDecay);
+        CHECK (folded.measuredAftersoundDecay == strung.measuredAftersoundDecay);
+        CHECK (folded.decayTiltExponent == strung.decayTiltExponent);
+        CHECK (folded.phantomLevel == strung.phantomLevel);
+
+        // The hammer: what the lab strikes the note with.
+        const auto struck = detail::labStrikeVoicing (s, p);
+        CHECK (folded.feltStiffness == p.feltStiffness * struck.feltStiffnessScale);
+        CHECK (folded.feltRelaxation == struck.feltRelaxation);
+        CHECK (folded.contactSpeedExponent == struck.contactSpeedExponent);
+        CHECK (folded.strikePosition == std::clamp (p.strikePosition * struck.strikePositionScale, 0.01, 0.5));
+        CHECK (folded.hammerMass == p.hammerMass * struck.hammerMassScale);
+        CHECK (folded.knockLevel == p.knockLevel * struck.knockScale);
+    }
+}
+
+TEST_CASE ("Voicing fold: the board's values at 50 are the committed board", "[lab][fold][board]")
+{
+    const auto values = Engine().getLabBoardValues (lab::Settings {});
+    const auto committed = detail::committedBoardVoicing();
+    CHECK (values.pickup == committed.pickup);
+    CHECK (values.tiltDbPerOctave == committed.tiltDbPerOctave);
+    for (const auto& region : values.colourDbAtCentres)
+    {
+        REQUIRE (region.size() == detail::board::colourCentresHz.size());
+        for (const double db : region)
+            CHECK (db == 0.0);
+    }
+
+    const auto moved = Engine().getLabBoardValues (with (Control::colourHigh, 100.0f));
+    CHECK (moved.colourDbAtCentres[2].front() == 0.0);
+    CHECK_THAT (moved.colourDbAtCentres[2].back(), WithinRel (12.0, 1e-12));
+}
+
+TEST_CASE ("Voicing lab: time a board rebuild", "[.][timing]")
 {
     const auto parts = detail::loadEmbeddedBoardParts();
     for (const float tilt : { 50.0f, 80.0f })

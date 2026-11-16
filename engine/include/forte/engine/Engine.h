@@ -3,7 +3,9 @@
 #include "forte/engine/MidiEvent.h"
 #include "forte/engine/VoicingLab.h"
 
+#include <array>
 #include <memory>
+#include <vector>
 
 namespace forte
 {
@@ -102,6 +104,23 @@ public:
         dB/octave, …; see lab::controls' ranges). Reads only the piano model, which never changes
         after construction, so it's safe from any thread. */
     [[nodiscard]] double getLabPhysicalValue (const lab::Settings& settings, lab::Control control, int midiNote) const noexcept;
+
+    /** What the Board controls under settings mean (SPEC §6.5), for tools/fitting's fold: per
+        bridge region (bass, tenor, middle, treble), the direct path's gain and what the colour
+        shelves add, in dB, at each of the fitted colour curve's centres; and the modes' tilt in
+        dB/octave. Safe from any thread. */
+    struct LabBoardValues
+    {
+        std::array<double, 4> pickup {};
+        double tiltDbPerOctave = 0.0;
+        std::array<std::vector<double>, 4> colourDbAtCentres;
+    };
+
+    [[nodiscard]] LabBoardValues getLabBoardValues (const lab::Settings& settings) const;
+
+    /** The committed voicing's revision: how many voicing lab exports have been folded into it
+        (tools/fitting/fold_voicing.py). Lab values only mean what they did on the same revision. */
+    [[nodiscard]] static int getVoicingRevision() noexcept;
 
     /** The longest the engine can go on sounding after the last MIDI event: an undamped (or
         pedalled) note decaying from full scale to rest, through its slowest coupled mode, then

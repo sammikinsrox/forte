@@ -130,6 +130,19 @@ struct PianoModel
 */
 [[nodiscard]] PianoModel makeSeedPianoModel();
 
+namespace overrides
+{
+struct NoteOverride;
+}
+
+/** A note's parameters with its voicing overrides (VoicingOverrides.h) folded in, as the voicing
+    lab applied them: the hammer as at a strike, the strings as applyStringVoicing(). Exactly p
+    when every override is neutral. makeSeedPianoModel() applies the committed ones. */
+[[nodiscard]] NoteParameters applyVoicingOverrides (const NoteParameters& p, const overrides::NoteOverride& o) noexcept;
+
+/** The committed voicing's revision: how many voicing lab exports have been folded into it. */
+[[nodiscard]] int voicingRevision() noexcept;
+
 /** Partial n's frequency on the unison's average string: n·f0·√(1 + B·n²). */
 [[nodiscard]] inline double partialFrequency (const NoteParameters& p, int partial) noexcept
 {

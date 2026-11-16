@@ -10,6 +10,7 @@ namespace
 {
 const juce::Identifier stateType { "FORTE" };
 const juce::Identifier stateVersionAttribute { "stateVersion" };
+const juce::Identifier voicingRevisionAttribute { "voicingRevision" };  // absent: revision 0
 
 juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
 {
@@ -95,6 +96,7 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = parameters.copyState();
     state.setProperty (stateVersionAttribute, stateVersion, nullptr);
+    state.setProperty (voicingRevisionAttribute, Engine::getVoicingRevision(), nullptr);
 
     if (const auto xml = state.createXml())
         copyXmlToBinary (*xml, destData);
@@ -112,7 +114,15 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
     for (auto* parameter : getParameters())
         parameter->setValueNotifyingHost (parameter->getDefaultValue());
 
-    parameters.replaceState (juce::ValueTree::fromXml (*xml));
+    const auto state = juce::ValueTree::fromXml (*xml);
+    parameters.replaceState (state);
+
+    // Lab values move the voicing they were set on (SPEC §6.5). Once that voicing has been
+    // folded into a newer one, they'd move it twice, so the lab starts again at its 50s.
+    if (static_cast<int> (state.getProperty (voicingRevisionAttribute, 0)) != Engine::getVoicingRevision())
+        for (auto* parameter : getParameters())
+            if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameter); ranged != nullptr && ranged->getParameterID().startsWith ("lab."))
+                ranged->setValueNotifyingHost (ranged->getDefaultValue());
 
     // A project saved mid-export must not export again when it opens.
     lab.exportParameter().setValueNotifyingHost (0.0f);

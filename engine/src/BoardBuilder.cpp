@@ -160,9 +160,21 @@ Signal toSignal (const std::vector<float>& x, std::size_t taps)
 BoardVoicing committedBoardVoicing() noexcept
 {
     BoardVoicing v;
-    v.pickup.fill (board::directGain);
+    v.pickup = board::directGain;
     v.tiltDbPerOctave = board::modeTiltDbPerOctave;
     return v;
+}
+
+std::vector<double> labColourAtCentres (const std::array<double, 3>& shelvesDb)
+{
+    std::vector<double> db;
+    db.reserve (board::colourCentresHz.size());
+    for (const double f : board::colourCentresHz)
+    {
+        const double low = smoothStep (f, colourLowMidHz), high = smoothStep (f, colourMidHighHz);
+        db.push_back (shelvesDb[0] * (1.0 - low) + shelvesDb[1] * (low - high) + shelvesDb[2] * high);
+    }
+    return db;
 }
 
 double regionCentreKey (int region) noexcept
@@ -214,24 +226,27 @@ SoundboardIrs buildBoardIrs (const BoardParts& parts, const BoardVoicing& voicin
             return std::pow (10.0, extraTilt * std::log2 (std::max (f / board::modeTiltFromHz, 1.0)) / 20.0);
         });
 
-    // Each region's colour: the fitted curve plus the lab's shelves.
+    // Each region's colour: the fitted curve plus the lab's shelves, both at the curve's centres
+    // and interpolated as one, so the fold can add the shelves to board-colour.json exactly.
     std::array<Signal, numBridgeRegions> colourGain;
     for (int r = 0; r < numBridgeRegions; ++r)
     {
         const auto& lab = voicing.colourDb[static_cast<std::size_t> (r)];
-        const auto& fitted = board::colourDb[static_cast<std::size_t> (r)];
         const bool labColour = lab != std::array<double, 3> {};
+        if (! board::hasColour && ! labColour)
+            continue;
 
-        if (board::hasColour || labColour)
-            colourGain[static_cast<std::size_t> (r)] = gainCurve (colourSize, [&] (double f) {
-                double db = board::hasColour ? interpolateColour (f, board::colourCentresHz, fitted) : 0.0;
-                if (labColour)
-                {
-                    const double low = smoothStep (f, colourLowMidHz), high = smoothStep (f, colourMidHighHz);
-                    db += lab[0] * (1.0 - low) + lab[1] * (low - high) + lab[2] * high;
-                }
-                return std::pow (10.0, db / 20.0);
-            });
+        auto atCentres = board::hasColour ? board::colourDb[static_cast<std::size_t> (r)] : decltype (board::colourDb)::value_type {};
+        if (labColour)
+        {
+            const auto shelves = labColourAtCentres (lab);
+            for (std::size_t i = 0; i < atCentres.size(); ++i)
+                atCentres[i] += shelves[i];
+        }
+
+        colourGain[static_cast<std::size_t> (r)] = gainCurve (colourSize, [&] (double f) {
+            return std::pow (10.0, interpolateColour (f, board::colourCentresHz, atCentres) / 20.0);
+        });
     }
 
     SoundboardIrs result;

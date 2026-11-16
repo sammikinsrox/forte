@@ -135,7 +135,7 @@ double committedLabValue (lab::Control control, const PianoModel& model, int mid
         case C::colourLow:
         case C::colourMid:
         case C::colourHigh:         return 0.0;
-        case C::pickup:             return committedPickup;
+        case C::pickup:             return board::directGain[static_cast<std::size_t> (p.bridgeRegion)];
         case C::boardTilt:          return committedBoardTilt;
         case C::tapeDrive:          return model.tapeDrive;
         default:                    return 1.0;  // the multipliers

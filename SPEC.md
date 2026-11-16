@@ -345,7 +345,8 @@ The user voices the model by ear from inside the host, to find what the measurem
 | Output | Tape drive | — | 0 (off) … 8 … 24 |
 
 - **Live changes (§2.9):** hammer controls act on the next strike. String controls need a note's modes recomputed: a note is re-prepared, off the audio thread, the next time it starts from rest (not while it rings, so nothing clicks); the lab shows nothing until it's struck again. Board controls rebuild the four IRs from their kept parts (resonant modes, direct path, colour curve), off the audio thread, then crossfade to them as a perspective switch does (§2.8). Output controls are immediate.
-- **Export:** an **Export voicing** control (a momentary 0 → 1) writes the current lab values to `Documents/Forte/voicing.json`. That file is §3.2's voicing overrides: `tools/fitting` folds it into the committed defaults (hammer table, decay table, board colour, model values), and every lab control returns to 50 on the new voicing.
+- **Export:** an **Export voicing** control (a momentary 0 → 1) writes the current lab values to `Documents/Forte/voicing.json`. That file is §3.2's voicing overrides: `tools/fitting/fold_voicing.py` folds it into the committed defaults (a per-note overrides table on top of the fitted hammer and decay tables, the tape drive, the board's settings and colour), and every lab control returns to 50 on the new voicing.
+- **Voicing revision:** each fold bumps it. An export records the revision it was made on, and the fold refuses one from another revision. A project saved on an older revision opens with the lab at its 50s, since its lab values moved a voicing that's now committed.
 - **Costs:** the lab must not change the sound at all its 50s (bit-identical renders) and stays within §1's CPU target with every control at its extreme.
 
 ## 7. Presets, saved state and automation

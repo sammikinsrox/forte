@@ -41,6 +41,7 @@ juce::String makeVoicingFile (const Engine& engine, const lab::Settings& setting
     root->setProperty ("version", bridge::voicingFormatVersion);
     root->setProperty ("forteVersion", versionString);
     root->setProperty ("builtFrom", buildCommit);
+    root->setProperty ("voicingRevision", Engine::getVoicingRevision());
     root->setProperty ("exported", juce::Time::getCurrentTime().toISO8601 (true));
     root->setProperty ("registerAnchorKeys", juce::var (anchors));
     root->setProperty ("controls", bridge::voicingControlsToVar (settings));

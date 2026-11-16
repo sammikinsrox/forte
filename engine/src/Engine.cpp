@@ -642,4 +642,20 @@ double Engine::getLabPhysicalValue (const lab::Settings& settings, lab::Control 
 {
     return detail::labValueAtKey (settings, control, midiNote, detail::committedLabValue (control, state->model, midiNote));
 }
+
+Engine::LabBoardValues Engine::getLabBoardValues (const lab::Settings& settings) const
+{
+    const auto board = detail::labBoardVoicing (settings);
+    LabBoardValues values;
+    values.pickup = board.pickup;
+    values.tiltDbPerOctave = board.tiltDbPerOctave;
+    for (std::size_t r = 0; r < values.colourDbAtCentres.size(); ++r)
+        values.colourDbAtCentres[r] = detail::labColourAtCentres (board.colourDb[r]);
+    return values;
+}
+
+int Engine::getVoicingRevision() noexcept
+{
+    return detail::voicingRevision();
+}
 } // namespace forte

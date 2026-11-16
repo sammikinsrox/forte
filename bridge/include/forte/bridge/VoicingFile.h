@@ -21,7 +21,9 @@ namespace forte::bridge
     }
 
     Values are the lab's 0–100. A control or register the file leaves out is at 50, and keys it
-    doesn't know are ignored, so older and newer files both read. */
+    doesn't know are ignored, so older and newer files both read. Export voicing also writes the
+    voicing revision the values were set on ("voicingRevision"), which tools/fitting's fold checks,
+    and the values in physical terms. */
 inline constexpr const char* voicingFormat = "forte-voicing";
 inline constexpr int voicingFormatVersion = 1;
 

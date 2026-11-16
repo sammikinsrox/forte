@@ -23,9 +23,8 @@ namespace forte::detail
     value. Exact `fitted` while the control is at 50. */
 [[nodiscard]] double labValueAtKey (const lab::Settings& settings, lab::Control control, double midiNote, double fitted) noexcept;
 
-/** The board's committed settings, as tools/seed-irs/make_seed_irs.py built the shipped IRs
-    (DIRECT_GAIN, MODE_TILT_DB_PER_OCTAVE). */
-inline constexpr double committedPickup = board::directGain;
+/** The board's committed tilt, as tools/seed-irs/make_seed_irs.py built the shipped IRs
+    (data/model/board.json). The committed pickup is per region: board::directGain. */
 inline constexpr double committedBoardTilt = board::modeTiltDbPerOctave;
 
 /** The committed value a control's 50 stands for on a note: 1 for multipliers, 0 for offsets,

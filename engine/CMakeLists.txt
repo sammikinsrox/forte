@@ -35,7 +35,9 @@ add_library(forte_engine STATIC
     src/UnisonModes.cpp
     src/UnisonModes.h
     src/VelocityCurve.cpp
-    src/VelocityCurve.h)
+    src/VelocityCurve.h
+    src/VoicingOverrides.h
+    src/VoicingOverrides.inc)
 add_library(forte::engine ALIAS forte_engine)
 
 # The soundboard IRs (SPEC §3.5): data/ir/<perspective>-<region>.wav, built into the engine, and

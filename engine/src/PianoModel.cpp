@@ -1,5 +1,8 @@
 #include "PianoModel.h"
 
+#include "LabMapping.h"
+#include "VoicingOverrides.h"
+
 #include <algorithm>
 #include <cmath>
 #include <numbers>
@@ -170,20 +173,55 @@ NoteParameters seedNote (int midiNote)
 
     return p;
 }
+static_assert (std::size (overrides::notes) == numNotes);
+static_assert (overrides::notes[0].midiNote == lowestNote && overrides::notes[numNotes - 1].midiNote == highestNote);
 } // namespace
+
+NoteParameters applyVoicingOverrides (const NoteParameters& p, const overrides::NoteOverride& o) noexcept
+{
+    // The hammer, as the lab's StrikeVoicing applies it at each strike (NoteModel::strike()).
+    NoteParameters q = p;
+    q.feltStiffness *= o.feltStiffnessScale;
+    if (o.feltRelaxation >= 0.0)
+        q.feltRelaxation = o.feltRelaxation;
+    if (o.contactSpeedExponent >= 0.0)
+        q.contactSpeedExponent = o.contactSpeedExponent;
+    if (o.strikePositionScale != 1.0)
+        q.strikePosition = std::clamp (p.strikePosition * o.strikePositionScale, 0.01, 0.5);
+    q.hammerMass *= o.hammerMassScale;
+    q.knockLevel *= o.knockScale;
+
+    // The strings, as the lab re-prepares a note.
+    StringVoicing strings;
+    strings.inharmonicityScale = o.inharmonicityScale;
+    strings.unisonSpreadScale = o.unisonSpreadScale;
+    strings.sustainRateScale = o.sustainRateScale;
+    strings.overtoneDecayExponent = o.overtoneDecayExponent;
+    strings.aftersoundRateScale = o.aftersoundRateScale;
+    strings.phantomLevelScale = o.phantomLevelScale;
+    return applyStringVoicing (q, strings);
+}
+
+int voicingRevision() noexcept
+{
+    return overrides::revision;
+}
 
 PianoModel makeSeedPianoModel()
 {
     PianoModel model;
 
     for (int midiNote = lowestNote; midiNote <= highestNote; ++midiNote)
-        model.notes[static_cast<std::size_t> (midiNote - lowestNote)] = seedNote (midiNote);
+    {
+        const auto i = static_cast<std::size_t> (midiNote - lowestNote);
+        model.notes[i] = applyVoicingOverrides (seedNote (midiNote), overrides::notes[i]);
+    }
 
     model.unisonSpreadCents = 0.7;
 
     // The output's tape saturation, as the user's Keyscape renders have it (its default tape
-    // saturator; issue 0021 §15): 0 = none, chosen by ear.
-    model.tapeDrive = 8.0;
+    // saturator; issue 0021 §15): 0 = none, chosen by ear. The voicing lab may have replaced it.
+    model.tapeDrive = overrides::tapeDrive >= 0.0 ? overrides::tapeDrive : 8.0;
 
     // Placeholder level until the soundboard and the fitted levels exist: an ff C4 peaks around
     // −15 dBFS, and a full 88-key sustain glissando at velocity 90 peaks just under 0 dBFS.

@@ -23,16 +23,20 @@ struct Options
     int blockSize = 128;
     double tailSeconds = 3.0;
     juce::File voicing;  // none: the committed voicing
+    juce::File labValues;  // set: write what the voicing means and don't render
 };
 
 constexpr const char* usage =
     "Usage: forte-render <input.mid> <output.wav> [--rate <Hz>] [--block <samples>] [--tail <seconds>]\n"
     "                    [--voicing <voicing.json>]\n"
+    "       forte-render --voicing <voicing.json> --lab-values <out.json>\n"
     "\n"
     "  --rate   sample rate, 44100 to 96000 (default 48000)\n"
     "  --block  block size in samples, 1 to 8192 (default 128)\n"
     "  --tail   seconds rendered after the last MIDI event (default 3)\n"
-    "  --voicing a voicing lab file (SPEC 6.5), as Export voicing writes it (default: all 50)\n";
+    "  --voicing a voicing lab file (SPEC 6.5), as Export voicing writes it (default: all 50)\n"
+    "  --lab-values writes, instead of rendering, what the voicing means on each note and bridge\n"
+    "           region in physical terms (for tools/fitting/fold_voicing.py)\n";
 
 int fail (const juce::String& message)
 {
@@ -71,11 +75,23 @@ std::optional<Options> parseArguments (const juce::StringArray& args, juce::Stri
             options.tailSeconds = value.getDoubleValue();
         else if (arg == "--voicing")
             options.voicing = juce::File::getCurrentWorkingDirectory().getChildFile (value);
+        else if (arg == "--lab-values")
+            options.labValues = juce::File::getCurrentWorkingDirectory().getChildFile (value);
         else
         {
             error = "unknown option " + arg;
             return std::nullopt;
         }
+    }
+
+    if (options.labValues != juce::File())
+    {
+        if (options.voicing == juce::File() || ! positional.isEmpty())
+        {
+            error = "--lab-values takes --voicing and nothing else";
+            return std::nullopt;
+        }
+        return options;
     }
 
     if (positional.size() != 2)
@@ -138,8 +154,77 @@ std::optional<juce::MidiMessageSequence> readMidiFile (const juce::File& file, j
     return sequence;
 }
 
+std::optional<forte::lab::Settings> readVoicing (const juce::File& file, juce::String& error)
+{
+    if (! file.existsAsFile())
+    {
+        error = "can't open " + file.getFullPathName();
+        return std::nullopt;
+    }
+
+    auto voicing = forte::bridge::parseVoicing (file.loadFileAsString(), error);
+    if (! voicing)
+        error = file.getFullPathName() + ": " + error;
+    return voicing;
+}
+
+/** --lab-values: the voicing in physical terms, per note for the hammer and strings and per
+    bridge region for the board, from the engine's own mapping. */
+int writeLabValues (const Options& options)
+{
+    using namespace forte;
+    juce::String error;
+    const auto settings = readVoicing (options.voicing, error);
+    if (! settings)
+        return fail (error);
+
+    const Engine engine;
+    const auto toArray = [] (auto&& values) {
+        juce::Array<juce::var> a;
+        for (const double v : values)
+            a.add (v);
+        return juce::var (a);
+    };
+
+    auto* notes = new juce::DynamicObject();
+    for (const auto& c : lab::controls)
+    {
+        if (c.group != lab::Group::hammer && c.group != lab::Group::strings)
+            continue;
+
+        std::vector<double> perNote;
+        for (int midiNote = 21; midiNote <= 108; ++midiNote)
+            perNote.push_back (engine.getLabPhysicalValue (*settings, c.control, midiNote));
+        notes->setProperty (bridge::toJuceString (c.id), toArray (perNote));
+    }
+
+    const auto board = engine.getLabBoardValues (*settings);
+    auto* boardObject = new juce::DynamicObject();
+    boardObject->setProperty ("pickup", toArray (board.pickup));
+    boardObject->setProperty ("tiltDbPerOctave", board.tiltDbPerOctave);
+    juce::Array<juce::var> colour;
+    for (const auto& region : board.colourDbAtCentres)
+        colour.add (toArray (region));
+    boardObject->setProperty ("colourDbAtCentres", colour);
+
+    auto* root = new juce::DynamicObject();
+    root->setProperty ("voicingRevision", Engine::getVoicingRevision());
+    root->setProperty ("notes", juce::var (notes));
+    root->setProperty ("tapeDrive", engine.getLabPhysicalValue (*settings, lab::Control::tapeDrive, 60));
+    root->setProperty ("board", juce::var (boardObject));
+
+    if (! options.labValues.replaceWithText (juce::JSON::toString (juce::var (root))))
+        return fail ("can't write " + options.labValues.getFullPathName());
+
+    std::printf ("forte-render %s: lab values -> %s\n", versionString, options.labValues.getFullPathName().toRawUTF8());
+    return 0;
+}
+
 int run (const Options& options)
 {
+    if (options.labValues != juce::File())
+        return writeLabValues (options);
+
     juce::String error;
     const auto sequence = readMidiFile (options.input, error);
 
@@ -173,12 +258,9 @@ int run (const Options& options)
 
     if (options.voicing != juce::File())
     {
-        if (! options.voicing.existsAsFile())
-            return fail ("can't open " + options.voicing.getFullPathName());
-
-        const auto voicing = forte::bridge::parseVoicing (options.voicing.loadFileAsString(), error);
+        const auto voicing = readVoicing (options.voicing, error);
         if (! voicing)
-            return fail (options.voicing.getFullPathName() + ": " + error);
+            return fail (error);
 
         // Before prepare(), so every note is built with the lab's strings and nothing glides.
         engine.setVoicingLab (*voicing);
