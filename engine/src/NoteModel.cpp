@@ -90,12 +90,16 @@ void NoteModel::prepare (const NoteParameters& p, double unisonSpreadCents, doub
     numStrings = stringsInUnison (p);
     numModes = numPartials * numStrings;
 
+    // Padded with modes that are zero throughout (no state, drive, weight or view), so the
+    // kernels can take whole groups of modes.
+    paddedModes = (numModes + kernelModeAlignment - 1) / kernelModeAlignment * kernelModeAlignment;
+
     for (auto* v : { &cosStep, &sinStep, &cosSubstep, &sinSubstep, &stringDecay, &damperDecay, &outputWeight,
                      &driveAllRe, &driveAllIm, &driveMissedRe, &driveMissedIm,
                      &viewAllRe, &viewAllIm, &viewMissedRe, &viewMissedIm,
                      &stateRe, &stateIm, &stepRe, &stepIm, &substepRe, &substepIm,
                      &driveRe, &driveIm, &strikeWeightRe, &strikeWeightIm })
-        v->assign (static_cast<std::size_t> (numModes), 0.0f);
+        v->assign (static_cast<std::size_t> (paddedModes), 0.0f);
 
     modeOmega.assign (static_cast<std::size_t> (numModes), 0.0);
     pitchRatio = 1.0;
@@ -528,17 +532,9 @@ void NoteModel::updateMultipliers() noexcept
 
 float NoteModel::strikePointDisplacement() const noexcept
 {
-    // Im((wRe + i·wIm)·(re + i·im)), summed over the modes.
-    const float* wr = strikeWeightRe.data();
-    const float* wi = strikeWeightIm.data();
-    const float* re = stateRe.data();
-    const float* im = stateIm.data();
-    float sum = 0.0f;
-
-    for (int i = 0; i < numModes; ++i)
-        sum += wr[i] * im[i] + wi[i] * re[i];
-
-    return sum;
+    // Im((wRe + i·wIm)·(re + i·im)), summed over the modes. The same kernel at the strike and
+    // through the contact, so the hammer starts exactly touching the strings.
+    return kernels->viewDot (strikeWeightRe.data(), strikeWeightIm.data(), stateRe.data(), stateIm.data(), numModes);
 }
 
 float NoteModel::renderContactSample (float& knock) noexcept
@@ -552,6 +548,8 @@ float NoteModel::renderContactSample (float& knock) noexcept
     const float* dr = driveRe.data();
     const float* di = driveIm.data();
 
+    const Kernels& k = *kernels;
+
     for (int substep = 0; substep < hammerOversampling; ++substep)
     {
         const double compression = hammerPosition - strikePointDisplacement();
@@ -564,13 +562,7 @@ float NoteModel::renderContactSample (float& knock) noexcept
         const auto impulse = static_cast<float> (force * substepPeriod);
         forceSum += force;
 
-        for (int i = 0; i < numModes; ++i)
-        {
-            const float r = re[i] * mr[i] - im[i] * mi[i] + dr[i] * impulse;
-            const float m = re[i] * mi[i] + im[i] * mr[i] + di[i] * impulse;
-            re[i] = r;
-            im[i] = m;
-        }
+        k.driveModes (re, im, mr, mi, dr, di, impulse, numModes);
 
         hammerVelocity -= force / strikeHammerMass * substepPeriod;
         hammerPosition += hammerVelocity * substepPeriod;
@@ -582,11 +574,7 @@ float NoteModel::renderContactSample (float& knock) noexcept
     if (separatedSubsteps >= separatedSubstepsToEnd || contactSubsteps >= maxContactSubsteps)
         inContact = false;
 
-    const float* w = outputWeight.data();
-    float sum = 0.0f;
-
-    for (int i = 0; i < numModes; ++i)
-        sum += w[i] * im[i];
+    float sum = k.dot (outputWeight.data(), im, numModes);
 
     // The knock: the hammer's force, averaged over the sample's substeps, straight to the bridge.
     knock = strikeKnockGain * strikeGain * static_cast<float> (forceSum / hammerOversampling);
@@ -598,27 +586,6 @@ float NoteModel::renderContactSample (float& knock) noexcept
     return sum;
 }
 
-namespace
-{
-/** Advances modes [0, end) one sample and returns their output. Kept apart from the phantom
-    path so it stays a plain loop the compiler vectorises. */
-float stepModes (float* re, float* im, const float* mr, const float* mi, const float* w, int end) noexcept
-{
-    float sum = 0.0f;
-
-    for (int i = 0; i < end; ++i)
-    {
-        const float r = re[i] * mr[i] - im[i] * mi[i];
-        const float m = re[i] * mi[i] + im[i] * mr[i];
-        re[i] = r;
-        im[i] = m;
-        sum += w[i] * m;
-    }
-
-    return sum;
-}
-} // namespace
-
 void NoteModel::renderFree (float* out, int numSamples) noexcept
 {
     float* re = stateRe.data();
@@ -626,20 +593,30 @@ void NoteModel::renderFree (float* out, int numSamples) noexcept
     const float* mr = stepRe.data();
     const float* mi = stepIm.data();
     const float* w = outputWeight.data();
-    const int end = activeEnd;
+    const Kernels& k = *kernels;
+
+    // Whole groups: the modes past activeEnd are at rest, exactly zero, and stay so.
+    const auto roundUp = [] (int n) { return (n + kernelModeAlignment - 1) / kernelModeAlignment * kernelModeAlignment; };
+    const int end = roundUp (activeEnd);
 
     if (numDrivingPartials == 0)
     {
-        for (int t = 0; t < numSamples; ++t)
-            out[t] += stepModes (re, im, mr, mi, w, end);
+        k.freeModes (re, im, mr, mi, w, end, out, numSamples);
         return;
     }
 
+    // The phantom path reads the driving partials' modes at every sample, so they advance
+    // sample by sample; the rest, mode by mode.
+    const int driving = std::min (end, roundUp (numDrivingPartials * numStrings));
+
     for (int t = 0; t < numSamples; ++t)
     {
-        const float sum = stepModes (re, im, mr, mi, w, end);
+        const float sum = k.stepModes (re, im, mr, mi, w, driving);
         out[t] += sum + phantomSample();
     }
+
+    if (end > driving)
+        k.freeModes (re + driving, im + driving, mr + driving, mi + driving, w + driving, end - driving, out, numSamples);
 }
 
 float NoteModel::phantomSample() noexcept

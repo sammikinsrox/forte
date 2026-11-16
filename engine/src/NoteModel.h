@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Kernels.h"
 #include "LabMapping.h"
 #include "PianoModel.h"
 #include "VelocityCurve.h"
@@ -64,6 +65,11 @@ namespace forte::detail
     (see UnisonModes), so free-running modes cost the same as uncoupled strings. That form lets
     the hammer step at T/4 and the damper change σ without disturbing a mode's phase or amplitude.
 
+    Free-running modes advance mode by mode through each render (Kernels::freeModes), each held in
+    registers across the samples, so a note's state passes through memory once per render rather
+    than once per sample. Modes something reads every sample (the hammer's, while it's in
+    contact; the phantom partials' drivers) advance sample by sample.
+
     Threading: prepare() allocates and runs off the audio thread. Everything else is realtime-safe.
 */
 class NoteModel
@@ -125,7 +131,12 @@ public:
         keyLift = other.keyLift;
         lift = other.lift;
         strikeVoicing = other.strikeVoicing;
+        kernels = other.kernels;
     }
+
+    /** The hot loops' instruction set (Kernels.h): the CPU's best until set. Not while rendering. */
+    void setKernels (const Kernels& k) noexcept { kernels = &k; }
+    [[nodiscard]] const Kernels& getKernels() const noexcept { return *kernels; }
 
     /** Runs the note's control-rate work. Call at every controlInterval boundary of absolute
         sample time, so that output doesn't depend on how the host splits blocks. */
@@ -156,8 +167,11 @@ private:
     [[nodiscard]] bool phantomsAtRest() const noexcept;
     [[nodiscard]] float strikePointDisplacement() const noexcept;
 
+    const Kernels* kernels = &bestKernels();
+
     // Fixed after prepare()
     int numModes = 0;
+    int paddedModes = 0;  // numModes rounded up to kernelModeAlignment; the per-mode arrays' size
     int numStrings = 1;
     bool hasDamper = true;
     double samplePeriod = 1.0 / 48000.0;

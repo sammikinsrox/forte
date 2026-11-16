@@ -1,5 +1,6 @@
 #include "forte/engine/Engine.h"
 
+#include "Kernels.h"
 #include "LabMapping.h"
 #include "NoteModel.h"
 #include "PianoModel.h"
@@ -150,6 +151,9 @@ struct Engine::State
     }
 
     detail::SympatheticBank sympathetic;
+
+    /** The hot loops' instruction set (Kernels.h), shared by every note and the soundboard. */
+    const detail::Kernels* kernels = &detail::bestKernels();
 
     /** The notes' and banks' bridge force per region, for the current stretch of one partition. */
     std::array<std::array<float, partitionSize>, detail::numBridgeRegions> regionBus {};
@@ -578,6 +582,27 @@ double Engine::getTailSeconds() const noexcept
 int Engine::getNumSoundingNotes() const noexcept
 {
     return state->soundingNotes.load (std::memory_order_relaxed);
+}
+
+InstructionSet Engine::getInstructionSet() const noexcept
+{
+    return state->kernels == &detail::avx2Kernels ? InstructionSet::avx2 : InstructionSet::sse2;
+}
+
+void Engine::setInstructionSet (InstructionSet set) noexcept
+{
+    auto& s = *state;
+    s.kernels = set == InstructionSet::avx2 && detail::cpuSupportsAvx2() ? &detail::avx2Kernels : &detail::sse2Kernels;
+
+    // A model waiting to be taken copies them from the note it replaces (takeControlStateFrom).
+    for (auto& n : s.notes)
+        n->setKernels (*s.kernels);
+    s.soundboard.setKernels (*s.kernels);
+}
+
+bool Engine::cpuSupports (InstructionSet set) noexcept
+{
+    return set == InstructionSet::sse2 || detail::cpuSupportsAvx2();
 }
 
 void Engine::prepare (double newSampleRate, int newMaxBlockSize)

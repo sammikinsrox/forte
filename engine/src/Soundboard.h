@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Fft.h"
+#include "Kernels.h"
 #include "PianoModel.h"
 #include "SoundboardIrs.h"
 
@@ -126,6 +127,9 @@ public:
     /** The IRs' length in samples at the prepared rate. */
     [[nodiscard]] int getIrLength() const noexcept { return irLength; }
 
+    /** The hot loops' instruction set (Kernels.h): the CPU's best until set. Not while processing. */
+    void setKernels (const Kernels& k) noexcept { kernels = &k; }
+
 private:
     struct Region
     {
@@ -156,6 +160,7 @@ private:
     void computeTails (int set) noexcept;
     void renderRegion (int set, int region, int start, int numSamples, float* outLeft, float* outRight) noexcept;
 
+    const Kernels* kernels = &bestKernels();
     int numPartitions = 0;
     int irLength = 0;
     int newestSpectrum = 0;  // ring index of the latest block's spectrum

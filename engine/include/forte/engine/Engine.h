@@ -16,6 +16,13 @@ enum class ListeningPerspective
     pianist       // the player's seat
 };
 
+/** The instruction set the engine's hot loops run on (SPEC §9.2). One binary carries both. */
+enum class InstructionSet
+{
+    sse2,  // every x64 CPU
+    avx2   // AVX2 with FMA
+};
+
 /** The tuning controls (SPEC §5, §6.3). */
 struct Tuning
 {
@@ -184,6 +191,17 @@ public:
     /** How many notes were sounding (not idle) at the end of the last render(), for the editor's
         Notes meter (SPEC §6.4). Safe from any thread. */
     [[nodiscard]] int getNumSoundingNotes() const noexcept;
+
+    /** The instruction set the hot loops use: AVX2 when the CPU has it (with FMA), otherwise SSE2,
+        unless setInstructionSet() asked for another. */
+    [[nodiscard]] InstructionSet getInstructionSet() const noexcept;
+
+    /** Runs the hot loops on an instruction set: for the performance gate and the tests (SPEC
+        §9.2). One the CPU lacks falls back to SSE2. Renders under the two differ in their last
+        bits; each is deterministic on its own. Not realtime: call while nothing renders. */
+    void setInstructionSet (InstructionSet set) noexcept;
+
+    [[nodiscard]] static bool cpuSupports (InstructionSet set) noexcept;
 
     [[nodiscard]] double getSampleRate() const noexcept { return sampleRate; }
     [[nodiscard]] int getMaxBlockSize() const noexcept { return maxBlockSize; }

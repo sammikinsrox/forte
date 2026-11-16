@@ -17,14 +17,6 @@ constexpr double tiltCentreHz = 3000.0;
 constexpr double tiltReferenceHz = 10000.0;
 constexpr double tiltDbAtReference = 12.0;  // at Brightness 0 and 100
 
-float dot (const float* __restrict a, const float* __restrict b) noexcept
-{
-    float sum = 0.0f;
-    for (int k = 0; k < B; ++k)
-        sum += a[k] * b[k];
-    return sum;
-}
-
 bool allZero (const float* x, int n) noexcept
 {
     for (int i = 0; i < n; ++i)
@@ -309,14 +301,15 @@ void Soundboard::renderRegion (int set, int region, int start, int numSamples, f
     const auto& l = channel (set, region, 0);
     const auto& r = channel (set, region, 1);
     const float* history = regions[static_cast<std::size_t> (region)].input.data();
+    const auto dot = kernels->dot;
 
     for (int i = 0; i < numSamples; ++i)
     {
         // The head: taps 0..B−1 against this sample and the B−1 before it.
         const int at = start + i;
         const float* window = history + at + 1;
-        outLeft[i] = l.tail[static_cast<std::size_t> (at)] + dot (l.headReversed.data(), window);
-        outRight[i] = r.tail[static_cast<std::size_t> (at)] + dot (r.headReversed.data(), window);
+        outLeft[i] = l.tail[static_cast<std::size_t> (at)] + dot (l.headReversed.data(), window, B);
+        outRight[i] = r.tail[static_cast<std::size_t> (at)] + dot (r.headReversed.data(), window, B);
     }
 }
 
@@ -426,13 +419,8 @@ void Soundboard::computeTails (int set) noexcept
             rRe[0] += xr[0] * hrr[0];
             rIm[0] += xi[0] * hri[0];
 
-            for (int k = 1; k < B; ++k)
-            {
-                lRe[k] += xr[k] * hlr[k] - xi[k] * hli[k];
-                lIm[k] += xr[k] * hli[k] + xi[k] * hlr[k];
-                rRe[k] += xr[k] * hrr[k] - xi[k] * hri[k];
-                rIm[k] += xr[k] * hri[k] + xi[k] * hrr[k];
-            }
+            kernels->complexMac2 (lRe + 1, lIm + 1, rRe + 1, rIm + 1, xr + 1, xi + 1,
+                                  hlr + 1, hli + 1, hrr + 1, hri + 1, B - 1);
         }
 
         // Overlap-save: the second half of the circular result is the linear convolution.

@@ -12,7 +12,7 @@ commit `0bbbe50`, by reading the code, the tests and CI. Nothing was run for thi
 
 | Area | State |
 |---|---|
-| Synthesis engine (§2) | Nearly done. AVX2/SSE2 dispatch is missing, and a few values are placeholders |
+| Synthesis engine (§2) | Nearly done. A few values are placeholders |
 | Model data and fitting (§3) | Partial. Voiced against Keyscape, but several calibrations are still seeds |
 | MIDI, touch, pedals (§4) | Done |
 | Tuning (§5) | Done |
@@ -23,11 +23,10 @@ commit `0bbbe50`, by reading the code, the tests and CI. Nothing was run for thi
 | Voicing ([issue 0021](../issues/0021-voicing-against-iowa.md)) | Ongoing: the "tinny / CP-70" treble is still open |
 
 **Biggest gaps before a v1.0 release:**
-1. AVX2 + SSE2 dispatch (§9.2).
-2. Tier 2 checks, `tools/validate/` and the HTML report (§8.2, §8.4).
-3. Installer, zip and tag-to-draft-release workflow (§9.4–9.5).
-4. LICENSE, CREDITS.md and THIRD-PARTY.md, plus VST branding (§9.6).
-5. Finishing the voicing, then the factory presets' values by ear.
+1. Tier 2 checks, `tools/validate/` and the HTML report (§8.2, §8.4).
+2. Installer, zip and tag-to-draft-release workflow (§9.4–9.5).
+3. LICENSE, CREDITS.md and THIRD-PARTY.md, plus VST branding (§9.6).
+4. Finishing the voicing, then the factory presets' values by ear.
 
 ---
 
@@ -36,9 +35,8 @@ commit `0bbbe50`, by reading the code, the tests and CI. Nothing was run for thi
 - [x] VST3 + Standalone, Windows (`plugin/CMakeLists.txt`).
 - [x] Physics list: felt hammer, inharmonicity, coupled 1–3 strings, phantom partials, soundboard,
   dampers with half-pedaling, sympathetic resonance, soft pedal.
-- [~] Performance target. The real engine was measured with the **SSE2** build only: 8.4–9.4% at
-  48 kHz and 20–22% at 96 kHz for the 88-key glissando (issue 0021 §16). That's well inside the
-  target, but there is no AVX2 build to gate (see §9.2).
+- [x] Performance target: 6.6% (AVX2) and 7.8% (SSE2) of one core at 48 kHz for the 88-key
+  glissando, against the 25% target (see §9.2).
 - [ ] Licence files at the repo root (see §9.6).
 
 ## 2. Synthesis engine
@@ -150,8 +148,14 @@ commit `0bbbe50`, by reading the code, the tests and CI. Nothing was run for thi
 
 - [x] §9.1 MSVC, /O2 /fp:fast, FTZ/DAZ in the engine, the JUCE submodule, one shared engine
   library, version 1.0.0 in CMake.
-- [ ] §9.2 **AVX2 + SSE2 paths with a startup CPU check: not built.** There's one build with
-  default (SSE2) codegen. The manual gate then needs running on both paths.
+- [x] §9.2 AVX2 + SSE2 paths with a startup CPU check (`engine/src/Kernels.*`): the hot loops
+  are built twice from one source and picked at startup; `forte-render --isa sse2|avx2` forces
+  one for the gate. Measured on the Ryzen 5 5500 (glissando, 128-sample blocks): AVX2 6.6% at
+  48 kHz and 15.5% at 96 kHz; SSE2 7.8% and 18.9% (before: 8.3% and 19.7%).
+  - [ ] The manual gate itself (a real-time glissando in a host with no dropouts), before release.
+  - [ ] Next speed-up, if wanted: the phantom-partial path on the lowest ~30 notes is now most of
+    the notes' cost (~80 cycles per sample per note, the same on both paths). Running it a block
+    at a time, as the free modes now run, should save roughly a quarter of the total.
 - [~] §9.3 Safety net. Per push: Debug and Release builds, Catch2, the allocation guard, the
   realtime build rule, pluginval at 10 with the VST3 validator, Tier 1.
   - [ ] The nightly / release-tag Tier 2 workflow.
@@ -171,8 +175,8 @@ commit `0bbbe50`, by reading the code, the tests and CI. Nothing was run for thi
 - [x] Hardness span: first-build value ÷4 to ×4.
 - [ ] Brightness range, soft-pedal felt and half-pedal gap settings by ear.
 - [ ] Final factory preset list and values. A first list is in `Presets.cpp`.
-- [~] CPU: SSE2 measured and inside the gate; AVX2 not measured; 96 kHz needs no resampling at
-  ~22% (SSE2).
+- [x] CPU: both paths measured and inside the gate; 96 kHz needs no internal resampling (15.5%
+  AVX2, 18.9% SSE2).
 - [ ] Sample-rate rebuild time.
 - [ ] Editor checks in **FL Studio**: whether the advanced groups fit, typed values, resizing.
 - [~] Undamped boundary and Steinway D string tables. Approximations are in place, so the data is

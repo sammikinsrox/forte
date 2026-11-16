@@ -25,6 +25,7 @@ struct Options
     juce::File voicing;  // none: the committed voicing
     juce::File labValues;  // set: write what the voicing means and don't render
     forte::Controls controls;
+    std::optional<forte::InstructionSet> instructionSet;  // none: the CPU's best
 };
 
 /** --control name=value: one of the sound controls (SPEC §6.3), by its parameter id. */
@@ -68,6 +69,7 @@ constexpr const char* usage =
     "  --control a sound control (SPEC 6.3) by its parameter id: hardness, brightness, resonance,\n"
     "           touch, a4, stretch, spread, width (0-100, a4 in Hz) or volume (dB). Repeatable.\n"
     "           stretch=0 is plain equal temperament.\n"
+    "  --isa    sse2 or avx2: the engine's hot loops (default: the best this CPU has; SPEC 9.2)\n"
     "  --lab-values writes, instead of rendering, what the voicing means on each note and bridge\n"
     "           region in physical terms (for tools/fitting/fold_voicing.py)\n";
 
@@ -114,6 +116,24 @@ std::optional<Options> parseArguments (const juce::StringArray& args, juce::Stri
         {
             if (! setControl (options.controls, value, error))
                 return std::nullopt;
+        }
+        else if (arg == "--isa")
+        {
+            if (value == "sse2")
+                options.instructionSet = forte::InstructionSet::sse2;
+            else if (value == "avx2")
+                options.instructionSet = forte::InstructionSet::avx2;
+            else
+            {
+                error = "--isa takes sse2 or avx2";
+                return std::nullopt;
+            }
+
+            if (! forte::Engine::cpuSupports (*options.instructionSet))
+            {
+                error = "this CPU doesn't support " + value;
+                return std::nullopt;
+            }
         }
         else
         {
@@ -294,6 +314,9 @@ int run (const Options& options)
 
     forte::Engine engine;
 
+    if (options.instructionSet)
+        engine.setInstructionSet (*options.instructionSet);
+
     if (options.voicing != juce::File())
     {
         const auto voicing = readVoicing (options.voicing, error);
@@ -343,12 +366,13 @@ int run (const Options& options)
 
     writer.reset();
 
-    std::printf ("forte-render %s: %s -> %s (%.0f Hz, %lld samples)\n",
+    std::printf ("forte-render %s: %s -> %s (%.0f Hz, %lld samples, %s)\n",
                  forte::versionString,
                  options.input.getFileName().toRawUTF8(),
                  options.output.getFullPathName().toRawUTF8(),
                  options.sampleRate,
-                 (long long) totalSamples);
+                 (long long) totalSamples,
+                 engine.getInstructionSet() == forte::InstructionSet::avx2 ? "AVX2" : "SSE2");
     return 0;
 }
 } // namespace

@@ -33,6 +33,7 @@ target_sources(forte_tests PRIVATE
     BridgeTests.cpp
     ControlsTests.cpp
     EngineTests.cpp
+    InstructionSetTests.cpp
     MidiTests.cpp
     NoteModelTests.cpp
     PresetTests.cpp
