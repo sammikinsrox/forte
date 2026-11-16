@@ -2,11 +2,17 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "LabParameters.h"
+
 #include "forte/engine/Engine.h"
 
 namespace forte
 {
-/** The VST3/Standalone wrapper around forte::Engine. It holds no DSP of its own. */
+/** The VST3/Standalone wrapper around forte::Engine. It holds no DSP of its own.
+
+    Parameters: so far only the voicing lab's (SPEC §6.5), shown by the host's generic editor
+    until the custom editor exists (SPEC §6.1). The project state is their values plus a
+    state-format version (SPEC §7.3). */
 class PluginProcessor final : public juce::AudioProcessor
 {
 public:
@@ -41,8 +47,14 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
+    /** The saved state's format (SPEC §7.3). A newer Forte reads older states; an older one
+        ignores what it doesn't know. */
+    static constexpr int stateVersion = 1;
+
 private:
     Engine engine;
+    juce::AudioProcessorValueTreeState parameters;
+    LabParameters lab;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginProcessor)
 };

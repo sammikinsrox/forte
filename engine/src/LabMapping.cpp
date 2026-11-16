@@ -1,0 +1,155 @@
+#include "LabMapping.h"
+
+#include <algorithm>
+#include <cmath>
+
+namespace forte::detail
+{
+namespace
+{
+constexpr double neutral = lab::neutralValue;
+
+/** at0 at 0, fitted at 50, at100 at 100, linear on each side. */
+double piecewise (double value, double at0, double fitted, double at100) noexcept
+{
+    if (value == neutral)
+        return fitted;
+
+    return value < neutral ? at0 + (fitted - at0) * (value / neutral)
+                           : fitted + (at100 - fitted) * ((value - neutral) / neutral);
+}
+
+/** fitted × factorAt100^((value − 50) / 50): fitted ÷ factor at 0, × factor at 100. */
+double logScale (double value, double fitted, double factorAt100) noexcept
+{
+    if (value == neutral)
+        return fitted;
+
+    return fitted * std::pow (factorAt100, (value - neutral) / neutral);
+}
+
+double interpolate (double a, double b, double t, bool inLog) noexcept
+{
+    if (a == b)
+        return a;
+
+    if (inLog && a > 0.0 && b > 0.0)
+        return std::exp (std::log (a) + (std::log (b) - std::log (a)) * t);
+
+    return a + (b - a) * t;
+}
+} // namespace
+
+double labMap (lab::Control control, double value, double fitted) noexcept
+{
+    using C = lab::Control;
+    value = std::clamp (value, static_cast<double> (lab::minimumValue), static_cast<double> (lab::maximumValue));
+
+    switch (control)
+    {
+        case C::feltHardness:       return logScale (value, fitted, 4.0);
+        case C::feltSpike:          return piecewise (value, 0.0, fitted, 0.95);
+        case C::velocityBrightness: return piecewise (value, 0.0, fitted, 1.0);
+        case C::strikePosition:     return piecewise (value, 0.6 * fitted, fitted, 1.4 * fitted);
+        case C::hammerMass:         return logScale (value, fitted, 2.0);
+        case C::knockLevel:         return piecewise (value, 0.0, fitted, 3.0 * fitted);
+        case C::inharmonicity:      return logScale (value, fitted, 2.0);
+        case C::unisonSpread:       return piecewise (value, 0.0, fitted, 2.0 * fitted);
+        case C::sustain:            return logScale (value, fitted, 0.5);   // rates ×2 at 0, ×0.5 at 100
+        case C::overtoneDecay:      return piecewise (value, fitted - 0.5, fitted, fitted + 0.5);
+        case C::secondStage:        return logScale (value, fitted, 0.5);
+        case C::phantomLevel:       return piecewise (value, 0.0, fitted, 2.0 * fitted);
+        case C::pickup:             return piecewise (value, 0.0, fitted, 2.0);
+        case C::boardTilt:          return piecewise (value, -4.0, fitted, 16.0);
+        case C::colourLow:
+        case C::colourMid:
+        case C::colourHigh:         return piecewise (value, fitted - 12.0, fitted, fitted + 12.0);
+        case C::tapeDrive:          return piecewise (value, 0.0, fitted, 24.0);
+        case C::count:              break;
+    }
+
+    return fitted;
+}
+
+bool labInterpolatesInLog (lab::Control control) noexcept
+{
+    using C = lab::Control;
+
+    switch (control)
+    {
+        case C::feltHardness:
+        case C::strikePosition:
+        case C::hammerMass:
+        case C::inharmonicity:
+        case C::sustain:
+        case C::secondStage:
+            return true;
+
+        default:
+            return false;
+    }
+}
+
+double labValueAtKey (const lab::Settings& settings, lab::Control control, double midiNote, double fitted) noexcept
+{
+    if (! lab::info (control).perRegister)
+        return labMap (control, settings.get (control), fitted);
+
+    const auto& anchors = lab::registerAnchorKeys;
+    int lower = 0;
+    double t = 0.0;
+
+    if (midiNote <= anchors[0])
+    {
+        lower = 0;
+    }
+    else if (midiNote >= anchors[lab::numRegisters - 1])
+    {
+        lower = lab::numRegisters - 1;
+    }
+    else
+    {
+        lower = midiNote < anchors[1] ? 0 : 1;
+        t = (midiNote - anchors[static_cast<std::size_t> (lower)])
+          / (anchors[static_cast<std::size_t> (lower + 1)] - anchors[static_cast<std::size_t> (lower)]);
+    }
+
+    const double a = labMap (control, settings.get (control, static_cast<lab::Register> (lower)), fitted);
+    if (t == 0.0)
+        return a;
+
+    const double b = labMap (control, settings.get (control, static_cast<lab::Register> (lower + 1)), fitted);
+    return interpolate (a, b, t, labInterpolatesInLog (control));
+}
+
+StrikeVoicing committedStrikeVoicing (const NoteParameters& p) noexcept
+{
+    StrikeVoicing v;
+    v.feltRelaxation = p.feltRelaxation;
+    v.contactSpeedExponent = p.contactSpeedExponent;
+    return v;
+}
+
+StrikeVoicing labStrikeVoicing (const lab::Settings& settings, const NoteParameters& p) noexcept
+{
+    using C = lab::Control;
+
+    if (settings.isNeutral (lab::Group::hammer))
+        return committedStrikeVoicing (p);
+
+    const double key = p.midiNote;
+    StrikeVoicing v;
+    v.feltStiffnessScale = labValueAtKey (settings, C::feltHardness, key, 1.0);
+    v.feltRelaxation = labValueAtKey (settings, C::feltSpike, key, p.feltRelaxation);
+    v.contactSpeedExponent = labValueAtKey (settings, C::velocityBrightness, key, p.contactSpeedExponent);
+    v.strikePositionScale = labValueAtKey (settings, C::strikePosition, key, 1.0);
+    v.hammerMassScale = labValueAtKey (settings, C::hammerMass, key, 1.0);
+    v.knockScale = labValueAtKey (settings, C::knockLevel, key, 1.0);
+    return v;
+}
+
+double labTapeDrive (const lab::Settings& settings, double fitted) noexcept
+{
+    return labMap (lab::Control::tapeDrive, settings.get (lab::Control::tapeDrive), fitted);
+}
+} // namespace forte::detail

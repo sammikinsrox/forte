@@ -38,7 +38,8 @@ target_sources(forte_tests PRIVATE
     SympatheticBankTests.cpp
     Tier1Tests.cpp
     UnisonModesTests.cpp
-    VelocityCurveTests.cpp)
+    VelocityCurveTests.cpp
+    VoicingLabTests.cpp)
 
 # The engine's own headers too, so DSP parts (the velocity curve, the piano model) can be
 # tested directly.

@@ -20,10 +20,10 @@ juce_add_plugin(Forte
     COPY_PLUGIN_AFTER_BUILD FALSE)
 
 target_sources(Forte PRIVATE
+    src/LabParameters.cpp
+    src/LabParameters.h
     src/PluginProcessor.cpp
-    src/PluginProcessor.h
-    src/PluginEditor.cpp
-    src/PluginEditor.h)
+    src/PluginProcessor.h)
 
 target_compile_definitions(Forte PUBLIC
     JUCE_VST3_CAN_REPLACE_VST2=0

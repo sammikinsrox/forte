@@ -1,5 +1,6 @@
 #include "forte/engine/Engine.h"
 
+#include "LabMapping.h"
 #include "NoteModel.h"
 #include "PianoModel.h"
 #include "ScopedFlushDenormals.h"
@@ -22,6 +23,7 @@ constexpr int controlInterval = detail::NoteModel::controlInterval;
 constexpr int partitionSize = detail::Soundboard::partitionSize;
 constexpr double pedalSmoothingSeconds = 0.02;  // SPEC §4.2
 constexpr double lowestSampleRate = 44100.0;    // SPEC §2.2
+constexpr double tapeGlideSeconds = 0.02;       // SPEC §2.9
 
 static_assert (partitionSize % controlInterval == 0, "a partition holds whole control intervals");
 static_assert (controlInterval <= detail::SympatheticBank::maxRenderSamples, "the banks render a control interval at once");
@@ -89,6 +91,54 @@ struct Engine::State
     std::int64_t sampleClock = 0;
 
     std::array<float, controlInterval> noteScratch {};
+
+    /** The voicing lab (SPEC §6.5). */
+    lab::Settings lab;
+
+    /** The tape's drive as it glides to the lab's (SPEC §2.9: output controls are immediate,
+        smoothed over ~20 ms), and its step per sample while it moves. */
+    double tapeDrive = model.tapeDrive;
+    double tapeTarget = model.tapeDrive;
+    double tapeStep = 0.0;
+    double tapeGlideSamples = tapeGlideSeconds * 48000.0;
+
+    void applyStrikeVoicing() noexcept
+    {
+        for (int midiNote = detail::lowestNote; midiNote <= detail::highestNote; ++midiNote)
+            note (midiNote).setStrikeVoicing (detail::labStrikeVoicing (lab, model.note (midiNote)));
+    }
+
+    void setTapeTarget (double target, bool glide) noexcept
+    {
+        tapeTarget = target;
+        tapeStep = glide ? (tapeTarget - tapeDrive) / tapeGlideSamples : 0.0;
+        if (! glide || tapeStep == 0.0)
+            tapeDrive = tapeTarget;
+    }
+
+    /** The tape (see render()) while its drive glides: the drive moves every sample. Near 0 the
+        curve is the identity. */
+    void glideTape (float* left, float* right, int numSamples) noexcept
+    {
+        const float t = std::tanh (0.15f);
+
+        for (int i = 0; i < numSamples; ++i)
+        {
+            tapeDrive += tapeStep;
+            if ((tapeStep > 0.0 && tapeDrive >= tapeTarget) || (tapeStep < 0.0 && tapeDrive <= tapeTarget))
+                tapeDrive = tapeTarget;
+
+            const auto drive = static_cast<float> (tapeDrive);
+            if (drive < 1e-4f)
+                continue;
+
+            for (float* channel : { left, right })
+            {
+                const float u = std::tanh (drive * channel[i]);
+                channel[i] = u / (drive * (1.0f + t * u));
+            }
+        }
+    }
 
     detail::NoteModel& note (int midiNote) noexcept { return notes[static_cast<std::size_t> (midiNote - detail::lowestNote)]; }
     std::uint32_t& keyCount (int midiNote) noexcept { return keyDownCount[static_cast<std::size_t> (midiNote - detail::lowestNote)]; }
@@ -249,7 +299,11 @@ void Engine::prepare (double newSampleRate, int newMaxBlockSize)
     for (int midiNote = detail::lowestNote; midiNote <= detail::highestNote; ++midiNote)
         state->note (midiNote).prepare (model.note (midiNote), model.unisonSpreadCents, model.outputGain, sampleRate);
 
-    state->sympathetic.prepare (model, sampleRate);    state->soundboard.prepare (detail::resampleIrs (state->shippedIrs, sampleRate));
+    state->applyStrikeVoicing();
+    state->tapeGlideSamples = tapeGlideSeconds * sampleRate;
+
+    state->sympathetic.prepare (model, sampleRate);
+    state->soundboard.prepare (detail::resampleIrs (state->shippedIrs, sampleRate));
 
     state->sustainStepPerTick = static_cast<float> (controlInterval / (pedalSmoothingSeconds * sampleRate));
     reset();
@@ -266,6 +320,7 @@ void Engine::reset() noexcept
     state->sustainTarget = state->sustainLift = 0.0f;
     state->softPedal = 0.0f;
     state->sampleClock = 0;
+    state->setTapeTarget (state->tapeTarget, false);
 }
 
 void Engine::handleMidi (const MidiEvent& event) noexcept
@@ -340,10 +395,14 @@ void Engine::render (float* left, float* right, int numSamples) noexcept
         // Tape-style saturation (PianoModel::tapeDrive): (tanh(d·x + b) − tanh b) / (d·(1 − tanh² b)),
         // unity gain for small signals, the bias giving even harmonics as well as odd. Written as
         // tanh(d·x) / (d·(1 + tanh b · tanh(d·x))), the same function, so tiny signals stay exact
-        // instead of cancelling to zero in float.
-        if (s.model.tapeDrive > 0.0)
+        // instead of cancelling to zero in float. While the lab moves the drive, it glides.
+        if (s.tapeDrive != s.tapeTarget)
         {
-            const auto drive = static_cast<float> (s.model.tapeDrive);
+            s.glideTape (left + position, right + position, stretch);
+        }
+        else if (s.tapeDrive > 0.0)
+        {
+            const auto drive = static_cast<float> (s.tapeDrive);
             const float t = std::tanh (0.15f);
             for (float* channel : { left + position, right + position })
                 for (int i = 0; i < stretch; ++i)
@@ -360,5 +419,33 @@ void Engine::setListeningPerspective (ListeningPerspective perspective) noexcept
 {
     state->soundboard.setPerspective (perspective == ListeningPerspective::pianist ? detail::pianistPerspective
                                                                                     : detail::microphonesPerspective);
+}
+
+void Engine::setVoicingLab (const lab::Settings& settings) noexcept
+{
+    auto& s = *state;
+    if (settings == s.lab)
+        return;
+
+    const bool hammerChanged = [&] {
+        for (const auto& c : lab::controls)
+            if (c.group == lab::Group::hammer && s.lab.values[static_cast<std::size_t> (c.control)] != settings.values[static_cast<std::size_t> (c.control)])
+                return true;
+        return false;
+    }();
+
+    s.lab = settings;
+
+    if (hammerChanged)
+        s.applyStrikeVoicing();
+
+    const double tape = detail::labTapeDrive (settings, s.model.tapeDrive);
+    if (tape != s.tapeTarget)
+        s.setTapeTarget (tape, true);
+}
+
+const lab::Settings& Engine::getVoicingLab() const noexcept
+{
+    return state->lab;
 }
 } // namespace forte

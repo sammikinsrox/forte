@@ -70,7 +70,9 @@ void NoteModel::prepare (const NoteParameters& p, double unisonSpreadCents, doub
     hammerMass = p.hammerMass;
     feltStiffness = p.feltStiffness;
     feltExponent = p.feltExponent;
-    feltRelaxation = p.feltRelaxationTime > 0.0 ? std::clamp (p.feltRelaxation, 0.0, 1.0) : 0.0;
+    feltRelaxes = p.feltRelaxationTime > 0.0;
+    strikePosition = p.strikePosition;
+    strikeVoicing = committedStrikeVoicing (p);
     feltMemoryDecay = p.feltRelaxationTime > 0.0 ? std::exp (-samplePeriod / hammerOversampling / p.feltRelaxationTime) : 0.0;
     softPedalFeltScale = p.softPedalFeltScale;
     knockGain = static_cast<float> (p.knockLevel * outputGain);
@@ -79,7 +81,6 @@ void NoteModel::prepare (const NoteParameters& p, double unisonSpreadCents, doub
     liftStepPerTick = static_cast<float> (controlInterval * samplePeriod / damperRampSeconds);
     velocityCurve = VelocityCurve (p.hammerSpeeds, p.maxHammerSpeed);
     mfHammerSpeed = p.hammerSpeeds.mf;
-    contactSpeedExponent = p.contactSpeedExponent;
 
     const double maxFrequency = std::min (maxPartialHz, maxPartialFractionOfRate * sampleRate);
     int numPartials = 0;
@@ -96,6 +97,9 @@ void NoteModel::prepare (const NoteParameters& p, double unisonSpreadCents, doub
                      &driveRe, &driveIm, &strikeWeightRe, &strikeWeightIm })
         v->assign (static_cast<std::size_t> (numModes), 0.0f);
 
+    partialStrikeShape.assign (static_cast<std::size_t> (numPartials), 0.0);
+    strikeShapeRatio.assign (static_cast<std::size_t> (numPartials), 1.0f);
+
     const bool phantoms = p.phantomLevel > 0.0 && p.longitudinalFrequency > 0.0;
     numDrivingPartials = phantoms ? std::min (phantomDrivingPartials, numPartials) : 0;
     phantomWeight.assign (static_cast<std::size_t> (numDrivingPartials * numStrings), 0.0f);
@@ -111,6 +115,7 @@ void NoteModel::prepare (const NoteParameters& p, double unisonSpreadCents, doub
     for (int partial = 1; partial <= numPartials; ++partial)
     {
         const double strikeShape = std::sin (partial * std::numbers::pi * p.strikePosition);
+        partialStrikeShape[static_cast<std::size_t> (partial - 1)] = strikeShape;
         const double bridgeSlope = p.stringTension * partial * std::numbers::pi / p.stringLength * (partial % 2 == 0 ? 1.0 : -1.0);
         const UnisonModes modes = modesOfPartial (p, partial, offsets);
 
@@ -284,24 +289,61 @@ void NoteModel::strike (double velocity, double touch, double softShift) noexcep
     // strings at mf × (v / mf)^exponent, the strike's drive is scaled up by v over that and the
     // hammer's view of the strings down by the same, so the contact is exactly the slower blow's
     // and the strings ring as loud as the real one makes them.
+    const auto& v = strikeVoicing;
+    const double exponent = v.contactSpeedExponent;
     double speed = velocityCurve.hammerSpeed (velocity, touch);
     strikeGain = 1.0f;
-    if (contactSpeedExponent != 1.0 && speed > 0.0 && mfHammerSpeed > 0.0)
+    if (exponent != 1.0 && speed > 0.0 && mfHammerSpeed > 0.0)
     {
-        const double contact = mfHammerSpeed * std::pow (speed / mfHammerSpeed, contactSpeedExponent);
+        const double contact = mfHammerSpeed * std::pow (speed / mfHammerSpeed, exponent);
         strikeGain = static_cast<float> (speed / contact);
         speed = contact;
     }
 
-    for (int i = 0; i < numModes; ++i)
+    if (v.strikePositionScale == 1.0)
     {
-        driveRe[i] = (driveAllRe[i] - missed * driveMissedRe[i]) * share * strikeGain;
-        driveIm[i] = (driveAllIm[i] - missed * driveMissedIm[i]) * share * strikeGain;
-        strikeWeightRe[i] = (viewAllRe[i] - missed * viewMissedRe[i]) * share / strikeGain;
-        strikeWeightIm[i] = (viewAllIm[i] - missed * viewMissedIm[i]) * share / strikeGain;
+        for (int i = 0; i < numModes; ++i)
+        {
+            driveRe[i] = (driveAllRe[i] - missed * driveMissedRe[i]) * share * strikeGain;
+            driveIm[i] = (driveAllIm[i] - missed * driveMissedIm[i]) * share * strikeGain;
+            strikeWeightRe[i] = (viewAllRe[i] - missed * viewMissedRe[i]) * share / strikeGain;
+            strikeWeightIm[i] = (viewAllIm[i] - missed * viewMissedIm[i]) * share / strikeGain;
+        }
+    }
+    else
+    {
+        // The lab's strike position (SPEC §6.5). A partial's drive and view both go as
+        // sin(nπ·x), so each scales by the new shape over the committed one. sin(nπ·x') comes
+        // from the recurrence s_n = 2·cos(πx')·s_{n−1} − s_{n−2}.
+        const double angle = std::numbers::pi * std::clamp (strikePosition * v.strikePositionScale, 0.01, 0.5);
+        const double twoCos = 2.0 * std::cos (angle);
+        double previous = 0.0, current = std::sin (angle);
+        const auto numPartials = static_cast<int> (partialStrikeShape.size());
+
+        for (int n = 0; n < numPartials; ++n)
+        {
+            const double committed = partialStrikeShape[static_cast<std::size_t> (n)];
+            strikeShapeRatio[static_cast<std::size_t> (n)] = committed != 0.0 ? static_cast<float> (current / committed) : 0.0f;
+            const double next = twoCos * current - previous;
+            previous = current;
+            current = next;
+        }
+
+        for (int i = 0; i < numModes; ++i)
+        {
+            const float ratio = strikeShapeRatio[static_cast<std::size_t> (i / numStrings)];
+            driveRe[i] = (driveAllRe[i] - missed * driveMissedRe[i]) * share * strikeGain * ratio;
+            driveIm[i] = (driveAllIm[i] - missed * driveMissedIm[i]) * share * strikeGain * ratio;
+            strikeWeightRe[i] = (viewAllRe[i] - missed * viewMissedRe[i]) * share / strikeGain * ratio;
+            strikeWeightIm[i] = (viewAllIm[i] - missed * viewMissedIm[i]) * share / strikeGain * ratio;
+        }
     }
 
-    strikeFeltStiffness = feltStiffness * std::pow (softPedalFeltScale, shift);
+    // The felt, mass and knock hold for this strike's whole contact.
+    strikeFeltStiffness = feltStiffness * v.feltStiffnessScale * std::pow (softPedalFeltScale, shift);
+    strikeFeltRelaxation = feltRelaxes ? std::clamp (v.feltRelaxation, 0.0, 1.0) : 0.0;
+    strikeHammerMass = hammerMass * v.hammerMassScale;
+    strikeKnockGain = knockGain * static_cast<float> (v.knockScale);
 
     activeEnd = numModes;
     sounding = true;
@@ -462,7 +504,7 @@ float NoteModel::renderContactSample (float& knock) noexcept
         // The felt's memory relaxes towards the compression power, also while it's clear of the
         // strings, so a quick re-contact meets partly relaxed felt.
         feltMemory = feltMemoryDecay * feltMemory + (1.0 - feltMemoryDecay) * compressionPower;
-        const double force = std::max (0.0, strikeFeltStiffness * (compressionPower - feltRelaxation * feltMemory));
+        const double force = std::max (0.0, strikeFeltStiffness * (compressionPower - strikeFeltRelaxation * feltMemory));
         const auto impulse = static_cast<float> (force * substepPeriod);
         forceSum += force;
 
@@ -474,7 +516,7 @@ float NoteModel::renderContactSample (float& knock) noexcept
             im[i] = m;
         }
 
-        hammerVelocity -= force / hammerMass * substepPeriod;
+        hammerVelocity -= force / strikeHammerMass * substepPeriod;
         hammerPosition += hammerVelocity * substepPeriod;
 
         ++contactSubsteps;
@@ -491,7 +533,7 @@ float NoteModel::renderContactSample (float& knock) noexcept
         sum += w[i] * im[i];
 
     // The knock: the hammer's force, averaged over the sample's substeps, straight to the bridge.
-    knock = knockGain * strikeGain * static_cast<float> (forceSum / hammerOversampling);
+    knock = strikeKnockGain * strikeGain * static_cast<float> (forceSum / hammerOversampling);
 
     // The phantom path keeps running through the contact: pausing it caused pops (SPEC §2.3).
     if (numDrivingPartials > 0)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "forte/engine/MidiEvent.h"
+#include "forte/engine/VoicingLab.h"
 
 #include <memory>
 
@@ -58,6 +59,14 @@ public:
         over ~50 ms from the next 128-sample boundary of the engine's sample clock. It survives
         reset() and prepare(), where it applies at once. Realtime-safe. */
     void setListeningPerspective (ListeningPerspective perspective) noexcept;
+
+    /** The voicing lab's values (SPEC §6.5), at the current render position. Cheap when nothing
+        changed, so it can be called every block. Hammer controls take effect at each note's next
+        strike; Tape drive glides there over ~20 ms. At every 50 the engine is exactly the
+        committed voicing. It survives reset() and prepare(). Realtime-safe. */
+    void setVoicingLab (const lab::Settings& settings) noexcept;
+
+    [[nodiscard]] const lab::Settings& getVoicingLab() const noexcept;
 
     /** The longest the engine can go on sounding after the last MIDI event: an undamped (or
         pedalled) note decaying from full scale to rest, through its slowest coupled mode, then

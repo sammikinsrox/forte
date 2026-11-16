@@ -1,5 +1,6 @@
 #pragma once
 
+#include "LabMapping.h"
 #include "PianoModel.h"
 #include "VelocityCurve.h"
 
@@ -97,6 +98,10 @@ public:
         with the soft pedal's action shift (0–1) at this moment. */
     void strike (double velocity, double touch, double softShift) noexcept;
 
+    /** The voicing lab's hammer (SPEC §6.5), read at the next strike and held for that strike's
+        whole contact. prepare() sets the committed one. */
+    void setStrikeVoicing (const StrikeVoicing& voicing) noexcept { strikeVoicing = voicing; }
+
     /** Runs the note's control-rate work. Call at every controlInterval boundary of absolute
         sample time, so that output doesn't depend on how the host splits blocks. */
     void controlTick (float sustainLift) noexcept;
@@ -133,13 +138,14 @@ private:
     double hammerMass = 3e-3;
     double feltStiffness = 0.0;
     double feltExponent = 2.5;
-    double feltRelaxation = 0.0;
+    bool feltRelaxes = false;      // τ > 0: ε has an effect
     double feltMemoryDecay = 0.0;  // e^{−(T/4)/τ}
+    double strikePosition = 0.125;
+    StrikeVoicing strikeVoicing;
     double softPedalFeltScale = 1.0;
     float knockGain = 0.0f;                       // knockLevel × output gain
     float knockPole = 0.0f;                       // the knock low-pass's e^{−2π·fc·T}, 0 = none
     double mfHammerSpeed = 2.0;                   // velocity 64's hammer speed, m/s
-    double contactSpeedExponent = 1.0;
     int maxContactSubsteps = 0;
     VelocityCurve velocityCurve;
 
@@ -159,6 +165,11 @@ private:
     // strike() mixes them for the soft pedal's shift.
     std::vector<float> driveAllRe, driveAllIm, driveMissedRe, driveMissedIm;
     std::vector<float> viewAllRe, viewAllIm, viewMissedRe, viewMissedIm;
+
+    // Per partial: sin(nπ·x) at the committed strike position x (the drives and views above
+    // include it), and the lab's strike's over it, filled at a strike with a moved position.
+    std::vector<double> partialStrikeShape;
+    std::vector<float> strikeShapeRatio;
 
     // Per mode, live
     std::vector<float> stateRe, stateIm;
@@ -199,7 +210,10 @@ private:
     bool inContact = false;
     double hammerPosition = 0.0;  // m, along the strings' displacement
     double hammerVelocity = 0.0;  // m/s
-    double strikeFeltStiffness = 0.0;
+    double strikeFeltStiffness = 0.0;  // this strike's, as are the next three
+    double strikeFeltRelaxation = 0.0;
+    double strikeHammerMass = 3e-3;
+    float strikeKnockGain = 0.0f;
     double feltMemory = 0.0;      // c^p low-passed with the felt's relaxation time
     float knockState = 0.0f;      // the knock low-pass's output
     float strikeGain = 1.0f;      // the real blow's speed over the contact's

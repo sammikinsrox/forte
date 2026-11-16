@@ -9,9 +9,12 @@ configure_file(Version.h.in "${CMAKE_CURRENT_BINARY_DIR}/generated/forte/Version
 add_library(forte_engine STATIC
     include/forte/engine/Engine.h
     include/forte/engine/MidiEvent.h
+    include/forte/engine/VoicingLab.h
     src/EmbeddedFiles.h
     src/Engine.cpp
     src/Fft.h
+    src/LabMapping.cpp
+    src/LabMapping.h
     src/NoteModel.cpp
     src/NoteModel.h
     src/DecayFit.inc

@@ -1,18 +1,33 @@
 #include "PluginProcessor.h"
 
-#include "PluginEditor.h"
-
 #include "forte/bridge/RenderBlock.h"
 
 namespace forte
 {
-PluginProcessor::PluginProcessor()
-    : juce::AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true))
+namespace
 {
+const juce::Identifier stateType { "FORTE" };
+const juce::Identifier stateVersionAttribute { "stateVersion" };
+
+juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
+{
+    juce::AudioProcessorValueTreeState::ParameterLayout layout;
+    layout.add (LabParameters::createGroup());
+    return layout;
+}
+} // namespace
+
+PluginProcessor::PluginProcessor()
+    : juce::AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
+      parameters (*this, nullptr, stateType, createLayout())
+{
+    lab.attach (parameters);
 }
 
 void PluginProcessor::prepareToPlay (double sampleRate, int maximumExpectedSamplesPerBlock)
 {
+    // Lab values land at once here, without the tape's glide.
+    engine.setVoicingLab (lab.read());
     engine.prepare (sampleRate, maximumExpectedSamplesPerBlock);
 }
 
@@ -34,23 +49,40 @@ bool PluginProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 
 void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
+    // The lab's values apply from this block's start (SPEC §6.5). Cheap when none changed.
+    engine.setVoicingLab (lab.read());
     bridge::renderBlock (engine, buffer, midi);
 }
 
 juce::AudioProcessorEditor* PluginProcessor::createEditor()
 {
-    return new PluginEditor (*this);
+    // The host-style generic editor until the custom one exists (SPEC §6.1, §6.5), so the
+    // Standalone shows the lab too.
+    return new juce::GenericAudioProcessorEditor (*this);
 }
 
 void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    // No saved state yet. The state format arrives with the parameters (SPEC §7.3).
-    destData.reset();
+    auto state = parameters.copyState();
+    state.setProperty (stateVersionAttribute, stateVersion, nullptr);
+
+    if (const auto xml = state.createXml())
+        copyXmlToBinary (*xml, destData);
 }
 
 void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    juce::ignoreUnused (data, sizeInBytes);
+    const auto xml = getXmlFromBinary (data, sizeInBytes);
+    if (xml == nullptr || ! xml->hasTagName (stateType))
+        return;
+
+    // replaceState() leaves parameters the state doesn't mention at their current values, and
+    // ignores ones this Forte doesn't know (SPEC §7.3). Reset first, so a missing one is at its
+    // default rather than at whatever the last project left it.
+    for (auto* parameter : getParameters())
+        parameter->setValueNotifyingHost (parameter->getDefaultValue());
+
+    parameters.replaceState (juce::ValueTree::fromXml (*xml));
 }
 } // namespace forte
 

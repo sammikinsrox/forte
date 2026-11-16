@@ -6,6 +6,7 @@
 
 #include "forte/Version.h"
 #include "forte/bridge/RenderBlock.h"
+#include "forte/bridge/VoicingFile.h"
 #include "forte/engine/Engine.h"
 
 #include <cmath>
@@ -21,14 +22,17 @@ struct Options
     double sampleRate = 48000.0;
     int blockSize = 128;
     double tailSeconds = 3.0;
+    juce::File voicing;  // none: the committed voicing
 };
 
 constexpr const char* usage =
     "Usage: forte-render <input.mid> <output.wav> [--rate <Hz>] [--block <samples>] [--tail <seconds>]\n"
+    "                    [--voicing <voicing.json>]\n"
     "\n"
     "  --rate   sample rate, 44100 to 96000 (default 48000)\n"
     "  --block  block size in samples, 1 to 8192 (default 128)\n"
-    "  --tail   seconds rendered after the last MIDI event (default 3)\n";
+    "  --tail   seconds rendered after the last MIDI event (default 3)\n"
+    "  --voicing a voicing lab file (SPEC 6.5), as Export voicing writes it (default: all 50)\n";
 
 int fail (const juce::String& message)
 {
@@ -65,6 +69,8 @@ std::optional<Options> parseArguments (const juce::StringArray& args, juce::Stri
             options.blockSize = value.getIntValue();
         else if (arg == "--tail")
             options.tailSeconds = value.getDoubleValue();
+        else if (arg == "--voicing")
+            options.voicing = juce::File::getCurrentWorkingDirectory().getChildFile (value);
         else
         {
             error = "unknown option " + arg;
@@ -165,6 +171,20 @@ int run (const Options& options)
 
     forte::Engine engine;
     engine.prepare (options.sampleRate, options.blockSize);
+
+    if (options.voicing != juce::File())
+    {
+        if (! options.voicing.existsAsFile())
+            return fail ("can't open " + options.voicing.getFullPathName());
+
+        const auto voicing = forte::bridge::parseVoicing (options.voicing.loadFileAsString(), error);
+        if (! voicing)
+            return fail (options.voicing.getFullPathName() + ": " + error);
+
+        // Applied before the first sample, so nothing glides: reset() lands every lab value.
+        engine.setVoicingLab (*voicing);
+        engine.reset();
+    }
 
     juce::AudioBuffer<float> buffer (forte::Engine::numOutputChannels, options.blockSize);
     juce::MidiBuffer midi;
