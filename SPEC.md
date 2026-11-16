@@ -23,7 +23,7 @@ Status: build-ready, 2026-11-14.
   - sympathetic resonance;
   - soft pedal.
 - **Performance target:** a full 88-key sustain-pedal glissando plays without dropouts at a 128-sample buffer, using **≤ 25% of one core** on a mid-range 2020 PC (reference machine: the user's Ryzen 5 5500) at 48 kHz.
-- **Judging the sound:** the reference recordings are the objective comparison. The user's ear makes the final call.
+- **Judging the sound:** the reference recordings are the objective comparison. The user's ear makes the final call. Since 2026-11-16 the voicing target is the user's own **Keyscape** renders (§3.1), not Iowa: the user hears Keyscape as "clear, smooth, rich and deep" and judges Forte against it ([Voicing against Iowa](issues/0021-voicing-against-iowa.md) §14–15). Forte is for the user's personal use, so numbers fitted from those renders are committed.
 - **Out of scope for v1:**
   - macOS, AU and Linux;
   - built-in reverb;
@@ -47,9 +47,10 @@ Sources: [Choose the synthesis architecture](issues/0007-choose-synthesis-archit
 MIDI → Hammer (felt spring, 4× contact, soft-pedal shift)
      → Note's Unison as modal resonators (stretch, coupled two-stage decay,
        phantom partials, damper position + gap)
-     → one-way bridge force → [sympathetic bank (12/key, damper-gated)] → bridge region bus ×4
+     → one-way bridge force (+ the knock, past the note's high-pass)
+     → [sympathetic bank (12/key, damper-gated)] → bridge region bus ×4
      → per-region stereo convolution (active perspective; crossfade on switch)
-     → Brightness tilt per region → sum → Width → Volume → stereo out
+     → Brightness tilt per region → sum → Tape → Width → Volume → stereo out
 ```
 
 Energy flows **one way**: strings → bridge regions and the sympathetic bank, with nothing flowing back. The soundboard's energy drain is already included in the measured decay times.
@@ -68,14 +69,16 @@ Energy flows **one way**: strings → bridge regions and the sympathetic bank, w
 - **Unison tuning offsets:** fixed per string and the same in cents on every partial.
   - 3 strings: −1, +0.2 and +0.85 × spread.
   - 2 strings: ±0.5 × spread.
-  - The default spread is 0.7 cent (§5).
+  - The default spread is 0.7 cent (§5), scaled per note: × 1 up to C4, narrowing to × 0.35 at E5 and × 0.15 from E6. With the full spread the treble's upper partials beat into a sustained glassy ring that Keyscape's don't have, and the decay fit matched Keyscape's treble 2–3× worse ([Voicing against Iowa](issues/0021-voicing-against-iowa.md) §15). The decay fit models the same per-note spread.
 - **Phantom partials:** on the lowest ~30 notes. Their path runs **continuously, including during hammer contact**, with a ~40 Hz high-pass on the longitudinal force.
 - **Bridge output** is the string slope **at the bridge end**, so its sign alternates per mode. (Taking it at the agraffe end caused the "wooden knock".)
 - **Per-note high-pass at f0/2** on notes above 100 Hz removes the sub-fundamental strike transient.
 
 ### 2.4 Hammer
 
-- **Model:** a lumped mass with a nonlinear, hysteretic felt: Stulov's hereditary model, F = Q0·[c^p − (ε/τ)·∫ c^p(ξ)·e^{−(t−ξ)/τ} dξ]. Compression changes faster than τ meet the instantaneous stiffness Q0, slower ones the relaxed Q0·(1 − ε). With a short τ (0.02 ms) only the fastest compression meets the stiff felt. A soft relaxed felt then keeps the 1–3.5 kHz layer down (no twang), while the stiff onset adds air above 4 kHz. A τ comparable to the contact (~1 ms) reshapes the whole pulse instead and brings the twang back. The current values are set by ear: relaxed stiffness 0.25 × the seed felt, ε 0.9, τ 0.02 ms ([Voicing against Iowa](issues/0021-voicing-against-iowa.md) §7).
+- **Model:** a lumped mass with a nonlinear, hysteretic felt: Stulov's hereditary model, F = Q0·[c^p − (ε/τ)·∫ c^p(ξ)·e^{−(t−ξ)/τ} dξ]. Compression changes faster than τ meet the instantaneous stiffness Q0, slower ones the relaxed Q0·(1 − ε). With a short τ (0.02 ms) only the fastest compression meets the stiff felt. A soft relaxed felt then keeps the 1–3.5 kHz layer down (no twang), while the stiff onset adds air above 4 kHz. A τ comparable to the contact (~1 ms) reshapes the whole pulse instead and brings the twang back. τ is 0.02 ms everywhere; the relaxed stiffness and ε are voiced per register against Keyscape (§3.3): ε 0.8–0.9 up to C6, falling to 0 (an elastic felt) from F#6, where the stiff onset made a metallic zing ([Voicing against Iowa](issues/0021-voicing-against-iowa.md) §7, §14).
+- **Contact speed:** the felt meets the strings at mf × (v / mf)^0.5 rather than at the blow's own speed v, and the strike's drive is scaled by v over that, so a note keeps the real blow's loudness while its brightness changes half as much with velocity. A physical felt went from 9–14 dB too dark at velocity 32 to 2–7 dB too bright at 127 against Keyscape (§15). Per note, `contactSpeedExponent` (1 = physical).
+- **Knock:** while the hammer touches the strings, a share of its force goes straight to the bridge bus through a one-pole 150 Hz low-pass, never through the note's high-pass (§2.3): the thump of the impact, under the fundamental. Its level per register is fitted to Keyscape's attack crest factor: none up to C4, rising to 0.14 at F#5, 0.45 at F#6 and 0.6 from D7.
 - **Contact:** computed sample by sample at **4× oversampling** during the contact window only.
 - **Strike position:** ~1/8 of the string length. It shapes which partials are excited.
 - **Per-note values:** mass, stiffness Q0, exponent p, relaxation ε and relaxation time τ come from the model file.
@@ -102,7 +105,8 @@ A continuous 0–1 hammer shift that changes which strings are struck and the fe
 - **Perspective:** only the active Listening perspective's IR set runs. Switching perspective crossfades between the IR sets.
 - **Stereo:** placement comes from the regions, with no panning. Bass is on the left, in both perspectives.
 - **Brightness:** a treble tilt on each region's output.
-- **Width, then Volume:** applied after the regions are summed.
+- **Tape:** after the regions are summed, a tape-style saturator, as in the default patch of the user's Keyscape: (tanh(d·x + b) − tanh b) / (d·(1 − tanh² b)) with b = 0.15 (even harmonics as well as odd), unity gain for small signals. The drive d is 8, chosen by ear (§15); 0 = none. Computed in the algebraically equal form tanh(d·x) / (d·(1 + tanh b · tanh(d·x))) so tiny signals stay exact in float.
+- **Width, then Volume:** applied after the tape.
 
 ### 2.9 Live parameter changes
 
@@ -112,6 +116,7 @@ A continuous 0–1 hammer shift that changes which strings are struck and the fe
 | Tuning | A4, Stretch, Spread | Ringing modes glide over ~50 ms |
 | Output | Volume, Width, Brightness, Resonance | Immediate, smoothed over ~20 ms |
 | Perspective | Listening perspective | Crossfade between IR sets |
+| Voicing lab (§6.5) | Hammer, string and output voicing | Strike-time ones on the next strike; string ones re-prepare a note when it next starts from rest; output ones immediate |
 
 Ringing notes are never cut off by a parameter change, a preset load or automation.
 
@@ -132,8 +137,9 @@ Sources: [Parameter fitting pipeline](issues/0014-parameter-fitting-pipeline.md)
 | Piano in 162 | Pedal-down sympathetic level | Measured locally, never shipped |
 | Plath concert-grand dataset | Soundboard and Pianist calibration | CC BY 4.0 |
 | Published Steinway D tables (Chabassier & Duruflé, Chaigne & Askenfelt, …) | Seed values | Cited |
+| The user's Keyscape renders (dry, its default patch with tape saturation): note sweeps from `tools/fitting/make_note_sweep.py` (3 s and 11 s holds, velocities 32/64/96/127) and whole pieces | **The voicing target** since 2026-11-16: inharmonicity, decay, felt voicing, knock, colour, velocity response | The user's own renders of a commercial library, for personal use. Derived numbers are committed (`data/reference-measurements/keyscape-decay.json`, `data/model/board-colour.json`); the audio stays in the user's Downloads |
 
-**No reference audio ever ships.** Only derived numbers ship. `tools/fetch-references` downloads the recordings into the git-ignored `refs/`.
+**No reference audio ever ships.** Only derived numbers ship. `tools/fetch-references` downloads the recordings into the git-ignored `refs/`. Where Iowa and Keyscape disagree, Keyscape wins.
 
 ### 3.2 Pipeline
 
@@ -147,13 +153,13 @@ There is one command per step, plus `all`. Fixed seeds make every run's output b
 
 ### 3.3 What is fitted
 
-- **Inharmonicity B:** from the Steinway D string scale, smoothed across keys. Iowa only checks the trend.
-  - Fallback if the D tables can't be obtained: Iowa's B scaled by B ∝ 1/L².
+- **Inharmonicity B:** measured on the Keyscape sweep and smoothed (`PianoModel.cpp`; issue 0021 §14). About half the old seed curve from C#1 to E2, 1.2–1.8× it from the tenor up. (The plan was the Steinway D string scale, with Iowa checking the trend.)
 - **f0** is not fitted. The tuner computes it (§5).
-- **Decay**, from Iowa mf:
-  - Partials at least 10 dB above the noise floor keep their own measured values: a prompt-sound and an aftersound rate each, fitted through the engine's coupled unison to the partial's level over windows from 0.05 to 16 s. The targets are medians over ±3 semitones, since a single Iowa note carries its own unison's tuning ([Voicing against Iowa](issues/0021-voicing-against-iowa.md) §10).
+- **Decay**, from the long Keyscape sweep (`fit_decay.py measure-sweep <wav> --hold 11 --gap 2`, then `fit`); Iowa mf when no sweep of at least 6 s holds is measured:
+  - Partials at least 10 dB above the noise floor keep their own measured values: a prompt-sound and an aftersound rate each, fitted through the engine's coupled unison (with its per-note spread, §2.3) to the partial's level over windows from 0.05 s to the end of the hold. The targets are medians over ±3 semitones and the sweep's velocities 64 and 96 ([Voicing against Iowa](issues/0021-voicing-against-iowa.md) §10, §15).
+  - The fit weights 0.25–2.4 s fully, the strike's first dip (to 0.25 s) at 0.4 and the tail past 2.4 s at 0.3, and the prompt rate is at most 3× the aftersound. Weighted evenly, the fit chased Keyscape's first dip with prompt rates the fixed spread can't follow with an aftersound, which killed the treble fundamentals and left their partials ringing (§15).
   - Higher partials follow σ = b1 + b3·f², with the coefficients smoothed across keys and outliers rejected.
-  - Notes outside Iowa's range borrow the rates at the same frequency from the nearest measured note.
+  - Notes outside the reference's range borrow the rates at the same frequency from the nearest measured note.
   - A noisy tail is never trusted over the law.
 - **Unison coupling** per partial: derived from the fast and slow decay and the fixed spread.
 - **Phantom levels:** fitted against Iowa ff.
@@ -161,7 +167,9 @@ There is one command per step, plus `all`. Fixed seeds make every run's output b
   - **Mass:** a smooth curve from the seeds, not fitted.
   - **Felt stiffness and exponent:** fitted per note across pp, mf and ff together. For each dynamic, the hammer speed that matches the loudness is solved first, then the felt is fitted to match brightness at all three dynamics. Salamander checks the curve shape between those points.
   - **Hand-off:** the three matched speeds per note become the velocity calibration points (§4).
-  - **For now, set by ear.** A first fit along these lines (`tools/fitting/fit_hammer.py fit`) matched Iowa's attack spectra but sounded worse: more twang over whole notes, and a click at each strike. Until a fit works by ear, the felt and the speeds are set by ear (`fit_hammer.py voice`). A working fit will need whole-note targets, not attack windows ([Voicing against Iowa](issues/0021-voicing-against-iowa.md) §7).
+  - **For now, voiced per register.** A first fit along these lines (`tools/fitting/fit_hammer.py fit`) matched Iowa's attack spectra but sounded worse: more twang over whole notes, and a click at each strike ([Voicing against Iowa](issues/0021-voicing-against-iowa.md) §7). The felt is now `fit_hammer.py voice` with `VOICING`: (key, relaxed-stiffness scale × the seed felt, ε) anchors, chosen from a 3 × 3 grid of felts by the strike's partials 2–6 against the Keyscape sweep at velocities 64–127 (§14). The speeds are the seed's.
+  - **Contact speed exponent** 0.5 on every note (§2.4), from the Keyscape sweep's brightness per velocity (§15).
+- **Knock:** level per register from the Keyscape sweep's attack crest factor (§2.4, issue 0021 §14).
 - **Soft-pedal felt:** a literature offset from the normal felt, then set by ear.
 - **Dampers:**
   - damper-down law from Salamander's releases;
@@ -175,6 +183,7 @@ There is one command per step, plus `all`. Fixed seeds make every run's output b
 - **Microphones colour:** render-and-compare against Iowa per third-octave band per region, with Salamander as the cross-check.
 - **Pianist colour:** Plath's bridge-to-dummy-head transfer, pooled per region, with detail above ~2 kHz smoothed out.
 - **Irregularity:** the mix of resonant modes against a smooth direct path. It's fitted to match the reference's partial-level scatter. It is not a user control.
+- **Now (seed IRs, until the calibration above exists):** the generator's board settings are set by ear (issue 0021 §8, §11): a +12 dB low shelf at 250 Hz and gain 0.5 on the direct path, modes rolled off from 12 kHz, +8 dB/octave on the modes above 1 kHz. On top, a **colour curve per region** (`data/model/board-colour.json`, third-octave gains): the single notes' whole-note spectra (velocities 64 and 96) of the Keyscape sweep against Forte's, noise-masked, smoothed, level-neutral and capped, applied in two passes, plus +4.5 dB above 1 kHz by ear (issue 0021 §14–15). The seed board is the likeliest home of Forte's remaining "CP-70" character: 0.42 s of random modes and a pickup-like direct path.
 
 ### 3.5 What ships
 
@@ -307,6 +316,37 @@ Sources: [Editor look & feel direction](issues/0006-editor-look-and-feel.md), [E
   - **Settings gear** (both views): *Invert sustain pedal*, *Invert soft pedal*, and an **About** panel with credits and licence notices (§9.6).
   - **Advanced view meters:** **Notes** (notes currently sounding) and **CPU** (% of one core).
 - **Not in v1:** a soft-pedal amount control and a separate half-pedal display.
+
+### 6.5 Voicing lab
+
+The user voices the model by ear from inside the host, to find what the measurements can't (issue 0021 §15: a "tinny", "CP-70" quality in the high notes that no comparison with Keyscape pins down). Forte is for personal use, so the lab is part of the plugin, not a developer build.
+
+- **Form:** plugin parameters in a **Lab** group, automatable and saved with the host project. Until the custom editor exists (§6.1), the host's generic editor shows them (Reaper's is fine). They follow §6.3's value rules: 0–100, **50 = the committed voicing**, double-click resets.
+- **Registers:** a per-register control has three values, **Bass / Middle / Treble**, anchored at C2, C4 and C7 and interpolated across the keys (log for multipliers, linear otherwise), held flat outside.
+- **Controls:**
+
+| Group | Control | Per register | 0 … 50 … 100 |
+|---|---|---|---|
+| Hammer | Felt hardness | yes | relaxed stiffness ÷4 … fitted … ×4 (log) |
+| Hammer | Felt spike (ε, the stiff onset) | yes | none … fitted … 0.95 |
+| Hammer | Velocity brightness (contact speed exponent) | — | 0 (brightness fixed at mf) … 0.5 … 1 (physical) |
+| Hammer | Strike position | yes | ×0.6 … fitted … ×1.4 |
+| Hammer | Hammer mass | yes | ×0.5 … fitted … ×2 (log) |
+| Hammer | Knock level | yes | none … fitted … ×3 |
+| Strings | Inharmonicity | yes | ×0.5 … fitted … ×2 (log) |
+| Strings | Unison spread scale | yes | ×0 … fitted (§2.3's curve) … ×2, on top of Spread (§6.3) |
+| Strings | Sustain (every rate) | yes | rates ×2 (shorter) … fitted … ×0.5 (longer), log |
+| Strings | Overtone decay (partial n's rates × (f_n / f_1)^k) | yes | k = −0.5 (upper partials ring longer) … 0 … +0.5 (die faster) |
+| Strings | Second stage (aftersound rate) | yes | ×2 … fitted … ×0.5, log |
+| Strings | Phantom level | — | none … fitted … ×2 |
+| Board | Pickup (direct-path gain) | yes | 0 … 0.5 … 2 |
+| Board | Board tilt above 1 kHz | — | −4 … +8 … +16 dB/octave |
+| Board | Colour Low / Mid / High (shelves at 250 Hz and 2.5 kHz over the fitted curve) | yes | −12 … 0 … +12 dB |
+| Output | Tape drive | — | 0 (off) … 8 … 24 |
+
+- **Live changes (§2.9):** hammer controls act on the next strike. String controls need a note's modes recomputed: a note is re-prepared, off the audio thread, the next time it starts from rest (not while it rings, so nothing clicks); the lab shows nothing until it's struck again. Board controls rebuild the four IRs from their kept parts (resonant modes, direct path, colour curve), off the audio thread, then crossfade to them as a perspective switch does (§2.8). Output controls are immediate.
+- **Export:** an **Export voicing** control (a momentary 0 → 1) writes the current lab values to `Documents/Forte/voicing.json`. That file is §3.2's voicing overrides: `tools/fitting` folds it into the committed defaults (hammer table, decay table, board colour, model values), and every lab control returns to 50 on the new voicing.
+- **Costs:** the lab must not change the sound at all its 50s (bit-identical renders) and stays within §1's CPU target with every control at its extreme.
 
 ## 7. Presets, saved state and automation
 

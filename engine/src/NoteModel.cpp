@@ -16,6 +16,7 @@ constexpr int hammerOversampling = 4;          // SPEC §2.4
 constexpr double maxContactSeconds = 0.02;     // a safety cap; real contact lasts 1–5 ms
 constexpr int separatedSubstepsToEnd = 200;    // ~1 ms clear of the strings ends the contact
 constexpr double damperRampSeconds = 0.02;     // SPEC §2.5, §4.2
+
 constexpr double maxPartialHz = 20000.0;       // SPEC §2.3
 constexpr double maxPartialFractionOfRate = 0.45;
 constexpr double highPassAboveHz = 100.0;      // SPEC §2.3
@@ -72,9 +73,13 @@ void NoteModel::prepare (const NoteParameters& p, double unisonSpreadCents, doub
     feltRelaxation = p.feltRelaxationTime > 0.0 ? std::clamp (p.feltRelaxation, 0.0, 1.0) : 0.0;
     feltMemoryDecay = p.feltRelaxationTime > 0.0 ? std::exp (-samplePeriod / hammerOversampling / p.feltRelaxationTime) : 0.0;
     softPedalFeltScale = p.softPedalFeltScale;
+    knockGain = static_cast<float> (p.knockLevel * outputGain);
+    knockPole = p.knockLowPassHz > 0.0 ? static_cast<float> (std::exp (-2.0 * std::numbers::pi * p.knockLowPassHz / sampleRate)) : 0.0f;
     maxContactSubsteps = static_cast<int> (maxContactSeconds * sampleRate) * hammerOversampling;
     liftStepPerTick = static_cast<float> (controlInterval * samplePeriod / damperRampSeconds);
     velocityCurve = VelocityCurve (p.hammerSpeeds, p.maxHammerSpeed);
+    mfHammerSpeed = p.hammerSpeeds.mf;
+    contactSpeedExponent = p.contactSpeedExponent;
 
     const double maxFrequency = std::min (maxPartialHz, maxPartialFractionOfRate * sampleRate);
     int numPartials = 0;
@@ -96,7 +101,7 @@ void NoteModel::prepare (const NoteParameters& p, double unisonSpreadCents, doub
     phantomWeight.assign (static_cast<std::size_t> (numDrivingPartials * numStrings), 0.0f);
 
     double offsets[3];
-    unisonOffsetsCents (numStrings, unisonSpreadCents, offsets);
+    unisonOffsetsCents (numStrings, unisonSpreadCents * p.unisonSpreadScale, offsets);
 
     // Mass of one string: from f0 = (1 / 2L)·√(T/μ).
     const double linearDensity = p.stringTension / (4.0 * p.stringLength * p.stringLength * p.fundamental * p.fundamental);
@@ -235,6 +240,7 @@ void NoteModel::silence() noexcept
     lmState1.fill (0.0f);
     lmState2.fill (0.0f);
     phantomHpInput = phantomHpOutput = 0.0f;
+    knockState = 0.0f;
     sounding = false;
 }
 
@@ -274,12 +280,25 @@ void NoteModel::strike (double velocity, double touch, double softShift) noexcep
     const auto missed = static_cast<float> (numStrings > 1 ? shift : 0.0);
     const float share = 1.0f / (static_cast<float> (numStrings) - missed);
 
+    // The contact follows the blow only as far as contactSpeedExponent says: the hammer meets the
+    // strings at mf × (v / mf)^exponent, the strike's drive is scaled up by v over that and the
+    // hammer's view of the strings down by the same, so the contact is exactly the slower blow's
+    // and the strings ring as loud as the real one makes them.
+    double speed = velocityCurve.hammerSpeed (velocity, touch);
+    strikeGain = 1.0f;
+    if (contactSpeedExponent != 1.0 && speed > 0.0 && mfHammerSpeed > 0.0)
+    {
+        const double contact = mfHammerSpeed * std::pow (speed / mfHammerSpeed, contactSpeedExponent);
+        strikeGain = static_cast<float> (speed / contact);
+        speed = contact;
+    }
+
     for (int i = 0; i < numModes; ++i)
     {
-        driveRe[i] = (driveAllRe[i] - missed * driveMissedRe[i]) * share;
-        driveIm[i] = (driveAllIm[i] - missed * driveMissedIm[i]) * share;
-        strikeWeightRe[i] = (viewAllRe[i] - missed * viewMissedRe[i]) * share;
-        strikeWeightIm[i] = (viewAllIm[i] - missed * viewMissedIm[i]) * share;
+        driveRe[i] = (driveAllRe[i] - missed * driveMissedRe[i]) * share * strikeGain;
+        driveIm[i] = (driveAllIm[i] - missed * driveMissedIm[i]) * share * strikeGain;
+        strikeWeightRe[i] = (viewAllRe[i] - missed * viewMissedRe[i]) * share / strikeGain;
+        strikeWeightIm[i] = (viewAllIm[i] - missed * viewMissedIm[i]) * share / strikeGain;
     }
 
     strikeFeltStiffness = feltStiffness * std::pow (softPedalFeltScale, shift);
@@ -291,7 +310,7 @@ void NoteModel::strike (double velocity, double touch, double softShift) noexcep
 
     // The hammer arrives just touching the strings, wherever they are.
     hammerPosition = strikePointDisplacement();
-    hammerVelocity = velocityCurve.hammerSpeed (velocity, touch);
+    hammerVelocity = speed;
     feltMemory = 0.0;
     contactSubsteps = 0;
     separatedSubsteps = 0;
@@ -339,8 +358,22 @@ void NoteModel::render (float* out, float* scratch, int numSamples) noexcept
         return;
 
     int t = 0;
+    // The knock goes straight to the output: the high-pass below is for the strings, and the
+    // knock's thump lies under the note's fundamental.
     for (; t < numSamples && inContact; ++t)
-        scratch[t] = renderContactSample();
+    {
+        float knock = 0.0f;
+        scratch[t] = renderContactSample (knock);
+        knockState = knockPole * knockState + (1.0f - knockPole) * knock;
+        out[t] += knockState;
+    }
+
+    // The low-pass's tail after the contact.
+    for (int i = t; i < numSamples && knockState != 0.0f; ++i)
+    {
+        knockState = std::abs (knockState) < 1e-12f ? 0.0f : knockPole * knockState;
+        out[i] += knockState;
+    }
 
     if (t < numSamples)
     {
@@ -410,9 +443,10 @@ float NoteModel::strikePointDisplacement() const noexcept
     return sum;
 }
 
-float NoteModel::renderContactSample() noexcept
+float NoteModel::renderContactSample (float& knock) noexcept
 {
     const double substepPeriod = samplePeriod / hammerOversampling;
+    double forceSum = 0.0;
     float* re = stateRe.data();
     float* im = stateIm.data();
     const float* mr = substepRe.data();
@@ -430,6 +464,7 @@ float NoteModel::renderContactSample() noexcept
         feltMemory = feltMemoryDecay * feltMemory + (1.0 - feltMemoryDecay) * compressionPower;
         const double force = std::max (0.0, strikeFeltStiffness * (compressionPower - feltRelaxation * feltMemory));
         const auto impulse = static_cast<float> (force * substepPeriod);
+        forceSum += force;
 
         for (int i = 0; i < numModes; ++i)
         {
@@ -454,6 +489,9 @@ float NoteModel::renderContactSample() noexcept
 
     for (int i = 0; i < numModes; ++i)
         sum += w[i] * im[i];
+
+    // The knock: the hammer's force, averaged over the sample's substeps, straight to the bridge.
+    knock = knockGain * strikeGain * static_cast<float> (forceSum / hammerOversampling);
 
     // The phantom path keeps running through the contact: pausing it caused pops (SPEC §2.3).
     if (numDrivingPartials > 0)
@@ -633,7 +671,7 @@ double noteTailSeconds (const NoteParameters& p, double unisonSpreadCents)
     // faster, so the 20 kHz limit is the sample rate's worst case.
     const int strings = stringsInUnison (p);
     double offsets[3];
-    unisonOffsetsCents (strings, unisonSpreadCents, offsets);
+    unisonOffsetsCents (strings, unisonSpreadCents * p.unisonSpreadScale, offsets);
 
     const double logResting = std::log (static_cast<double> (NoteModel::restingAmplitude));
     double tail = 0.0;
@@ -676,7 +714,7 @@ double noteTailSeconds (const NoteParameters& p, double unisonSpreadCents)
 double slowestStringDecay (const NoteParameters& p, double unisonSpreadCents)
 {
     double offsets[3];
-    unisonOffsetsCents (stringsInUnison (p), unisonSpreadCents, offsets);
+    unisonOffsetsCents (stringsInUnison (p), unisonSpreadCents * p.unisonSpreadScale, offsets);
 
     double slowest = std::numeric_limits<double>::infinity();
 

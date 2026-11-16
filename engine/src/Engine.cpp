@@ -336,6 +336,22 @@ void Engine::render (float* left, float* right, int numSamples) noexcept
         const std::array<const float*, detail::numBridgeRegions> buses { s.regionBus[0].data(), s.regionBus[1].data(),
                                                                          s.regionBus[2].data(), s.regionBus[3].data() };
         s.soundboard.process (buses, left + position, right + position, stretch);
+
+        // Tape-style saturation (PianoModel::tapeDrive): (tanh(d·x + b) − tanh b) / (d·(1 − tanh² b)),
+        // unity gain for small signals, the bias giving even harmonics as well as odd. Written as
+        // tanh(d·x) / (d·(1 + tanh b · tanh(d·x))), the same function, so tiny signals stay exact
+        // instead of cancelling to zero in float.
+        if (s.model.tapeDrive > 0.0)
+        {
+            const auto drive = static_cast<float> (s.model.tapeDrive);
+            const float t = std::tanh (0.15f);
+            for (float* channel : { left + position, right + position })
+                for (int i = 0; i < stretch; ++i)
+                {
+                    const float u = std::tanh (drive * channel[i]);
+                    channel[i] = u / (drive * (1.0f + t * u));
+                }
+        }
         position += stretch;
     }
 }

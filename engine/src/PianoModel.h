@@ -74,6 +74,21 @@ struct NoteParameters
     HammerSpeeds hammerSpeeds;       // at velocities 32, 64 and 112 (SPEC §4.1)
     double maxHammerSpeed = 8.0;     // m/s, velocity 127 never exceeds it
 
+    // Knock: the hammer's impact reaching the bridge directly, not through the strings. While the
+    // hammer touches them, knockLevel × its force is added to the note's bridge output (0 = none),
+    // through a one-pole low-pass at knockLowPassHz (0 = none), and never through the note's
+    // high-pass: the knock's thump lies under the fundamental.
+    double knockLevel = 0.0;
+    double knockLowPassHz = 0.0;
+
+    // How far the felt's contact follows the blow (1 = physical): the hammer meets the strings at
+    // mf × (v / mf)^contactSpeedExponent, and the strike's drive is scaled by v over that, so
+    // the note keeps the real blow's loudness while its brightness changes less with velocity.
+    double contactSpeedExponent = 1.0;
+
+    // This note's share of the model's unison spread.
+    double unisonSpreadScale = 1.0;
+
     // Soft pedal (SPEC §2.7)
     double softPedalFeltScale = 1.0; // felt stiffness multiplier with the action fully shifted
 
@@ -93,6 +108,10 @@ struct PianoModel
 
     /** Bridge force (N) to output sample. */
     double outputGain = 1.0;
+
+    /** Tape-style saturation on the output, after the soundboard: y = (tanh(d·x + b) − tanh b) /
+        (d·(1 − tanh² b)), unity gain for small signals, b = 0.15 for even harmonics. 0 = none. */
+    double tapeDrive = 0.0;
 
     /** The sympathetic bank's physical level, the Resonance control's 50 (SPEC §2.6, §6.3): each
         bank mode's gain at its own frequency, from the bridge drive to the bridge output. */

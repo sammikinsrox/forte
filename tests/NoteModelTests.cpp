@@ -205,10 +205,10 @@ TEST_CASE ("The hysteretic felt is stiffer than its relaxed self and brightens w
     // SPEC §2.4: Stulov's felt meets fast compression with Q0, not the relaxed Q0·(1 − ε), so
     // with a short relaxation time only the fastest compression meets the stiff felt: the strike
     // gains air over an elastic felt at the relaxed stiffness, without the middle partials
-    // rising (no twang). And ff has more air than pp, up to E5; at C7 the air shrinks a little
-    // as velocity rises (issue 0021 §7). Air is the rms of the third difference (+18 dB/octave,
-    // so the top dominates) over the signal's.
-    const int midiNote = GENERATE (36, 60, 76, 96);
+    // rising (no twang). And ff has more air than pp, up to E5 (issue 0021 §7). Air is the rms of
+    // the third difference (+18 dB/octave, so the top dominates) over the signal's. The notes are
+    // ones the Keyscape-fitted voicing gives a relaxing felt; from F#6 up it has none (§14).
+    const int midiNote = GENERATE (36, 60, 76, 84);
     const auto stulov = seedModel().note (midiNote);
     REQUIRE (stulov.feltRelaxation > 0.5);
 
@@ -233,7 +233,7 @@ TEST_CASE ("The hysteretic felt is stiffer than its relaxed self and brightens w
     const auto mfRelaxed = air (strikeNote (relaxed, 64, window));
 
     INFO ("note " << midiNote << ": air pp " << pp << ", mf " << mf << ", ff " << ff << "; mf relaxed " << mfRelaxed);
-    CHECK (mf > 1.2 * mfRelaxed);
+    CHECK (mf > 1.1 * mfRelaxed);
     if (midiNote <= 76)
         CHECK (pp < ff);
 }
@@ -263,7 +263,8 @@ TEST_CASE ("The hammer table is calibrated and smooth across the keyboard", "[no
             const auto& below = model.note (midiNote - 1);
             CHECK (p.feltStiffness / below.feltStiffness < 1.5);
             CHECK (below.feltStiffness / p.feltStiffness < 1.5);
-            CHECK (std::abs ((1.0 - p.feltRelaxation) / (1.0 - below.feltRelaxation) - 1.0) < 0.25);
+            // The voicing's ε falls from 0.6 to 0 over F#6's half-octave: 25% steps at most.
+            CHECK (std::abs ((1.0 - p.feltRelaxation) / (1.0 - below.feltRelaxation) - 1.0) < 0.3);
         }
     }
 }

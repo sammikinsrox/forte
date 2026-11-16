@@ -117,7 +117,7 @@ public:
 
 private:
     void updateMultipliers() noexcept;
-    float renderContactSample() noexcept;
+    float renderContactSample (float& knock) noexcept;
     void renderFree (float* out, int numSamples) noexcept;
     float phantomSample() noexcept;
     void restQuietModes() noexcept;
@@ -136,6 +136,10 @@ private:
     double feltRelaxation = 0.0;
     double feltMemoryDecay = 0.0;  // e^{−(T/4)/τ}
     double softPedalFeltScale = 1.0;
+    float knockGain = 0.0f;                       // knockLevel × output gain
+    float knockPole = 0.0f;                       // the knock low-pass's e^{−2π·fc·T}, 0 = none
+    double mfHammerSpeed = 2.0;                   // velocity 64's hammer speed, m/s
+    double contactSpeedExponent = 1.0;
     int maxContactSubsteps = 0;
     VelocityCurve velocityCurve;
 
@@ -197,6 +201,8 @@ private:
     double hammerVelocity = 0.0;  // m/s
     double strikeFeltStiffness = 0.0;
     double feltMemory = 0.0;      // c^p low-passed with the felt's relaxation time
+    float knockState = 0.0f;      // the knock low-pass's output
+    float strikeGain = 1.0f;      // the real blow's speed over the contact's
     int contactSubsteps = 0;
     int separatedSubsteps = 0;
 

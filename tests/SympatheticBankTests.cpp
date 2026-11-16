@@ -149,14 +149,18 @@ TEST_CASE ("A bank decays to exact silence and goes idle", "[sympathetic]")
 
     // Drive for half a second, then let it ring with the damper lifted: it takes a while...
     const auto drive = sine (forte::detail::partialFrequency (p, 1), second / 2);
-    // The drive at partial 1 rings every bank mode a little; the slowest of them rests last.
+    // The drive at partial 1 rings every bank mode a little; the slowest of them rests last. The
+    // mode the drive is tuned to rings longest at a level that counts: still sounding halfway
+    // through its own time to rest.
     double slowest = 1e9;
     for (int n = 1; forte::detail::partialFrequency (p, n) < 20000.0; ++n)
         slowest = std::min (slowest, forte::detail::promptDecayOfPartial (p, n));
-    const auto ringing = static_cast<std::int64_t> ((std::log (model.sympatheticLevel / 1e-5) / slowest + 1.0) * rate);
+    const double levelToRest = std::log (model.sympatheticLevel / 1e-5);
+    const auto ringing = static_cast<std::int64_t> ((levelToRest / slowest + 1.0) * rate);
+    const auto ownRinging = static_cast<std::int64_t> (levelToRest / forte::detail::promptDecayOfPartial (p, 1) * rate);
 
     const auto lifted = runBank (bank, key, drive, ringing, 1.0f);
-    CHECK_FALSE (allZero (slice (lifted, ringing / 2, ringing / 2 + second)));
+    CHECK_FALSE (allZero (slice (lifted, ownRinging / 2, ownRinging / 2 + second)));
     CHECK (allZero (slice (lifted, ringing - second / 2, ringing)));
     CHECK_FALSE (bank.isActive (key));
 
@@ -297,9 +301,11 @@ TEST_CASE ("The bank's tail bound grows when a bank could outlast its drive", "[
 {
     auto model = forte::detail::makeSeedPianoModel();
     constexpr double notesTail = 50.0;
-    constexpr double slowest = 0.1;
+    constexpr double slowest = 0.05;
 
-    // The seed level is low enough that no bank outlasts the strings.
+    // The seed level is low enough that no bank outlasts the strings. (The strings' rate here is
+    // well clear of the slowest bank modes, the Keyscape fit's floor of 0.12/s, issue 0021 §15:
+    // the bound grows as the two rates meet.)
     CHECK (forte::detail::sympatheticTailSeconds (model, notesTail, slowest) == notesTail);
 
     // Loud banks ring on past the strings.

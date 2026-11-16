@@ -80,10 +80,12 @@ NoteParameters seedNote (int midiNote)
                    : midiNote < 76 ? BridgeRegion::middle
                                    : BridgeRegion::treble;
 
-    // Inharmonicity: ~2e-4 at A0, ~1.3e-4 in the low tenor, ~1e-2 at C8 (CPU benchmark curve,
-    // close to the prototype's Iowa measurements at C2 and C4).
-    const double log10B = index < 26.0 ? -3.7 - 0.3 * index / 26.0 : -4.0 + 2.0 * (index - 26.0) / 61.0;
-    p.inharmonicity = std::pow (10.0, log10B);
+    // Inharmonicity: measured on the user's Keyscape sweep (issue 0021 §14), smoothed, its G6
+    // slope held to C8. Lower than the old seed curve in the bass (C#1-E2 about half), higher from
+    // the tenor up (1.2-1.8×).
+    constexpr double bKeys[] { 21.0, 26.0, 31.0, 36.0, 41.0, 45.0, 91.0, 108.0 };
+    constexpr double bLogs[] { -3.76, -3.90, -4.15, -4.12, -4.10, -4.04, -2.32, -1.68 };
+    p.inharmonicity = std::pow (10.0, interpolate (key, bKeys, bLogs));
 
     const double equalTemperament = 440.0 * std::pow (2.0, (key - 69.0) / 12.0);
     p.fundamental = equalTemperament / std::sqrt (1.0 + p.inharmonicity);
@@ -98,8 +100,8 @@ NoteParameters seedNote (int midiNote)
     p.stringLength = interpolateLog (key, anchors, lengths);
     p.stringTension = 700.0 + 50.0 * std::cos (std::clamp ((key - 36.0) / 48.0, 0.0, 1.0) * std::numbers::pi);
 
-    // Decay, fitted to Iowa mf (tools/fitting/fit_decay.py, SPEC §3.3, issue 0021 step 2): the
-    // measured partials' prompt and aftersound rates, and the laws above them.
+    // Decay, fitted to the user's long Keyscape sweep (tools/fitting/fit_decay.py, SPEC §3.3,
+    // issue 0021 §15): the measured partials' prompt and aftersound rates, and the laws above them.
     const auto& decay = decayTable[static_cast<std::size_t> (index)];
     p.decayConstant = decay.promptB1;
     p.decayPerHertzSquared = decay.promptB3;
@@ -111,6 +113,26 @@ NoteParameters seedNote (int midiNote)
         p.measuredPromptDecay[static_cast<std::size_t> (n)] = decay.prompt[n];
         p.measuredAftersoundDecay[static_cast<std::size_t> (n)] = decay.aftersound[n];
     }
+
+    // The knock per register, fitted to the Keyscape sweep's attack crest factor (peak in 50 ms
+    // over the rms of 0.5 s, velocities 64 and 96): the strings alone already match Keyscape's up
+    // to C4, and Keyscape's attacks get sharper from C5 up (issue 0021 §14).
+    constexpr double knockKeys[] { 64.0, 78.0, 90.0, 102.0 };
+    constexpr double knockLevels[] { 0.0, 0.14, 0.45, 0.6 };
+    p.knockLevel = interpolate (key, knockKeys, knockLevels);
+    p.knockLowPassHz = 150.0;
+
+    // The unison spread narrows from C4 up (fit_decay.py's spread_scale() must agree). With the
+    // full spread, the treble's upper partials beat into a sustained glassy ring that Keyscape's
+    // don't have; narrower, the decay fit matches the sweep 2-3× closer (issue 0021 §15).
+    constexpr double spreadKeys[] { 60.0, 76.0, 88.0 };
+    constexpr double spreadScales[] { 1.0, 0.35, 0.15 };
+    p.unisonSpreadScale = interpolate (key, spreadKeys, spreadScales);
+
+    // How far the contact follows the blow: the felt meets mf × (v / mf)^0.5 while the strings
+    // still take the real blow's loudness. A physical felt brightened far faster with velocity
+    // than Keyscape (9-14 dB too dark at velocity 32, 2-7 dB too bright at 127; issue 0021 §15).
+    p.contactSpeedExponent = 0.5;
 
     // Phantom partials on the lowest 30 notes (A0–D3), at the listening-test prototype's level
     // and longitudinal modes until they're fitted against Iowa ff (SPEC §3.3).
@@ -158,6 +180,10 @@ PianoModel makeSeedPianoModel()
         model.notes[static_cast<std::size_t> (midiNote - lowestNote)] = seedNote (midiNote);
 
     model.unisonSpreadCents = 0.7;
+
+    // The output's tape saturation, as the user's Keyscape renders have it (its default tape
+    // saturator; issue 0021 §15): 0 = none, chosen by ear.
+    model.tapeDrive = 8.0;
 
     // Placeholder level until the soundboard and the fitted levels exist: an ff C4 peaks around
     // −15 dBFS, and a full 88-key sustain glissando at velocity 90 peaks just under 0 dBFS.

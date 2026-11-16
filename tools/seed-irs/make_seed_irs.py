@@ -55,22 +55,27 @@ STATISTICAL_MODES_FROM_HZ = 300.0
 # minimum-phase low shelf on the direct path (0 dB = none).
 LOW_MODE_LIMIT_HZ = 300.0
 LOW_MODE_DAMPING = 1.0
-DIRECT_LOW_SHELF_DB = 0.0
+DIRECT_LOW_SHELF_DB = 12.0
 DIRECT_LOW_SHELF_HZ = 250.0
 
 # The smooth direct path's weight against the resonant modes (normalised to unit energy). At 2.0
 # the output is mostly the bridge force itself, like a pickup under the bridge; SPEC §3.4 fits
 # this "irregularity" to the reference's partial-level scatter.
-DIRECT_GAIN = 2.0
+DIRECT_GAIN = 0.5
 
 # Where the modes' radiation rolls off at the top.
-MODE_ROLLOFF_HZ = 6000.0
+MODE_ROLLOFF_HZ = 12000.0
 
 # A tilt on the modes' gains above 1 kHz, dB per octave (0 = as generated). Each mode's gain goes
 # as 1/sqrt(damping), and damping rises with frequency, so the generated modes' energy falls
 # steeply through the treble (issue 0021 §11).
-MODE_TILT_DB_PER_OCTAVE = 0.0
+MODE_TILT_DB_PER_OCTAVE = 8.0
 MODE_TILT_FROM_HZ = 1000.0
+
+# A colour curve per region (SPEC §3.4): third-octave gains in dB, interpolated in log frequency,
+# from a JSON file {"centresHz": [...], "regions": {"bass": [...], ...}} (None = no colour).
+# data/model/board-colour.json is fitted to the user's Keyscape sweep (issue 0021 §14-15).
+COLOUR_FILE = ROOT / "data" / "model" / "board-colour.json"
 
 REGIONS = ["bass", "tenor", "middle", "treble"]
 # The keys each region's bridge carries (SPEC §2.8; the boundaries are the prototype's region_of()).
@@ -165,14 +170,31 @@ def fade_out(taps, sr):
     return w
 
 
+def apply_colour(ir, centres, gains_db):
+    """The IR through a zero-phase EQ: gains_db at centres (Hz), linear in log frequency between
+    them and held flat beyond. The curve is smooth, so its short acausal part lands in the padding
+    and is cut with it."""
+    size = 1 << 17
+    spectrum = np.fft.rfft(ir, size, axis=0)
+    f = np.maximum(np.fft.rfftfreq(size, 1 / SR), 1.0)
+    gain = 10 ** (np.interp(np.log(f), np.log(centres), gains_db) / 20)
+    return np.fft.irfft(spectrum * gain[:, None], size, axis=0)[: ir.shape[0]]
+
+
 def perspective_irs(name):
     first_seed, spread = PERSPECTIVES[name]
     w = fade_out(TAPS, SR)
+    colour = None
+    if COLOUR_FILE:
+        import json
+        colour = json.loads(Path(COLOUR_FILE).read_text())
     irs = {}
     for i, region in enumerate(REGIONS):
         ir = soundboard_ir(first_seed + i, SR, TAPS, RADIATION_CORNER_HZ, STATISTICAL_MODES_FROM_HZ,
                            LOW_MODE_DAMPING, DIRECT_LOW_SHELF_DB, DIRECT_LOW_SHELF_HZ, DIRECT_GAIN,
                            MODE_ROLLOFF_HZ, MODE_TILT_DB_PER_OCTAVE)
+        if colour:
+            ir = apply_colour(ir, colour["centresHz"], colour["regions"][region])
         gl, gr = placement_gains(region, spread)
         irs[region] = ir * np.array([gl, gr])[None, :] * w[:, None]
     gain = np.mean([band_power_gain(ir) for ir in irs.values()])

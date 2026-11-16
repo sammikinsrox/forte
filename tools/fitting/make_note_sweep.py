@@ -21,14 +21,16 @@ LEAD_IN = 2.0
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("out", type=Path)
+    parser.add_argument("--hold", type=float, default=HOLD, help=f"seconds each note is held (default {HOLD})")
+    parser.add_argument("--gap", type=float, default=GAP, help=f"seconds between notes (default {GAP})")
     args = parser.parse_args()
     events, rows = [(0.0, [0xB0, 64, 0])], []
     t = LEAD_IN
     for midi in range(21, 109):
         for velocity in VELOCITIES:
-            events += [(t, [0x90, midi, velocity]), (t + HOLD, [0x80, midi, 0])]
+            events += [(t, [0x90, midi, velocity]), (t + args.hold, [0x80, midi, 0])]
             rows.append(f"{t:.3f},{midi},{velocity}")
-            t += HOLD + GAP
+            t += args.hold + args.gap
     events.append((t, [0xB0, 64, 0]))
     args.out.parent.mkdir(parents=True, exist_ok=True)
     write_midi(args.out, events)

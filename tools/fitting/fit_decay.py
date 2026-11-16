@@ -1,6 +1,9 @@
 """The strings' decay (SPEC §3.3, issue 0021 step 2), in the pipeline's shape:
 
     python tools/fitting/fit_decay.py measure   Iowa → data/reference-measurements/iowa-decay.json
+    python tools/fitting/fit_decay.py measure-sweep <wav> --hold H --gap G
+                                                the user's Keyscape render of a note sweep →
+                                                data/reference-measurements/keyscape-decay.json
     python tools/fitting/fit_decay.py fit       measurements → data/model/decay.json
     python tools/fitting/fit_decay.py build     data/model/decay.json → engine/src/DecayFit.inc
     python tools/fitting/fit_decay.py all       measure, fit, build
@@ -56,22 +59,30 @@ import sys
 from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
-from scipy.optimize import minimize
+from scipy.optimize import minimize, minimize_scalar
 
 import decay_measure as dm
 from fit_hammer import _robust_piecewise_linear, _round, _round_sig, _write_json, _cpp
 from forte_audio import ROOT, iowa_file, note_name, partial_frequency
 
 MEASUREMENTS = ROOT / "data" / "reference-measurements" / "iowa-decay.json"
+SWEEP_MEASUREMENTS = ROOT / "data" / "reference-measurements" / "keyscape-decay.json"
+SWEEP_VELOCITIES = (64, 96)       # the sweep's layers the rates are fitted to
+LONG_SWEEP_HOLD = 6.0             # s: a sweep held this long sets both rates; a shorter one only the prompt
 PARAMETERS = ROOT / "data" / "model" / "decay.json"
 TABLE = ROOT / "engine" / "src" / "DecayFit.inc"
 
 FIT_RANGE = (36, 84)              # where Iowa mf exists
 SPREAD_CENTS = 0.7                # the engine's default unison spread (PianoModel)
 COUPLED_PARTIALS = 32             # NoteModel::coupledPartials
-WINDOW_WEIGHTS = np.array([1.0 if b <= 2.4 else 0.5 for _, b in dm.WINDOWS])
+# What the ear hears most is 0.25-2.4 s: the strike's first dip (0.12-0.25 s) and the long tail
+# count less. Weighted fully, the dip made the fit kill treble fundamentals with a very fast prompt
+# rate whose aftersound the fixed spread can't hold, leaving their partials ringing glassy
+# (issue 0021 §15).
+WINDOW_WEIGHTS = np.array([0.4 if b <= 0.25 else 1.0 if b <= 2.4 else 0.3 for _, b in dm.WINDOWS])
 RATIO_PRIOR = math.log(4.0)       # σ_prompt / σ_after, the seed's
 RATIO_PULL = 0.5                  # dB² per unit of log ratio away from the prior
+MAX_RATIO = math.log(3.0)         # σ_prompt / σ_after at most: beyond it the knee drops below what the spread holds
 SIGMA_RANGE = (0.12, 60.0)        # 1/s, both rates. 0.12 is a T60 of 57 s, about a real bass
                                   # string's longest aftersound; Iowa's tails, near their noise
                                   # floor, can't tell slower rates apart
@@ -91,6 +102,14 @@ def strings_of(midi):
     return 1 if midi <= 30 else 2 if midi <= 48 else 3
 
 
+SPREAD_KEYS, SPREAD_SCALES = [60, 76, 88], [1.0, 0.35, 0.15]   # PianoModel's, PROTOTYPE
+
+
+def spread_scale(midi):
+    """PianoModel's per-note spread scale: 1 up to C4, narrowing to 0.15 from E6."""
+    return float(np.interp(midi, SPREAD_KEYS, SPREAD_SCALES))
+
+
 def unison_offsets(strings, spread=SPREAD_CENTS):
     return {1: [0.0], 2: [-0.5 * spread, 0.5 * spread], 3: [-1.0 * spread, 0.2 * spread, 0.85 * spread]}[strings]
 
@@ -101,7 +120,7 @@ def envelope(midi, n, sigma_prompt, sigma_after, times):
     rotating at the partial's own frequency removed."""
     strings = strings_of(midi)
     f = partial_frequency(midi, n)
-    offsets = unison_offsets(strings)
+    offsets = unison_offsets(strings, SPREAD_CENTS * spread_scale(midi))
     coupled = strings > 1 and n <= COUPLED_PARTIALS
     coupling = max(0.0, (sigma_prompt - sigma_after) / strings) if coupled else 0.0
     sigma = sigma_after if coupling > 0 else sigma_prompt
@@ -155,6 +174,94 @@ def measure(_args):
     })
 
 
+def measure_sweep(args):
+    """The user's Keyscape render of the note sweep → keyscape-decay.json (derived numbers only)."""
+    import make_note_sweep as ns
+    from forte_audio import read_wav
+    x, rate = read_wav(args.path)
+    mono = x.mean(axis=1) if x.ndim == 2 else x
+    schedule, t = [], ns.LEAD_IN
+    for midi in range(21, 109):
+        for velocity in ns.VELOCITIES:
+            if velocity in SWEEP_VELOCITIES:
+                schedule.append((t, midi, velocity))
+            t += args.hold + args.gap
+    measured = dm.measure_sweep(mono, int(rate), schedule, args.hold)
+    notes = {}
+    for (midi, velocity), m in sorted(measured.items()):
+        entry = notes.setdefault(note_name(midi), {"midi": midi})
+        entry[f"v{velocity}"] = {"measuredPartials": m.measured,
+                                 "windowLevelsDb": [[_round(v) for v in row] for row in m.levels[: m.measured]]}
+    _write_json(SWEEP_MEASUREMENTS, {
+        "about": "Decay measurements of the user's Keyscape render of the note sweep "
+                 "(tools/fitting/make_note_sweep.py; fit_decay.py measure-sweep). Per velocity and measured "
+                 "partial: the mean level in each window after the strike, dB re the first window, null "
+                 "under the noise floor + " + repr(dm.FLOOR_MARGIN_DB) + " dB or after "
+                 + repr(dm.sweep_last_window(args.hold)) + " s (the notes are held " + repr(args.hold)
+                 + " s). Derived numbers only: no audio.",
+        "holdSeconds": args.hold,
+        "windowsSeconds": [list(w) for w in dm.WINDOWS],
+        "notes": notes,
+    })
+
+
+def _load_sweep():
+    """{midi: [rows per velocity]} or {} if there's no sweep measurement."""
+    if not SWEEP_MEASUREMENTS.exists():
+        return {}
+    data = json.loads(SWEEP_MEASUREMENTS.read_text())
+    out = {}
+    for e in data["notes"].values():
+        for v in SWEEP_VELOCITIES:
+            rows = e.get(f"v{v}", {}).get("windowLevelsDb", [])
+            if rows:
+                out.setdefault(e["midi"], []).append(
+                    np.array([[np.nan if x is None else x for x in row] for row in rows]).reshape(-1, len(dm.WINDOWS)))
+    return out
+
+
+def smoothed_sweep_targets(sweep):
+    """As smoothed_targets, pooling the velocities: per note and partial, the median window levels
+    over the notes within NEIGHBOURS semitones and both layers."""
+    pooled = {}
+    for midi in sweep:
+        smoothed = []
+        for n in range(1, dm.MAX_PARTIALS + 1):
+            near = [rows[n - 1] for m in sweep if abs(m - midi) <= NEIGHBOURS for rows in sweep[m] if len(rows) >= n]
+            if len(near) < MIN_NOTES:
+                break
+            near = np.array(near)
+            with np.errstate(all="ignore"):
+                median = np.array([np.nanmedian(near[:, w]) if np.isfinite(near[:, w]).sum() >= MIN_NOTES else np.nan
+                                   for w in range(near.shape[1])])
+            failed = np.cumsum(~np.isfinite(median)) > 0
+            median[failed] = np.nan
+            if not np.isfinite(median[: dm.MIN_WINDOWS]).all():
+                break
+            smoothed.append(median)
+        if smoothed:
+            pooled[midi] = np.array(smoothed)
+    return pooled
+
+
+def fit_prompt(job):
+    """σ_prompt for each partial of one note, with σ_after given: the sweep's early windows."""
+    midi, rows, afters = job
+    out = []
+    for n, (target, sigma_a) in enumerate(zip(rows, afters), start=1):
+        ok = np.isfinite(target)
+        ok[0] = False
+
+        def cost(log_p):
+            model = model_levels(midi, n, math.exp(log_p), sigma_a)
+            return float(np.mean((model[ok] - target[ok]) ** 2))
+
+        low = math.log(max(sigma_a, SIGMA_RANGE[0]))
+        result = minimize_scalar(cost, bounds=(low, math.log(SIGMA_RANGE[1])), method="bounded", options=dict(xatol=0.005))
+        out.append((float(math.exp(result.x)), sigma_a, float(math.sqrt(result.fun))))
+    return midi, out
+
+
 def _load_measurements():
     data = json.loads(MEASUREMENTS.read_text())
     return {e["midi"]: np.array([[np.nan if v is None else v for v in row] for row in e["windowLevelsDb"]]).reshape(-1, len(dm.WINDOWS))
@@ -171,6 +278,7 @@ def _cost(x, midi, n, target):
     ok[0] = False
     error = np.sum(WINDOW_WEIGHTS[ok] * (model[ok] - target[ok]) ** 2) / max(np.sum(WINDOW_WEIGHTS[ok]), 1e-9)
     penalty = 1e3 * max(0.0, -x[1]) ** 2 + RATIO_PULL * (max(x[1], 0.0) - RATIO_PRIOR) ** 2
+    penalty += 1e3 * max(0.0, x[1] - MAX_RATIO) ** 2
     low, high = math.log(SIGMA_RANGE[0]), math.log(SIGMA_RANGE[1])
     log_after = x[0] - max(x[1], 0.0)
     penalty += 1e3 * (max(0.0, low - log_after) ** 2 + max(0.0, x[0] - high) ** 2)
@@ -243,8 +351,19 @@ def _law(freqs, sigmas):
     return math.exp(best.x[0]), math.exp(best.x[1])
 
 
+def _sweep_hold():
+    if not SWEEP_MEASUREMENTS.exists():
+        return 0.0
+    return float(json.loads(SWEEP_MEASUREMENTS.read_text()).get("holdSeconds", 3.0))
+
+
 def fit(_args):
-    targets = smoothed_targets(_load_measurements())
+    # The reference: the user's Keyscape sweep when its notes are held long enough to show the
+    # aftersound (issue 0021 §15, the user's ground truth), else Iowa mf.
+    long_sweep = _sweep_hold() >= LONG_SWEEP_HOLD
+    targets = smoothed_sweep_targets(_load_sweep()) if long_sweep else smoothed_targets(_load_measurements())
+    fit_range = (min(targets), max(targets)) if long_sweep else FIT_RANGE
+    print("reference: " + ("the Keyscape sweep" if long_sweep else "Iowa mf") + f", laws over MIDI {fit_range[0]}-{fit_range[1]}")
     with ProcessPoolExecutor() as pool:
         fitted = dict(pool.map(fit_note, sorted(targets.items())))
 
@@ -271,12 +390,12 @@ def fit(_args):
         freqs = [partial_frequency(midi, n) for n in range(1, len(rows) + 1)]
         laws[midi] = tuple((b1, max(b3, MIN_B3)) for b1, b3 in (_law(freqs, [r[0] for r in rows]), _law(freqs, [r[1] for r in rows])))
     keys = sorted(laws)
-    knots = np.arange(FIT_RANGE[0], FIT_RANGE[1] + 1, 12)
+    knots = np.arange(fit_range[0], fit_range[1] + 1, 12)
     curves = {name: _robust_piecewise_linear(keys, [math.log(laws[m][i][j]) for m in keys], knots)
               for name, (i, j) in {"b1p": (0, 0), "b3p": (0, 1), "b1a": (1, 0), "b3a": (1, 1)}.items()}
 
     def law_at(key, name):
-        return math.exp(float(np.interp(np.clip(key, FIT_RANGE[0], FIT_RANGE[1]), knots, curves[name])))
+        return math.exp(float(np.interp(np.clip(key, knots[0], knots[-1]), knots, curves[name])))
 
     # Notes Iowa doesn't measure borrow, partial by partial, the rates at the same frequency from
     # the nearest note that has measured partials, within that note's measured range.
@@ -296,18 +415,64 @@ def fit(_args):
         cleaned[midi] = rows
         print(f"  {note_name(midi)} borrows {len(rows)} partials from {note_name(donor)}")
 
+    # The prompt rates from the user's Keyscape sweep, where it measures (issue 0021 §14): Iowa's
+    # close-miked Steinway keeps its middle partials as long as its fundamental, which sounds
+    # nasal in Forte; the sweep's piano dies faster the higher the partial. Iowa keeps the
+    # aftersound (the sweep's notes are held only 3 s), by frequency from the note's own rows,
+    # and the aftersound law above them.
+    prompt_law_at = lambda key: (law_at(key, "b1p"), law_at(key, "b3p"))
+    from_sweep = set()
+    sweep = {} if long_sweep else smoothed_sweep_targets(_load_sweep())
+    if sweep:
+        jobs = []
+        for midi, rows in sorted(sweep.items()):
+            own = cleaned.get(midi, [])
+            afters = []
+            for n in range(1, len(rows) + 1):
+                f = partial_frequency(midi, n)
+                sa = own[n - 1][1] if n <= len(own) else law_at(midi, "b1a") + law_at(midi, "b3a") * f * f
+                afters.append(float(max(sa, SIGMA_RANGE[0])))
+            jobs.append((midi, rows, afters))
+        with ProcessPoolExecutor() as pool:
+            refit = dict(pool.map(fit_prompt, jobs))
+        replaced = 0
+        for midi, rows in refit.items():
+            out = []
+            for n, (sp, sa, rms) in enumerate(rows, start=1):
+                near = [refit[m][n - 1][0] for m in refit if abs(m - midi) <= NEIGHBOURS and len(refit[m]) >= n]
+                med = float(np.exp(np.median(np.log(near))))
+                if len(near) >= 3 and abs(math.log(sp / med)) > math.log(OUTLIER_RATIO):
+                    sp, replaced = max(med, sa), replaced + 1
+                out.append((sp, sa, rms))
+            cleaned[midi] = out + cleaned.get(midi, [])[len(out):]
+            from_sweep.add(midi)
+        print(f"prompt rates of {sum(len(r) for r in refit.values())} partials on {len(refit)} notes from the sweep; "
+              f"{replaced} outliers took their neighbours' median")
+
+        # The prompt law from those rates, smoothed across the sweep's notes.
+        sweep_laws = {m: _law([partial_frequency(m, n) for n in range(1, len(cleaned[m]) + 1)], [r[0] for r in cleaned[m]])
+                      for m in sorted(from_sweep) if len(cleaned[m]) >= LAW_MIN_PARTIALS}
+        sweep_keys = sorted(sweep_laws)
+        sweep_knots = np.arange(sweep_keys[0], sweep_keys[-1] + 1, 12)
+        b1_curve = _robust_piecewise_linear(sweep_keys, [math.log(sweep_laws[m][0]) for m in sweep_keys], sweep_knots)
+        b3_curve = _robust_piecewise_linear(sweep_keys, [math.log(max(sweep_laws[m][1], MIN_B3)) for m in sweep_keys], sweep_knots)
+        prompt_law_at = lambda key: tuple(math.exp(float(np.interp(np.clip(key, sweep_knots[0], sweep_knots[-1]), sweep_knots, c)))
+                                          for c in (b1_curve, b3_curve))
+
     notes = {}
     for midi in range(21, 109):
         rows = cleaned.get(midi, [])
         entry = {
             "midi": midi,
-            "prompt": {"b1": _round_sig(max(law_at(midi, "b1p"), SIGMA_RANGE[0])), "b3": _round_sig(law_at(midi, "b3p"))},
+            "prompt": {"b1": _round_sig(max(prompt_law_at(midi)[0], SIGMA_RANGE[0])), "b3": _round_sig(prompt_law_at(midi)[1])},
             "aftersound": {"b1": _round_sig(max(law_at(midi, "b1a"), SIGMA_RANGE[0])), "b3": _round_sig(law_at(midi, "b3a"))},
             "measuredPrompt": [_round_sig(r[0]) for r in rows],
             "measuredAftersound": [_round_sig(r[1]) for r in rows],
         }
+        if midi in from_sweep:
+            entry["promptFromSweep"] = True
         if rows and rows[0][2] is not None:
-            entry["fitRmsDb"] = [_round(r[2]) for r in rows]
+            entry["fitRmsDb"] = [_round(r[2]) for r in rows if r[2] is not None]
         elif rows:
             entry["borrowed"] = True
         notes[note_name(midi)] = entry
@@ -377,9 +542,15 @@ def check(args):
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("step", choices=["measure", "fit", "build", "all", "check"])
-    parser.add_argument("notes", nargs="*", help="check: Iowa note names to print in full")
+    parser.add_argument("step", choices=["measure", "measure-sweep", "fit", "build", "all", "check"])
+    parser.add_argument("notes", nargs="*", help="check: Iowa note names to print in full; measure-sweep: the sweep render (.wav)")
+    parser.add_argument("--hold", type=float, default=3.0, help="measure-sweep: seconds each note was held")
+    parser.add_argument("--gap", type=float, default=2.0, help="measure-sweep: seconds between notes")
     args = parser.parse_args()
+    if args.step == "measure-sweep":
+        args.path = args.notes[0]
+        measure_sweep(args)
+        return
     if args.step in ("measure", "all"):
         measure(args)
     if args.step in ("fit", "all"):

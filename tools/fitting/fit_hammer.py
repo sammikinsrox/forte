@@ -86,9 +86,16 @@ VELOCITY_127_ABOVE_FF_DB = 4.5    # SPEC §4.1
 ACCURACY_DB = 1.0                 # 44.1 kHz against 96 kHz, a strike's peak on the strings
 
 # The voiced felt (issue 0021 §7): chosen by ear on Yesterdays, board #9.
-FELT_SCALE = 0.25                 # relaxed stiffness, × the seed felt
-RELAXATION = 0.9                  # ε
+FELT_SCALE = 0.5                  # relaxed stiffness, × the seed felt
+RELAXATION = 0.8                  # ε
 RELAXATION_TIME = 2e-5            # τ, s
+EXPONENT_SHIFT = 0.0              # added to the seed's p
+# Per register (key, felt scale, ε), interpolated (scale in log), flat outside; None = FELT_SCALE
+# and RELAXATION everywhere. Fitted to the user's Keyscape sweep over a grid of felts (issue 0021
+# §14): the strike's partials 2-6 at velocities 64-127. The top octaves match best with no
+# relaxation (ε = 0); in the bass the felt makes no difference.
+VOICING = [(36, 0.25, 0.9), (48, 0.12, 0.9), (60, 0.5, 0.8), (66, 0.5, 0.9), (72, 0.15, 0.9), (84, 0.15, 0.6), (90, 0.25, 0.0), (108, 0.25, 0.0)]
+REFERENCE_COMPRESSION = 5e-4      # m, where a shifted exponent leaves the force unchanged
 SEED_SPEEDS = (0.7, 2.0, 4.5)     # m/s at velocities 32, 64, 112
 SEED_MAX_SPEED = 8.0              # m/s, velocity 127 never exceeds it
 
@@ -469,11 +476,19 @@ def voice(_args):
     pp, mf, ff = SEED_SPEEDS
     for midi in range(21, 109):
         stiffness, exponent = seed_felt(midi)
+        # A shifted exponent keeps the force at REFERENCE_COMPRESSION: Q0·c^p is unchanged there.
+        new_exponent = exponent + EXPONENT_SHIFT
+        stiffness *= REFERENCE_COMPRESSION ** (exponent - new_exponent)
+        scale, relaxation = FELT_SCALE, RELAXATION
+        if VOICING:
+            keys = [v[0] for v in VOICING]
+            scale = math.exp(_interp_seed(midi, keys, [math.log(v[1]) for v in VOICING]))
+            relaxation = round(_interp_seed(midi, keys, [v[2] for v in VOICING]), 4)
         out[note_name(midi)] = {
             "midi": midi,
-            "feltStiffness": _round_sig(FELT_SCALE * stiffness / (1.0 - RELAXATION)),
-            "feltExponent": _round_sig(exponent),
-            "feltRelaxation": RELAXATION,
+            "feltStiffness": _round_sig(scale * stiffness / (1.0 - relaxation)),
+            "feltExponent": _round_sig(new_exponent),
+            "feltRelaxation": relaxation,
             "feltRelaxationTime": RELAXATION_TIME,
             "hammerSpeeds": [pp, mf, ff],
             "maxHammerSpeed": SEED_MAX_SPEED,

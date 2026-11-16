@@ -247,14 +247,16 @@ TEST_CASE ("The reported tail covers the longest-ringing note", "[engine]")
     }
 
     // The sympathetic bank can ring on past the strings: with the fitted decays, a bank mode as
-    // slow as the slowest string's aftersound (the bass's prompt sound comes close) answers it
-    // for a little longer. Only a little, at the model's level.
+    // slow as the slowest string answers it for longer. Keyscape's lowest notes (A0-C1) barely
+    // decay over its 10 s sweep, so their partials sit at the fit's slowest rate (0.12/s, a 57 s
+    // T60) and the bank's modes there as well (issue 0021 §15): bounded, not small.
     double slowestDecay = 1e9;
     for (const auto& p : model.notes)
         slowestDecay = std::min (slowestDecay, forte::detail::slowestStringDecay (p, model.unisonSpreadCents));
     const double stringsTail = forte::detail::sympatheticTailSeconds (model, longestTail, slowestDecay);
+    INFO ("strings " << longestTail << " s, with the bank " << stringsTail << " s");
     CHECK (stringsTail >= longestTail);
-    CHECK (stringsTail < longestTail + 5.0);
+    CHECK (stringsTail < 2.0 * longestTail);
 
     // Then the soundboard rings on for its IR, plus two partitions of rounding at 44.1 kHz.
     const auto irs = forte::detail::loadEmbeddedIrs();
@@ -265,7 +267,7 @@ TEST_CASE ("The reported tail covers the longest-ringing note", "[engine]")
     const double tail = engine.getTailSeconds();
     REQUIRE (tail == stringsTail + irSeconds + 2.0 * forte::detail::Soundboard::partitionSize / 44100.0);
     REQUIRE (tail > 10.0);
-    REQUIRE (tail < 120.0);
+    REQUIRE (tail < 180.0);
 
     const auto length = static_cast<std::int64_t> (tail * sampleRate);
     bool soundsAtAThird = false;

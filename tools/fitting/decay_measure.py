@@ -47,9 +47,9 @@ def frame_seconds(midi):
     return max(0.1, 6.0 / partial_frequency(midi, 1))
 
 
-def envelopes(mono, rate, midi, partials=MAX_PARTIALS):
+def envelopes(mono, rate, midi, partials=MAX_PARTIALS, tail_floor=True):
     """(frame centre times from the strike, [power envelope per partial], [noise floor power per
-    partial]). Frames cover the lead-in too, for the floor."""
+    partial]). Frames cover the lead-in too, for the floor; with tail_floor, the last second too."""
     start = hm.strike_onset(mono, rate)
     size, hop = int(frame_seconds(midi) * rate), int(HOP * rate)
     window = np.hanning(size)
@@ -64,7 +64,7 @@ def envelopes(mono, rate, midi, partials=MAX_PARTIALS):
     long_freqs = np.fft.rfftfreq(len(first), 1 / rate)
     f0 = partial_frequency(midi, 1)
     lead_in = frames_at + size < start - int(0.01 * rate)
-    tail = frames_at > len(mono) - size - rate
+    tail = (frames_at > len(mono) - size - rate) & tail_floor
 
     out, floors = [], []
     for n in range(1, partials + 1):
@@ -135,6 +135,39 @@ def measure_iowa(midi):
         return None
     x, rate = read_aiff(path)
     return measure_mono(x.mean(axis=1), int(rate), midi)
+
+
+SWEEP_LEAD_IN = 1.0       # s before the strike for the floor: the previous note's dampers have had 1 s
+
+
+def sweep_last_window(hold):
+    """The last window that ends before a held note's release (with 0.5 s to spare)."""
+    return max(b for _, b in WINDOWS if b <= hold - 0.5)
+
+
+def measure_sweep(mono, rate, schedule, hold):
+    """A note-sweep render (make_note_sweep.py, notes held hold s): {(midi, velocity): Measurement}
+    over the windows that end before the release. schedule: [(seconds, midi, velocity)]. Each strike
+    is found within 0.5 s of its scheduled time (a render may start a little late); the floor is
+    the second before it."""
+    HOLD = hold
+    last_window = sweep_last_window(hold)
+    out = {}
+    for seconds, midi, velocity in schedule:
+        a, b = int((seconds - SWEEP_LEAD_IN) * rate), int((seconds + 0.5) * rate)
+        if a < 0 or b > len(mono):
+            continue
+        start = a + hm.strike_onset(mono[int((seconds - 0.2) * rate): b], rate) + int((SWEEP_LEAD_IN - 0.2) * rate)
+        segment = mono[start - int(SWEEP_LEAD_IN * rate): start + int((HOLD - 0.1) * rate)]
+        times, envs, floors = envelopes(segment, rate, midi, tail_floor=False)
+        rows, firsts = [], []
+        for envelope, floor in zip(envs, floors):
+            levels, valid = window_levels(times, envelope, floor)
+            valid &= np.array([w[1] <= last_window for w in WINDOWS])
+            firsts.append(levels[0])
+            rows.append(np.where(valid, levels - levels[0], np.nan))
+        out[(midi, velocity)] = Measurement(midi, np.array(rows), np.array(firsts) - firsts[0])
+    return out
 
 
 def measure_forte(midi, settings=None, probe_exe=hm.PROBE):
