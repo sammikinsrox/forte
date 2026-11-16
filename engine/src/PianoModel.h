@@ -126,7 +126,8 @@ struct PianoModel
 /** Seed values standing in for data/model/concert-grand.json until the fitting pipeline
     (SPEC §3) produces it. They come from the listening-test prototype (Chaigne & Askenfelt seeds)
     and the CPU benchmark's Steinway-D-like curves, and are smooth across the keyboard.
-    Tuning is plain equal temperament at A4 = 440 Hz until the tuner (SPEC §5) exists.
+    Its notes are in plain equal temperament at A4 = 440 Hz; the engine's tuner (Tuner.h,
+    SPEC §5) retunes them from there.
 */
 [[nodiscard]] PianoModel makeSeedPianoModel();
 

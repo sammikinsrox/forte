@@ -211,18 +211,6 @@ void Soundboard::setBrightness (double newBrightness) noexcept
     tilt.a1 = static_cast<float> ((k - 1.0 / rootGain) / d0);
 }
 
-void Soundboard::setWidth (double width) noexcept
-{
-    const double w = std::clamp (width, 0.0, 100.0) / 100.0;
-    widthDirect = static_cast<float> (0.5 * (1.0 + w));
-    widthCross = static_cast<float> (0.5 * (1.0 - w));
-}
-
-void Soundboard::setVolumeDb (double decibels) noexcept
-{
-    volume = static_cast<float> (std::pow (10.0, decibels / 20.0));
-}
-
 void Soundboard::process (const std::array<const float*, numBridgeRegions>& input, float* left, float* right, int numSamples) noexcept
 {
     assert (numSamples >= 0 && numSamples <= samplesToPartitionEnd());
@@ -288,6 +276,12 @@ void Soundboard::process (const std::array<const float*, numBridgeRegions>& inpu
                 y1[side] = yPrev;
             }
         }
+        else
+        {
+            // Off, the shelf passes the signal through: its state is the last sample in and out.
+            const auto at = static_cast<std::size_t> (r);
+            tiltState[at] = tiltOutput[at] = { regionLeft[n - 1], regionRight[n - 1] };
+        }
 
         for (std::size_t i = 0; i < n; ++i)
         {
@@ -296,13 +290,8 @@ void Soundboard::process (const std::array<const float*, numBridgeRegions>& inpu
         }
     }
 
-    // Width (mid/side, written so that full width passes the channels through exactly), then Volume.
-    for (std::size_t i = 0; i < n; ++i)
-    {
-        const float l = mixLeft[i], r = mixRight[i];
-        left[i] = volume * (widthDirect * l + widthCross * r);
-        right[i] = volume * (widthCross * l + widthDirect * r);
-    }
+    std::copy_n (mixLeft.begin(), n, left);
+    std::copy_n (mixRight.begin(), n, right);
 
     position += numSamples;
     if (fadingFrom >= 0)

@@ -22,12 +22,35 @@ juce_add_plugin(Forte
 target_sources(Forte PRIVATE
     src/LabParameters.cpp
     src/LabParameters.h
+    src/MachineSettings.cpp
+    src/MachineSettings.h
+    src/PluginEditor.cpp
+    src/PluginEditor.h
     src/PluginProcessor.cpp
     src/PluginProcessor.h
+    src/SoundParameters.cpp
+    src/SoundParameters.h
     src/VoicingExport.cpp
     src/VoicingExport.h
     src/VoicingWorker.cpp
-    src/VoicingWorker.h)
+    src/VoicingWorker.h
+    src/editor/ForteLookAndFeel.cpp
+    src/editor/ForteLookAndFeel.h
+    src/editor/LabView.cpp
+    src/editor/LabView.h
+    src/editor/PianoViews.cpp
+    src/editor/PianoViews.h
+    src/editor/Widgets.cpp
+    src/editor/Widgets.h)
+
+# The editor's fonts (SPEC §6.1), embedded unmodified (SIL OFL 1.1).
+juce_add_binary_data(ForteAssets
+    HEADER_NAME ForteAssets.h
+    NAMESPACE ForteAssets
+    SOURCES
+        assets/fonts/Jost.ttf
+        assets/fonts/Italiana-Regular.ttf)
+set_target_properties(ForteAssets PROPERTIES FOLDER "Forte")
 
 target_compile_definitions(Forte PUBLIC
     JUCE_VST3_CAN_REPLACE_VST2=0
@@ -38,6 +61,7 @@ target_compile_definitions(Forte PUBLIC
 
 target_link_libraries(Forte
     PRIVATE
+        ForteAssets
         forte::engine
         forte::bridge
         juce::juce_audio_utils

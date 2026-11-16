@@ -113,7 +113,8 @@ A continuous 0–1 hammer shift that changes which strings are struck and the fe
 | Kind | Controls | Behaviour |
 |---|---|---|
 | Strike-time | Hardness, Touch, soft-pedal felt | Next strike only |
-| Tuning | A4, Stretch, Spread | Ringing modes glide over ~50 ms |
+| Tuning | A4, Stretch | Ringing modes and sympathetic strings glide over ~50 ms; each note takes its exact new modes the next time it starts from rest |
+| Unison | Spread | A note's next start from rest (it changes the unison's coupled modes, which can't glide) |
 | Output | Volume, Width, Brightness, Resonance | Immediate, smoothed over ~20 ms |
 | Perspective | Listening perspective | Crossfade between IR sets |
 | Voicing lab (§6.5) | Hammer, string and output voicing | Strike-time ones on the next strike; string ones re-prepare a note when it next starts from rest; output ones immediate |
@@ -237,12 +238,16 @@ Source: [Touch and pedal mapping](issues/0015-touch-and-pedal-mapping.md).
 
 Source: [Tuning system](issues/0016-tuning-system.md).
 
-- **A simulated tuner** sets every note's average string pitch from B, A4 and Stretch.
-  - It starts at A4 and sets A3–A4 to equal temperament, then tunes outward one note at a time.
+- **A simulated tuner** sets every note's average string pitch from B, A4 and Stretch (`engine/src/Tuner.cpp`).
+  - It starts at A4 and sets the temperament octave A3–A4 in equal temperament: a beatless 4:2 octave divided into 12 equal steps. (With A3 at an exact 2:1, each octave copy of the temperament carried a 1–2 cent sawtooth.)
+  - Then it tunes outward one note at a time, each against the note an octave inside.
   - **About C3–C6:** 4:2 octaves.
   - **Below about C3:** 6:3.
   - **Above about C6:** 2:1.
-- **When it runs:** whenever A4 or Stretch changes, off the audio thread. Ringing modes glide to the new pitches over ~50 ms.
+  - Across an octave centred on C3 and on C6 it moves gradually from one pair of partials to the next. A switch at one note left a 2.5-cent step at C6.
+  - With the Keyscape-fitted B, the calculated curve runs from −8.6 cents at A0 through −1.3 at A3 and +4.6 at C6 to +30 at C8.
+- **When it runs:** whenever A4 or Stretch changes. It's 88 notes of arithmetic with no allocation, so it runs on the audio thread at the change's render position, which keeps offline bounces deterministic. Ringing modes glide to the new pitches over ~50 ms; each note is re-prepared at its exact new pitch the next time it starts from rest.
+- **Stretch 0 at A4 = 440** is the model's own equal temperament exactly, as Forte was tuned before the tuner existed.
 - **Stretch:** 0–100, default 50. 0 = exact 2:1 octaves, 50 = the calculated curve, 100 = double. It is a smooth multiplier on each note's distance from equal temperament and doesn't switch which partials the tuner matches.
 - **A4:** 415–466 Hz, in whole Hz, default 440.
 - **Unison spread:** a per-note curve (flat 0.7 cent by default) × one overall amount (the Spread control). Individual notes can be adjusted in the voicing overrides.
@@ -298,6 +303,7 @@ Sources: [Editor look & feel direction](issues/0006-editor-look-and-feel.md), [E
 
 ### 6.4 Layout
 
+- **Three views**, switched by Simple | Advanced | Lab tabs in the header: the simple view, the advanced view and the voicing lab (§6.5). The open view is saved with the project.
 - **Simple view:**
   - Hardness, Brightness and Resonance dials;
   - Volume fader;
@@ -321,7 +327,16 @@ Sources: [Editor look & feel direction](issues/0006-editor-look-and-feel.md), [E
 
 The user voices the model by ear from inside the host, to find what the measurements can't (issue 0021 §15: a "tinny", "CP-70" quality in the high notes that no comparison with Keyscape pins down). Forte is for personal use, so the lab is part of the plugin, not a developer build.
 
-- **Form:** plugin parameters in a **Lab** group, automatable and saved with the host project. Until the custom editor exists (§6.1), the host's generic editor shows them (Reaper's is fine). They follow §6.3's value rules: 0–100, **50 = the committed voicing**, double-click resets.
+- **Form:** plugin parameters in a **Lab** group, automatable and saved with the host project. They follow §6.3's value rules: 0–100, **50 = the committed voicing**, double-click resets. The lab is a permanent part of Forte: the editor's third view, **Lab** (§6.4).
+- **The Lab view:**
+  - one knob per control, in Hammer, Strings, Board and Output panels, each saying when its changes are heard;
+  - a register selector, **Bass · Middle · Treble · All**: the knobs show and move that register (All moves the three together, by the same amount);
+  - each knob shows its value in physical terms (×1.32 ring, ε 0.80, +3.0 dB, …), its three registers as small bars (click one to select that register), and a dot when any register has moved;
+  - the control under the mouse is drawn across the whole keyboard, committed (dashed) and now, with a handle at each register's anchor (C2, C4, C7) to drag;
+  - an info panel: what the control does, where each register stands, Reset control and Reset lab; each panel has its own Reset;
+  - **Lab | Committed:** an A/B by ear. Committed plays every control at 50 (the committed voicing) while the lab keeps its values. It isn't saved.
+  - **Export voicing** as a button, with the result shown;
+  - the keyboard, to audition.
 - **Registers:** a per-register control has three values, **Bass / Middle / Treble**, anchored at C2, C4 and C7 and interpolated across the keys (log for multipliers, linear otherwise), held flat outside.
 - **Controls:**
 
@@ -507,7 +522,7 @@ Source: [Build, installer and release](issues/0020-build-installer-release.md), 
 These are specified, but their final values are explicitly left to the first real build, by ear or by measurement:
 
 - **Set by ear:**
-  - the span of the Hardness control;
+  - the span of the Hardness control (first build: the felt stiffness ÷4 to ×4, as the lab's Felt hardness);
   - Brightness's exact dB range;
   - soft-pedal felt;
   - the half-pedal gap model settings;

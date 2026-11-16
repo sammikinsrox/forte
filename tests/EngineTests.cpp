@@ -6,6 +6,7 @@
 #include "Soundboard.h"
 #include "SoundboardIrs.h"
 #include "SympatheticBank.h"
+#include "Tuner.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
@@ -232,7 +233,12 @@ TEST_CASE ("The reported tail covers the longest-ringing note", "[engine]")
     // sounds a third of the way through.
     constexpr double sampleRate = 44100.0;
 
-    const auto model = forte::detail::makeSeedPianoModel();
+    // The notes as the engine tunes them by default (SPEC §5).
+    auto model = forte::detail::makeSeedPianoModel();
+    const auto curve = forte::detail::calculateStretchCurve (model);
+    for (std::size_t i = 0; i < model.notes.size(); ++i)
+        model.notes[i].fundamental *= forte::detail::tuningRatio (curve, static_cast<int> (i), 440.0, 50.0);
+
     int longest = forte::detail::lowestNote;
     double longestTail = 0.0;
 

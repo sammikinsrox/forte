@@ -7,8 +7,8 @@ namespace
 constexpr int pollMilliseconds = 30;
 }
 
-VoicingWorker::VoicingWorker (Engine& e, const LabParameters& l, juce::CriticalSection& lock)
-    : juce::Thread ("Forte voicing lab"), engine (e), lab (l), engineLock (lock)
+VoicingWorker::VoicingWorker (Engine& e, std::function<lab::Settings()> read, juce::CriticalSection& lock)
+    : juce::Thread ("Forte voicing"), engine (e), readLab (std::move (read)), engineLock (lock)
 {
 }
 
@@ -33,14 +33,16 @@ void VoicingWorker::run()
     {
         wait (pollMilliseconds);
 
-        const auto settings = lab.read();
+        const auto settings = readLab();
         const juce::ScopedLock locked (engineLock);
+        const auto tuning = engine.getLatestTuning();
 
-        if (settings != built)
+        if (settings != built || tuning != builtTuning)
         {
-            engine.rebuildStrings (settings);  // a no-op for notes whose strings didn't change
-            engine.rebuildBoard (settings);    // and for an unchanged board
+            engine.rebuildStrings (settings, tuning);  // a no-op for notes whose strings didn't change
+            engine.rebuildBoard (settings);            // and for an unchanged board
             built = settings;
+            builtTuning = tuning;
         }
         else
         {

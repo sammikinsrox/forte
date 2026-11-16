@@ -596,6 +596,18 @@ plays every note twice on two channels, panned and ±2 cents bent, with CC7 = 12
   board tilt inherit the generator's normalisations: boosts reach about half their dB, the tilt
   moves the top less than its slope, and a Mid cut is partly given back everywhere else.
 
+### 17. The tuner and the Lab view (2026-11-16)
+
+- **The default sound now has stretch tuning.** The tuner (SPEC §5) sets every note from the
+  Keyscape-fitted B. The calculated curve, Stretch 50, runs from −8.6 cents at A0 through −1.3 at
+  A3 and +4.6 at C6 to +30 at C8. Everything voiced before this was in plain equal temperament,
+  which is Stretch 0 exactly (`forte-render --control stretch=0`, or the Stretch knob in the
+  Advanced view). The bass is shallow next to a typical Railsback curve (often −15 to −30 at A0)
+  because the fitted bass B is about half the old seed's. Whether Keyscape's own tuning sits
+  closer is still to be measured from the sweep.
+- **The lab is the editor's third view** (SPEC §6.5): knobs per register, physical values, the
+  focused control across the keyboard with draggable anchors, and a Lab | Committed A/B.
+
 ## Plan
 
 How to get bright + full + shimmer + rumble without twang. Twang and brightness live in different

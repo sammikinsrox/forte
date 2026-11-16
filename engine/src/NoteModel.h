@@ -53,7 +53,10 @@ namespace forte::detail
     longitudinal modes have died away and the hammer has left the strings, the note is idle and
     costs nothing.
 
-    Not yet modelled: tuning glides.
+    Retuning (SPEC §5): setPitchRatio() moves every mode's frequency by one ratio, keeping the
+    strings' state, so a ringing note bends to a new pitch with no click. The hammer drives and
+    the high-pass stay as prepared; the engine re-prepares the note exactly the next time it
+    starts from rest.
 
     Each mode is a complex one-pole w ← w·e^{(−σ + iω)T} + drive·T·F. Uncoupled, Im w is the
     string's displacement; coupled, the strings' displacements are Im(shape·w), so the hammer's
@@ -95,8 +98,20 @@ public:
     void setKeyDown (bool down) noexcept;
 
     /** A hammer blow at a MIDI velocity (1–127, fractional allowed), on the current string state,
-        with the soft pedal's action shift (0–1) at this moment. */
-    void strike (double velocity, double touch, double softShift) noexcept;
+        with the soft pedal's action shift (0–1) at this moment and the Hardness control's felt
+        stiffness multiplier. */
+    void strike (double velocity, double touch, double softShift, double hardnessScale = 1.0) noexcept;
+
+    /** Every mode at ratio × its prepared frequency. A sounding note moves now; one at rest
+        moves at its next strike, so retuning silent notes costs nothing. Realtime-safe. */
+    void setPitchRatio (double ratio) noexcept;
+
+    [[nodiscard]] double getPitchRatio() const noexcept { return pitchRatio; }
+
+    /** The tuning the note was prepared at, as the engine's tuner ratio (see Tuner.h). The engine
+        keeps it with the model, so a model built on another thread brings its own. */
+    void setBuiltTuning (double tuning) noexcept { builtTuning = tuning; }
+    [[nodiscard]] double getBuiltTuning() const noexcept { return builtTuning; }
 
     /** The voicing lab's hammer (SPEC §6.5), read at the next strike and held for that strike's
         whole contact. prepare() sets the committed one. */
@@ -132,6 +147,8 @@ public:
 
 private:
     void updateMultipliers() noexcept;
+    void retuneSteps() noexcept;
+    void retuneSubsteps() noexcept;
     float renderContactSample (float& knock) noexcept;
     void renderFree (float* out, int numSamples) noexcept;
     float phantomSample() noexcept;
@@ -164,8 +181,16 @@ private:
 
     // Per mode, fixed after prepare(). Modes are ordered by partial, then by mode within the
     // partial, so the upper partials, which rest first, sit at the end.
-    std::vector<float> cosStep, sinStep;          // e^{iωT}
+    std::vector<double> modeOmega;                // ω as prepared, rad/s
+    std::vector<float> cosStep, sinStep;          // e^{iωT}, ω × the pitch ratio
     std::vector<float> cosSubstep, sinSubstep;    // e^{iωT/4}
+
+    // Retuning: the ratio cosStep and friends are at (or will be, once stepsStale and
+    // substepsStale are cleared), and the engine's tuning the note was prepared at.
+    double pitchRatio = 1.0;
+    bool stepsStale = false;
+    bool substepsStale = false;
+    double builtTuning = 1.0;
     std::vector<float> stringDecay;               // −σ·T
     std::vector<float> damperDecay;               // −σ_damper·T
     std::vector<float> outputWeight;              // bridge-end slope × bridge weight × output gain

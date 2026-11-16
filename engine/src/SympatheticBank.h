@@ -33,8 +33,9 @@ namespace forte::detail
     −100 dBFS at the output stops, and costs nothing until it's driven again. A bank with its
     damper resting is never driven, so a damped, decayed bank is idle.
 
-    Resonance has a fixed value until the parameter exists (SPEC §6.3); setResonance() is for
-    tests and changes it at once, without the ~20 ms smoothing of SPEC §2.9.
+    Resonance: setResonance() changes it at once; the engine glides it (SPEC §2.9).
+
+    Retuning (SPEC §5): setPitchRatio() moves a key's modes by one ratio, keeping their state.
 
     Threading: everything is fixed-size, so nothing here allocates. prepare() runs off the audio
     thread; the rest is realtime-safe.
@@ -67,6 +68,9 @@ public:
     /** 0–100, 50 = physical (SPEC §6.3). Not smoothed. */
     void setResonance (double resonance) noexcept;
 
+    /** Every mode of key (0–87) at ratio × its prepared frequency. Realtime-safe. */
+    void setPitchRatio (int key, double ratio) noexcept;
+
     /** Runs key's control-rate work with its damper's lift (0–1). Call at every control
         interval boundary of absolute sample time, after the notes' own ticks. key is 0–87. */
     void controlTick (int key, float lift) noexcept;
@@ -92,6 +96,7 @@ private:
         alignas (32) std::array<float, lanes> stringDecay {};          // −σ·T
         alignas (32) std::array<float, lanes> damperDecay {};          // −σ_damper·T
         alignas (32) std::array<float, lanes> outputWeight {};         // sets the gain at resonance
+        alignas (32) std::array<double, lanes> theta {};               // ωT as prepared
 
         // Per lane, live
         alignas (32) std::array<float, lanes> stepRe {}, stepIm {};
@@ -113,6 +118,7 @@ private:
     static void silenceKey (Key& key) noexcept;
 
     std::array<Key, numNotes> keys {};
+    std::array<double, numNotes> pitchRatios {};  // each key's, set by setPitchRatio()
     float level = 1.0f;  // Resonance / 50
 };
 

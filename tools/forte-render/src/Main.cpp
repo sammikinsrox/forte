@@ -24,17 +24,50 @@ struct Options
     double tailSeconds = 3.0;
     juce::File voicing;  // none: the committed voicing
     juce::File labValues;  // set: write what the voicing means and don't render
+    forte::Controls controls;
 };
+
+/** --control name=value: one of the sound controls (SPEC §6.3), by its parameter id. */
+bool setControl (forte::Controls& c, const juce::String& assignment, juce::String& error)
+{
+    const auto name = assignment.upToFirstOccurrenceOf ("=", false, false).trim();
+    const auto text = assignment.fromFirstOccurrenceOf ("=", false, false).trim();
+    if (name.isEmpty() || text.isEmpty() || ! text.containsOnly ("0123456789.-+"))
+    {
+        error = "--control takes name=value, e.g. stretch=0";
+        return false;
+    }
+
+    const double v = text.getDoubleValue();
+    if (name == "hardness")        c.hardness = v;
+    else if (name == "brightness") c.brightness = v;
+    else if (name == "resonance")  c.resonance = v;
+    else if (name == "touch")      c.touch = v;
+    else if (name == "a4")         c.tuning.a4Hz = v;
+    else if (name == "stretch")    c.tuning.stretch = v;
+    else if (name == "spread")     c.tuning.spread = v;
+    else if (name == "width")      c.width = v;
+    else if (name == "volume")     c.volumeDb = v;
+    else
+    {
+        error = "unknown control " + name;
+        return false;
+    }
+    return true;
+}
 
 constexpr const char* usage =
     "Usage: forte-render <input.mid> <output.wav> [--rate <Hz>] [--block <samples>] [--tail <seconds>]\n"
-    "                    [--voicing <voicing.json>]\n"
+    "                    [--voicing <voicing.json>] [--control <name>=<value>]...\n"
     "       forte-render --voicing <voicing.json> --lab-values <out.json>\n"
     "\n"
     "  --rate   sample rate, 44100 to 96000 (default 48000)\n"
     "  --block  block size in samples, 1 to 8192 (default 128)\n"
     "  --tail   seconds rendered after the last MIDI event (default 3)\n"
     "  --voicing a voicing lab file (SPEC 6.5), as Export voicing writes it (default: all 50)\n"
+    "  --control a sound control (SPEC 6.3) by its parameter id: hardness, brightness, resonance,\n"
+    "           touch, a4, stretch, spread, width (0-100, a4 in Hz) or volume (dB). Repeatable.\n"
+    "           stretch=0 is plain equal temperament.\n"
     "  --lab-values writes, instead of rendering, what the voicing means on each note and bridge\n"
     "           region in physical terms (for tools/fitting/fold_voicing.py)\n";
 
@@ -77,6 +110,11 @@ std::optional<Options> parseArguments (const juce::StringArray& args, juce::Stri
             options.voicing = juce::File::getCurrentWorkingDirectory().getChildFile (value);
         else if (arg == "--lab-values")
             options.labValues = juce::File::getCurrentWorkingDirectory().getChildFile (value);
+        else if (arg == "--control")
+        {
+            if (! setControl (options.controls, value, error))
+                return std::nullopt;
+        }
         else
         {
             error = "unknown option " + arg;
@@ -266,6 +304,7 @@ int run (const Options& options)
         engine.setVoicingLab (*voicing);
     }
 
+    engine.setControls (options.controls);  // likewise
     engine.prepare (options.sampleRate, options.blockSize);
 
     juce::AudioBuffer<float> buffer (forte::Engine::numOutputChannels, options.blockSize);

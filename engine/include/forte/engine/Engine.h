@@ -16,6 +16,31 @@ enum class ListeningPerspective
     pianist       // the player's seat
 };
 
+/** The tuning controls (SPEC §5, §6.3). */
+struct Tuning
+{
+    double a4Hz = 440.0;    // 415–466, whole Hz
+    double stretch = 50.0;  // 0 = exact 2:1 octaves, 50 = the calculated curve, 100 = double
+    double spread = 50.0;   // the unison spread: 0 = perfect unison, 50 = 0.7 cent, 100 = 1.4 cent
+
+    friend bool operator== (const Tuning&, const Tuning&) = default;
+};
+
+/** The sound controls (SPEC §6.3), as the plugin's parameters hold them. At their defaults the
+    engine is the piano as committed. */
+struct Controls
+{
+    double hardness = 50.0;    // 0–100: the felt stiffness ÷4 … fitted … ×4 (log), next strike
+    double brightness = 50.0;  // 0–100: the treble tilt, −12 … 0 … +12 dB at 10 kHz
+    double resonance = 50.0;   // 0–100: the sympathetic bank, 0 = none, 100 = double
+    double touch = 50.0;       // 0–100: lighter … calibrated … heavier (SPEC §4.1)
+    Tuning tuning;
+    double width = 100.0;      // 0 = mono, 100 = as the soundboard places it
+    double volumeDb = 0.0;     // −60 (off) to +6
+
+    friend bool operator== (const Controls&, const Controls&) = default;
+};
+
 /** The Forte piano engine: 88 permanent note models and the MIDI that plays them (SPEC §2, §4).
 
     Threading contract:
@@ -31,8 +56,8 @@ enum class ListeningPerspective
     Output (SPEC §2.1, §2.6, §2.8): each note's bridge force feeds one of four bridge regions, and
     every key's sympathetic bank, driven by all the other notes' force and gated by its damper,
     feeds the key's own region. Each region is convolved with its stereo soundboard IR from the
-    active Listening perspective, with no added latency. Resonance, Brightness, Width and Volume
-    sit at their defaults until the parameters exist.
+    active Listening perspective, with no added latency, tilted by Brightness, then summed; the
+    tape, Width and Volume follow (SPEC §2.1).
 */
 class Engine
 {
@@ -62,6 +87,30 @@ public:
         reset() and prepare(), where it applies at once. Realtime-safe. */
     void setListeningPerspective (ListeningPerspective perspective) noexcept;
 
+    /** The sound controls (SPEC §2.9, §6.3), at the current render position. Cheap when nothing
+        changed, so it can be called every block. It survives reset() and prepare(), where
+        everything applies at once.
+        - Hardness and Touch: each note's next strike.
+        - Brightness, Resonance, Width and Volume: glide there over ~20 ms.
+        - A4 and Stretch: the tuner runs here (it's cheap and allocation-free), and ringing notes
+          and sympathetic strings glide to their new pitch over ~50 ms.
+        - Spread: changes the unison's coupled modes, so it waits, like the voicing lab's
+          strings, for rebuildStrings() and a note's next start from rest.
+        A4 and Stretch take a note's exact new modes the same way; until then a retuned note
+        keeps its prepared hammer drives and high-pass, a few cents off. Realtime-safe. */
+    void setControls (const Controls& controls) noexcept;
+
+    [[nodiscard]] const Controls& getControls() const noexcept;
+
+    /** The tuning the audio thread last got from setControls(), or the one prepare() used.
+        Safe from any thread: rebuildStrings() reads it. */
+    [[nodiscard]] Tuning getLatestTuning() const noexcept;
+
+    /** A note's first partial in cents from equal temperament under a tuning, relative to A4's
+        own equal-tempered scale (so A4 itself is 0 at any A4). For the editor's tuning curve.
+        Reads only the piano model; safe from any thread. */
+    [[nodiscard]] double getTuningCents (const Tuning& tuning, int midiNote) const noexcept;
+
     /** The voicing lab's values (SPEC §6.5), at the current render position. Cheap when nothing
         changed, so it can be called every block. Hammer controls take effect at each note's next
         strike; Tape drive glides there over ~20 ms. At every 50 the engine is exactly the
@@ -72,14 +121,18 @@ public:
         rebuildStrings() and rebuildBoard(). */
     void setVoicingLab (const lab::Settings& settings) noexcept;
 
-    /** The voicing lab's strings (SPEC §6.5): builds a new model for every note whose strings
-        under settings differ from the ones it last built. A note takes its new model the next
-        time it starts from rest (at a strike, never while it rings), so nothing clicks. Also
-        frees the models notes have let go. Returns how many notes it built.
+    /** The voicing lab's strings (SPEC §6.5) and the tuning (SPEC §5): builds a new model for
+        every note whose strings under settings and tuning differ from the ones it last built.
+        A note takes its new model the next time it starts from rest (at a strike, never while
+        it rings), so nothing clicks. Also frees the models notes have let go. Returns how many
+        notes it built.
 
         Not realtime: it allocates. Call it from one thread at a time, never during prepare()
         or before the first prepare(); render() and handleMidi() may run meanwhile. */
-    int rebuildStrings (const lab::Settings& settings);
+    int rebuildStrings (const lab::Settings& settings, const Tuning& tuning);
+
+    /** rebuildStrings() with getLatestTuning(). */
+    int rebuildStrings (const lab::Settings& settings) { return rebuildStrings (settings, getLatestTuning()); }
 
     /** The voicing lab's board (SPEC §6.5): if the Board controls under settings differ from the
         ones the soundboard last got, builds both perspectives' IRs again from their kept parts
@@ -127,6 +180,10 @@ public:
         the soundboard IR's length. Depends only on the piano model, the lab's strings as last
         built and the IRs, not on the sample rate. Safe from any thread. */
     [[nodiscard]] double getTailSeconds() const noexcept;
+
+    /** How many notes were sounding (not idle) at the end of the last render(), for the editor's
+        Notes meter (SPEC §6.4). Safe from any thread. */
+    [[nodiscard]] int getNumSoundingNotes() const noexcept;
 
     [[nodiscard]] double getSampleRate() const noexcept { return sampleRate; }
     [[nodiscard]] int getMaxBlockSize() const noexcept { return maxBlockSize; }

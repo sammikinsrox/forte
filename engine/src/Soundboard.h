@@ -12,9 +12,9 @@
 
 namespace forte::detail
 {
-/** The soundboard and output stage (SPEC §2.8): each bridge region's bus is convolved with its
-    stereo IR from the active Listening perspective, tilted by Brightness, and summed; Width and
-    then Volume apply to the sum.
+/** The soundboard (SPEC §2.8): each bridge region's bus is convolved with its stereo IR from
+    the active Listening perspective, tilted by Brightness, and summed. The engine's output stage
+    (tape, Width, Volume) follows.
 
     Convolution: uniformly partitioned, in the frequency domain, with no added latency. An IR's
     first partitionSize taps run directly in the time domain; the rest are partitions of
@@ -39,11 +39,11 @@ namespace forte::detail
     thread. A perspective switch asked for during that fade waits for it to end. The handover is
     by atomic exchange of pointers, so the audio thread never allocates, frees or waits.
 
-    Brightness, Width and Volume have fixed values until the parameters exist (SPEC §6.3); the
-    setters are for tests and change them at once, without the ~20 ms smoothing of SPEC §2.9.
     Brightness is a first-order high shelf on each region's output: 0 dB at 50, ±12 dB at
     10 kHz at 100 and 0 (the exact span is set by ear). It's linear, so it would be cheaper on
     each region's input, but after the convolution a change reaches sound that's already ringing.
+    setBrightness() changes it at once; the engine glides it in small steps (SPEC §2.9). At 50
+    the shelf is off, and its state follows the signal, so it comes back on without a step.
 
     Threading: prepare() allocates and runs off the audio thread; the rest is realtime-safe.
 */
@@ -110,11 +110,7 @@ public:
     /** 0–100, 50 = no tilt (SPEC §6.3). Not smoothed. */
     void setBrightness (double brightness) noexcept;
 
-    /** 0–100, 0 = mono, 100 = as the IRs place it (SPEC §6.3). Not smoothed. */
-    void setWidth (double width) noexcept;
-
-    /** Output gain in dB. Not smoothed. */
-    void setVolumeDb (double decibels) noexcept;
+    [[nodiscard]] double getBrightness() const noexcept { return brightness; }
 
     /** How many samples process() can take before it must stop at a partition boundary. */
     [[nodiscard]] int samplesToPartitionEnd() const noexcept { return partitionSize - position; }
@@ -185,8 +181,6 @@ private:
     Tilt tilt;
     std::array<std::array<float, 2>, numBridgeRegions> tiltState {};  // [region][side]: previous input
     std::array<std::array<float, 2>, numBridgeRegions> tiltOutput {}; // [region][side]: previous output
-    float widthDirect = 1.0f, widthCross = 0.0f;
-    float volume = 1.0f;
 
     std::array<float, partitionSize> regionLeft {}, regionRight {};
     std::array<float, partitionSize> mixLeft {}, mixRight {};

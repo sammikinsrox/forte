@@ -7,6 +7,7 @@
 #include "Soundboard.h"
 #include "SoundboardIrs.h"
 #include "SympatheticBank.h"
+#include "Tuner.h"
 #include "VelocityCurve.h"
 
 #include <algorithm>
@@ -24,7 +25,11 @@ constexpr int controlInterval = detail::NoteModel::controlInterval;
 constexpr int partitionSize = detail::Soundboard::partitionSize;
 constexpr double pedalSmoothingSeconds = 0.02;  // SPEC §4.2
 constexpr double lowestSampleRate = 44100.0;    // SPEC §2.2
-constexpr double tapeGlideSeconds = 0.02;       // SPEC §2.9
+constexpr double outputGlideSeconds = 0.02;     // SPEC §2.9: output controls, and the tape
+constexpr double tuningGlideSeconds = 0.05;     // SPEC §2.9, §5
+constexpr int ticksPerTuningStep = 8;           // a retune recomputes every ringing mode, so it steps every 256 samples
+constexpr double hardnessSpan = 4.0;            // Hardness 0 and 100: the felt ÷ and × this (SPEC §10: by ear)
+constexpr double volumeOffDb = -60.0;           // SPEC §6.3: shows as "Off", silent
 
 static_assert (partitionSize % controlInterval == 0, "a partition holds whole control intervals");
 static_assert (controlInterval <= detail::SympatheticBank::maxRenderSamples, "the banks render a control interval at once");
@@ -37,6 +42,64 @@ float pedalPosition (int value) noexcept
     constexpr int liftedFrom = 116;
     return std::clamp (static_cast<float> (value - restingUpTo) / static_cast<float> (liftedFrom - restingUpTo), 0.0f, 1.0f);
 }
+
+double hardnessScaleOf (double hardness) noexcept
+{
+    hardness = std::clamp (hardness, 0.0, 100.0);
+    return hardness == 50.0 ? 1.0 : std::pow (hardnessSpan, (hardness - 50.0) / 50.0);
+}
+
+double volumeGainOf (double decibels) noexcept
+{
+    return decibels <= volumeOffDb ? 0.0 : std::pow (10.0, std::min (decibels, 6.0) / 20.0);
+}
+
+double widthOf (double width) noexcept
+{
+    return std::clamp (width, 0.0, 100.0) / 100.0;
+}
+
+/** A value gliding linearly to its target over a number of samples. */
+struct Ramp
+{
+    double now = 0.0, target = 0.0, step = 0.0;
+    int remaining = 0;
+
+    void jump (double value) noexcept
+    {
+        now = target = value;
+        step = 0.0;
+        remaining = 0;
+    }
+
+    void glideTo (double value, int samples) noexcept
+    {
+        target = value;
+        remaining = value == now ? 0 : std::max (1, samples);
+        step = remaining > 0 ? (target - now) / remaining : 0.0;
+    }
+
+    void finish() noexcept { jump (target); }
+
+    void advance (int samples) noexcept
+    {
+        if (remaining <= 0)
+            return;
+
+        if (samples >= remaining)
+        {
+            now = target;
+            remaining = 0;
+        }
+        else
+        {
+            now += step * samples;
+            remaining -= samples;
+        }
+    }
+
+    [[nodiscard]] bool moving() const noexcept { return remaining > 0; }
+};
 
 namespace cc
 {
@@ -51,6 +114,8 @@ constexpr int allNotesOff = 123;
 struct Engine::State
 {
     detail::PianoModel model = detail::makeSeedPianoModel();
+    detail::StretchCurve stretchCurve = detail::calculateStretchCurve (model);
+
     /** The 88 note models (SPEC §2.2). Held by pointer so a note can take re-prepared strings
         (SPEC §6.5) by exchanging pointers on the audio thread. */
     std::array<std::unique_ptr<detail::NoteModel>, detail::numNotes> notes = [] {
@@ -109,15 +174,28 @@ struct Engine::State
     std::atomic<double> tailSeconds { 0.0 };
     std::array<double, detail::numNotes> noteTail {}, noteSlowestDecay {};
 
-    /** The voicing lab's strings (SPEC §6.5). Per note: a model built off the audio thread,
-        waiting for the note to start from rest, and the model it replaced, waiting to be freed
-        off the audio thread. Each slot has one writer and one reader and changes hands by
-        atomic exchange, so the audio thread never allocates, frees or waits. */
+    std::atomic<int> soundingNotes { 0 };
+
+    /** The voicing lab's strings (SPEC §6.5) and the tuning (SPEC §5). Per note: a model built
+        off the audio thread, waiting for the note to start from rest, and the model it
+        replaced, waiting to be freed off the audio thread. Each slot has one writer and one
+        reader and changes hands by atomic exchange, so the audio thread never allocates, frees
+        or waits. */
     std::array<std::atomic<detail::NoteModel*>, detail::numNotes> incomingStrings {};
     std::array<std::atomic<detail::NoteModel*>, detail::numNotes> retiredStrings {};
 
-    /** Off the audio thread: the strings each note's newest model (current or incoming) has. */
-    std::array<detail::StringVoicing, detail::numNotes> builtStrings {};
+    /** What a note's model is built from, beyond the committed piano. */
+    struct BuiltStrings
+    {
+        detail::StringVoicing lab;
+        double tuning = 1.0;       // the tuner's ratio (Tuner.h)
+        double spreadCents = 0.0;  // the unison spread
+
+        friend bool operator== (const BuiltStrings&, const BuiltStrings&) = default;
+    };
+
+    /** Off the audio thread: what each note's newest model (current or incoming) is built from. */
+    std::array<BuiltStrings, detail::numNotes> builtStrings {};
 
     ~State()
     {
@@ -126,16 +204,37 @@ struct Engine::State
                 delete slot.exchange (nullptr);
     }
 
-    /** The note's parameters under its strings' lab voicing. */
-    [[nodiscard]] detail::NoteParameters voicedNote (std::size_t i, const detail::StringVoicing& strings) const noexcept
+    [[nodiscard]] double spreadCentsOf (const Tuning& tuning) const noexcept
     {
-        return detail::applyStringVoicing (model.notes[i], strings);
+        return model.unisonSpreadCents * (std::clamp (tuning.spread, 0.0, 100.0) / 50.0);
     }
 
-    void measureNoteTail (std::size_t i, const detail::NoteParameters& p)
+    [[nodiscard]] double tuningOf (std::size_t i, const Tuning& tuning) const noexcept
     {
-        noteTail[i] = detail::noteTailSeconds (p, model.unisonSpreadCents);
-        noteSlowestDecay[i] = detail::slowestStringDecay (p, model.unisonSpreadCents);
+        return detail::tuningRatio (stretchCurve, static_cast<int> (i), std::clamp (tuning.a4Hz, detail::lowestA4, detail::highestA4),
+                                    std::clamp (tuning.stretch, 0.0, 100.0));
+    }
+
+    [[nodiscard]] BuiltStrings stringsFor (std::size_t i, const lab::Settings& labSettings, const Tuning& tuning) const noexcept
+    {
+        // A single string has no unison to spread.
+        const double spread = model.notes[i].numStrings > 1 ? spreadCentsOf (tuning) : model.unisonSpreadCents;
+        return { detail::labStringVoicing (labSettings, model.notes[i]), tuningOf (i, tuning), spread };
+    }
+
+    /** The note's parameters, tuned, under its strings' lab voicing. */
+    [[nodiscard]] detail::NoteParameters voicedNote (std::size_t i, const BuiltStrings& strings) const noexcept
+    {
+        auto tuned = model.notes[i];
+        if (strings.tuning != 1.0)
+            tuned.fundamental *= strings.tuning;
+        return detail::applyStringVoicing (tuned, strings.lab);
+    }
+
+    void measureNoteTail (std::size_t i, const detail::NoteParameters& p, double spreadCents)
+    {
+        noteTail[i] = detail::noteTailSeconds (p, spreadCents);
+        noteSlowestDecay[i] = detail::slowestStringDecay (p, spreadCents);
     }
 
     void updateTail()
@@ -173,10 +272,77 @@ struct Engine::State
         detail::NoteModel* replaced = notes[i].release();
         notes[i].reset (incoming);
         retiredStrings[i].store (replaced, std::memory_order_release);
+
+        // Built on another thread for the tuning as it then stood.
+        notes[i]->setPitchRatio (tuningNow[i] / notes[i]->getBuiltTuning());
     }
 
-    /** Touch, until the parameter exists (SPEC §6.3). */
+    /** The sound controls (SPEC §6.3). */
+    Controls controls;
     double touch = detail::touchCalibrated;
+    double hardnessScale = 1.0;
+
+    /** The tuning as setControls() last published it, for rebuildStrings() on another thread. */
+    std::atomic<double> latestA4 { 440.0 }, latestStretch { 50.0 }, latestSpread { 50.0 };
+
+    void publishTuning() noexcept
+    {
+        latestA4.store (controls.tuning.a4Hz, std::memory_order_relaxed);
+        latestStretch.store (controls.tuning.stretch, std::memory_order_relaxed);
+        latestSpread.store (controls.tuning.spread, std::memory_order_relaxed);
+    }
+
+    /** The tuning glide (SPEC §5): each note's tuner ratio as it sounds now, and where it's going.
+        It steps every ticksPerTuningStep control ticks, tuningSteps times. bankTuning is the
+        ratio the sympathetic bank was prepared at. */
+    std::array<double, detail::numNotes> tuningNow {}, tuningFrom {}, tuningTo {}, bankTuning {};
+    int tuningStep = 0, tuningSteps = 0, tuningTick = 0;
+    int tuningStepsPerGlide = 1;
+
+    void applyTuning() noexcept
+    {
+        for (std::size_t i = 0; i < notes.size(); ++i)
+        {
+            notes[i]->setPitchRatio (tuningNow[i] / notes[i]->getBuiltTuning());
+            sympathetic.setPitchRatio (static_cast<int> (i), tuningNow[i] / bankTuning[i]);
+        }
+    }
+
+    void retune (bool glide) noexcept
+    {
+        for (std::size_t i = 0; i < tuningTo.size(); ++i)
+            tuningTo[i] = tuningOf (i, controls.tuning);
+
+        if (glide)
+        {
+            tuningFrom = tuningNow;
+            tuningStep = tuningTick = 0;
+            tuningSteps = tuningStepsPerGlide;
+            return;
+        }
+
+        tuningNow = tuningTo;
+        tuningSteps = 0;
+        applyTuning();
+    }
+
+    void tuningTickWork() noexcept
+    {
+        if (tuningSteps == 0 || ++tuningTick < ticksPerTuningStep)
+            return;
+
+        tuningTick = 0;
+        ++tuningStep;
+        const bool last = tuningStep >= tuningSteps;
+        const double t = static_cast<double> (tuningStep) / tuningSteps;
+
+        for (std::size_t i = 0; i < tuningNow.size(); ++i)
+            tuningNow[i] = last ? tuningTo[i] : tuningFrom[i] + (tuningTo[i] - tuningFrom[i]) * t;
+
+        applyTuning();
+        if (last)
+            tuningSteps = 0;
+    }
 
     /** Samples rendered since prepare() or reset(). Control ticks fall on multiples of
         controlInterval, so they don't depend on how blocks are split. */
@@ -187,12 +353,9 @@ struct Engine::State
     /** The voicing lab (SPEC §6.5). */
     lab::Settings lab;
 
-    /** The tape's drive as it glides to the lab's (SPEC §2.9: output controls are immediate,
-        smoothed over ~20 ms), and its step per sample while it moves. */
-    double tapeDrive = model.tapeDrive;
-    double tapeTarget = model.tapeDrive;
-    double tapeStep = 0.0;
-    double tapeGlideSamples = tapeGlideSeconds * 48000.0;
+    /** The output controls' glides (SPEC §2.9), and the tape's drive (the lab's Tape drive). */
+    Ramp tape, brightness, resonance, width, volume;
+    int glideSamples = static_cast<int> (outputGlideSeconds * 48000.0);
 
     void applyStrikeVoicing() noexcept
     {
@@ -200,12 +363,14 @@ struct Engine::State
             note (midiNote).setStrikeVoicing (detail::labStrikeVoicing (lab, model.note (midiNote)));
     }
 
-    void setTapeTarget (double target, bool glide) noexcept
+    /** The output stage's settled values, at once. */
+    void finishGlides() noexcept
     {
-        tapeTarget = target;
-        tapeStep = glide ? (tapeTarget - tapeDrive) / tapeGlideSamples : 0.0;
-        if (! glide || tapeStep == 0.0)
-            tapeDrive = tapeTarget;
+        for (auto* ramp : { &tape, &brightness, &resonance, &width, &volume })
+            ramp->finish();
+
+        soundboard.setBrightness (brightness.now);
+        sympathetic.setResonance (resonance.now);
     }
 
     /** The tape (see render()) while its drive glides: the drive moves every sample. Near 0 the
@@ -216,11 +381,9 @@ struct Engine::State
 
         for (int i = 0; i < numSamples; ++i)
         {
-            tapeDrive += tapeStep;
-            if ((tapeStep > 0.0 && tapeDrive >= tapeTarget) || (tapeStep < 0.0 && tapeDrive <= tapeTarget))
-                tapeDrive = tapeTarget;
+            tape.advance (1);
 
-            const auto drive = static_cast<float> (tapeDrive);
+            const auto drive = static_cast<float> (tape.now);
             if (drive < 1e-4f)
                 continue;
 
@@ -229,6 +392,26 @@ struct Engine::State
                 const float u = std::tanh (drive * channel[i]);
                 channel[i] = u / (drive * (1.0f + t * u));
             }
+        }
+    }
+
+    /** Width (mid/side, written so that full width passes the channels through exactly), then
+        Volume, each gliding per sample. */
+    void widthAndVolume (float* left, float* right, int numSamples) noexcept
+    {
+        if (! width.moving() && ! volume.moving() && width.now == 1.0 && volume.now == 1.0)
+            return;
+
+        for (int i = 0; i < numSamples; ++i)
+        {
+            width.advance (1);
+            volume.advance (1);
+            const auto gain = static_cast<float> (volume.now);
+            const auto direct = static_cast<float> (0.5 * (1.0 + width.now));
+            const auto cross = static_cast<float> (0.5 * (1.0 - width.now));
+            const float l = left[i], r = right[i];
+            left[i] = gain * (direct * l + cross * r);
+            right[i] = gain * (cross * l + direct * r);
         }
     }
 
@@ -249,7 +432,7 @@ struct Engine::State
 
         auto& n = note (midiNote);
         n.setKeyDown (true);
-        n.strike (velocity, touch, softPedal);
+        n.strike (velocity, touch, softPedal, hardnessScale);
     }
 
     void noteOff (int midiNote) noexcept
@@ -302,6 +485,14 @@ struct Engine::State
             sustainLift = std::min (sustainTarget, sustainLift + sustainStepPerTick);
         else if (sustainLift > sustainTarget)
             sustainLift = std::max (sustainTarget, sustainLift - sustainStepPerTick);
+
+        if (resonance.moving())
+        {
+            resonance.advance (controlInterval);
+            sympathetic.setResonance (resonance.now);
+        }
+
+        tuningTickWork();
 
         for (int i = 0; i < detail::numNotes; ++i)
         {
@@ -357,14 +548,24 @@ struct Engine::State
 Engine::Engine()
     : state (std::make_unique<State>())
 {
-    for (std::size_t i = 0; i < state->model.notes.size(); ++i)
+    auto& s = *state;
+    const auto& tuning = s.controls.tuning;
+
+    for (std::size_t i = 0; i < s.model.notes.size(); ++i)
     {
-        const auto& note = state->model.notes[i];
-        state->noteRegion[i] = static_cast<std::uint8_t> (note.bridgeRegion);
-        state->measureNoteTail (i, note);
+        s.noteRegion[i] = static_cast<std::uint8_t> (s.model.notes[i].bridgeRegion);
+        s.builtStrings[i] = s.stringsFor (i, s.lab, tuning);
+        s.measureNoteTail (i, s.voicedNote (i, s.builtStrings[i]), s.builtStrings[i].spreadCents);
+        s.tuningNow[i] = s.tuningFrom[i] = s.tuningTo[i] = s.bankTuning[i] = s.builtStrings[i].tuning;
     }
 
-    state->updateTail();
+    s.tape.jump (s.model.tapeDrive);
+    s.brightness.jump (s.controls.brightness);
+    s.resonance.jump (s.controls.resonance);
+    s.width.jump (widthOf (s.controls.width));
+    s.volume.jump (volumeGainOf (s.controls.volumeDb));
+    s.publishTuning();
+    s.updateTail();
 }
 
 Engine::~Engine() = default;
@@ -374,6 +575,11 @@ double Engine::getTailSeconds() const noexcept
     return state->tailSeconds.load (std::memory_order_relaxed);
 }
 
+int Engine::getNumSoundingNotes() const noexcept
+{
+    return state->soundingNotes.load (std::memory_order_relaxed);
+}
+
 void Engine::prepare (double newSampleRate, int newMaxBlockSize)
 {
     sampleRate = newSampleRate;
@@ -381,54 +587,80 @@ void Engine::prepare (double newSampleRate, int newMaxBlockSize)
 
     auto& s = *state;
     const auto& model = s.model;
+    const auto& tuning = s.controls.tuning;
 
-    // Every note is built with the lab's strings as they stand (SPEC §6.5), and nothing older
-    // is left waiting.
+    // Every note is built with the lab's strings and the tuning as they stand (SPEC §5, §6.5),
+    // and nothing older is left waiting.
     bool tailChanged = false;
     for (std::size_t i = 0; i < s.notes.size(); ++i)
     {
         delete s.incomingStrings[i].exchange (nullptr);
         delete s.retiredStrings[i].exchange (nullptr);
 
-        const auto strings = detail::labStringVoicing (s.lab, model.notes[i]);
+        const auto strings = s.stringsFor (i, s.lab, tuning);
         const auto voiced = s.voicedNote (i, strings);
-        s.notes[i]->prepare (voiced, model.unisonSpreadCents, model.outputGain, sampleRate);
+        s.notes[i]->prepare (voiced, strings.spreadCents, model.outputGain, sampleRate);
+        s.notes[i]->setBuiltTuning (strings.tuning);
 
         if (strings != s.builtStrings[i])
         {
             s.builtStrings[i] = strings;
-            s.measureNoteTail (i, voiced);
+            s.measureNoteTail (i, voiced, strings.spreadCents);
             tailChanged = true;
         }
+
+        s.tuningNow[i] = s.tuningFrom[i] = s.tuningTo[i] = s.bankTuning[i] = strings.tuning;
     }
 
     if (tailChanged)
         s.updateTail();
 
+    s.tuningSteps = 0;
+    s.tuningStepsPerGlide = std::max (1, static_cast<int> (std::lround (tuningGlideSeconds * sampleRate / (ticksPerTuningStep * controlInterval))));
+    s.publishTuning();
+
     s.applyStrikeVoicing();
-    state->tapeGlideSamples = tapeGlideSeconds * sampleRate;
+    s.glideSamples = static_cast<int> (outputGlideSeconds * sampleRate);
 
-    state->sympathetic.prepare (model, sampleRate);
-    state->shippedAtRate = detail::resampleIrs (state->shippedIrs, sampleRate);
-    state->builtBoard = state->playingBoard = detail::labBoardVoicing (state->lab);
-    state->soundboard.prepare (state->boardIrs (state->builtBoard, sampleRate));
+    // The sympathetic strings at the same tuning as the notes.
+    {
+        auto tuned = std::make_unique<detail::PianoModel> (model);
+        for (std::size_t i = 0; i < tuned->notes.size(); ++i)
+            if (s.bankTuning[i] != 1.0)
+                tuned->notes[i].fundamental *= s.bankTuning[i];
+        s.sympathetic.prepare (*tuned, sampleRate);
+    }
 
-    state->sustainStepPerTick = static_cast<float> (controlInterval / (pedalSmoothingSeconds * sampleRate));
+    s.shippedAtRate = detail::resampleIrs (s.shippedIrs, sampleRate);
+    s.builtBoard = s.playingBoard = detail::labBoardVoicing (s.lab);
+    s.soundboard.prepare (s.boardIrs (s.builtBoard, sampleRate));
+
+    s.sustainStepPerTick = static_cast<float> (controlInterval / (pedalSmoothingSeconds * sampleRate));
     reset();
 }
 
 void Engine::reset() noexcept
 {
-    for (auto& n : state->notes)
+    auto& s = *state;
+    for (auto& n : s.notes)
         n->reset();
 
-    state->sympathetic.reset();
-    state->soundboard.reset();
-    state->keyDownCount.fill (0);
-    state->sustainTarget = state->sustainLift = 0.0f;
-    state->softPedal = 0.0f;
-    state->sampleClock = 0;
-    state->setTapeTarget (state->tapeTarget, false);
+    s.sympathetic.reset();
+    s.soundboard.reset();
+    s.keyDownCount.fill (0);
+    s.sustainTarget = s.sustainLift = 0.0f;
+    s.softPedal = 0.0f;
+    s.sampleClock = 0;
+    s.finishGlides();
+
+    if (s.tuningSteps > 0)
+    {
+        s.tuningNow = s.tuningTo;
+        s.tuningSteps = 0;
+        s.applyTuning();
+    }
+
+    s.soundingNotes.store (0, std::memory_order_relaxed);
 }
 
 void Engine::handleMidi (const MidiEvent& event) noexcept
@@ -496,6 +728,13 @@ void Engine::render (float* left, float* right, int numSamples) noexcept
             s.sampleClock += length;
         }
 
+        // Brightness glides in steps of a stretch (at most a partition, 128 samples).
+        if (s.brightness.moving())
+        {
+            s.brightness.advance (stretch);
+            s.soundboard.setBrightness (s.brightness.now);
+        }
+
         const std::array<const float*, detail::numBridgeRegions> buses { s.regionBus[0].data(), s.regionBus[1].data(),
                                                                          s.regionBus[2].data(), s.regionBus[3].data() };
         s.soundboard.process (buses, left + position, right + position, stretch);
@@ -504,13 +743,13 @@ void Engine::render (float* left, float* right, int numSamples) noexcept
         // unity gain for small signals, the bias giving even harmonics as well as odd. Written as
         // tanh(d·x) / (d·(1 + tanh b · tanh(d·x))), the same function, so tiny signals stay exact
         // instead of cancelling to zero in float. While the lab moves the drive, it glides.
-        if (s.tapeDrive != s.tapeTarget)
+        if (s.tape.moving())
         {
             s.glideTape (left + position, right + position, stretch);
         }
-        else if (s.tapeDrive > 0.0)
+        else if (s.tape.now > 0.0)
         {
-            const auto drive = static_cast<float> (s.tapeDrive);
+            const auto drive = static_cast<float> (s.tape.now);
             const float t = std::tanh (0.15f);
             for (float* channel : { left + position, right + position })
                 for (int i = 0; i < stretch; ++i)
@@ -519,14 +758,66 @@ void Engine::render (float* left, float* right, int numSamples) noexcept
                     channel[i] = u / (drive * (1.0f + t * u));
                 }
         }
+
+        s.widthAndVolume (left + position, right + position, stretch);
         position += stretch;
     }
+
+    int sounding = 0;
+    for (const auto& n : s.notes)
+        sounding += n->isSounding() ? 1 : 0;
+    s.soundingNotes.store (sounding, std::memory_order_relaxed);
 }
 
 void Engine::setListeningPerspective (ListeningPerspective perspective) noexcept
 {
     state->soundboard.setPerspective (perspective == ListeningPerspective::pianist ? detail::pianistPerspective
                                                                                     : detail::microphonesPerspective);
+}
+
+void Engine::setControls (const Controls& controls) noexcept
+{
+    auto& s = *state;
+    if (controls == s.controls)
+        return;
+
+    const auto previous = s.controls;
+    s.controls = controls;
+    const bool prepared = maxBlockSize > 0;
+
+    s.hardnessScale = hardnessScaleOf (controls.hardness);
+    s.touch = std::clamp (controls.touch, detail::touchLightest, detail::touchHeaviest);
+
+    s.brightness.glideTo (std::clamp (controls.brightness, 0.0, 100.0), s.glideSamples);
+    s.resonance.glideTo (std::clamp (controls.resonance, 0.0, 100.0), s.glideSamples);
+    s.width.glideTo (widthOf (controls.width), s.glideSamples);
+    s.volume.glideTo (volumeGainOf (controls.volumeDb), s.glideSamples);
+
+    if (! prepared)
+        s.finishGlides();  // prepare() starts from the settled values
+
+    if (controls.tuning.a4Hz != previous.tuning.a4Hz || controls.tuning.stretch != previous.tuning.stretch)
+        s.retune (prepared);
+
+    s.publishTuning();
+}
+
+const Controls& Engine::getControls() const noexcept
+{
+    return state->controls;
+}
+
+Tuning Engine::getLatestTuning() const noexcept
+{
+    const auto& s = *state;
+    return { s.latestA4.load (std::memory_order_relaxed), s.latestStretch.load (std::memory_order_relaxed),
+             s.latestSpread.load (std::memory_order_relaxed) };
+}
+
+double Engine::getTuningCents (const Tuning& tuning, int midiNote) const noexcept
+{
+    const auto index = static_cast<std::size_t> (std::clamp (midiNote, detail::lowestNote, detail::highestNote) - detail::lowestNote);
+    return std::clamp (tuning.stretch, 0.0, 100.0) / detail::calculatedStretch * state->stretchCurve.cents[index];
 }
 
 void Engine::setVoicingLab (const lab::Settings& settings) noexcept
@@ -548,8 +839,12 @@ void Engine::setVoicingLab (const lab::Settings& settings) noexcept
         s.applyStrikeVoicing();
 
     const double tape = detail::labTapeDrive (settings, s.model.tapeDrive);
-    if (tape != s.tapeTarget)
-        s.setTapeTarget (tape, true);
+    if (tape != s.tape.target)
+    {
+        s.tape.glideTo (tape, s.glideSamples);
+        if (maxBlockSize == 0)
+            s.tape.finish();
+    }
 }
 
 const lab::Settings& Engine::getVoicingLab() const noexcept
@@ -557,7 +852,7 @@ const lab::Settings& Engine::getVoicingLab() const noexcept
     return state->lab;
 }
 
-int Engine::rebuildStrings (const lab::Settings& settings)
+int Engine::rebuildStrings (const lab::Settings& settings, const Tuning& tuning)
 {
     auto& s = *state;
     collectRetired();
@@ -568,19 +863,20 @@ int Engine::rebuildStrings (const lab::Settings& settings)
     int built = 0;
     for (std::size_t i = 0; i < s.notes.size(); ++i)
     {
-        const auto strings = detail::labStringVoicing (settings, s.model.notes[i]);
+        const auto strings = s.stringsFor (i, settings, tuning);
         if (strings == s.builtStrings[i])
             continue;
 
         const auto voiced = s.voicedNote (i, strings);
         auto fresh = std::make_unique<detail::NoteModel>();
-        fresh->prepare (voiced, s.model.unisonSpreadCents, s.model.outputGain, sampleRate);
+        fresh->prepare (voiced, strings.spreadCents, s.model.outputGain, sampleRate);
+        fresh->setBuiltTuning (strings.tuning);
 
         // A model the note never took is this thread's again; the newer one replaces it.
         delete s.incomingStrings[i].exchange (fresh.release(), std::memory_order_acq_rel);
 
         s.builtStrings[i] = strings;
-        s.measureNoteTail (i, voiced);
+        s.measureNoteTail (i, voiced, strings.spreadCents);
         ++built;
     }
 

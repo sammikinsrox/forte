@@ -31,12 +31,14 @@ target_sources(forte_tests PRIVATE
     support/EngineRender.h
     AudioThreadGuardTests.cpp
     BridgeTests.cpp
+    ControlsTests.cpp
     EngineTests.cpp
     MidiTests.cpp
     NoteModelTests.cpp
     SoundboardTests.cpp
     SympatheticBankTests.cpp
     Tier1Tests.cpp
+    TunerTests.cpp
     UnisonModesTests.cpp
     VelocityCurveTests.cpp
     VoicingLabTests.cpp

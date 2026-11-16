@@ -27,6 +27,7 @@ void SympatheticBank::prepare (const PianoModel& model, double sampleRate) noexc
 {
     const double samplePeriod = 1.0 / sampleRate;
     const double maxFrequency = std::min (maxModeHz, maxModeFractionOfRate * sampleRate);
+    pitchRatios.fill (1.0);
 
     for (int k = 0; k < numNotes; ++k)
     {
@@ -45,6 +46,7 @@ void SympatheticBank::prepare (const PianoModel& model, double sampleRate) noexc
             const double theta = 2.0 * std::numbers::pi * frequency * samplePeriod;
             const double sigma = promptDecayOfPartial (p, n + 1);
 
+            key.theta[i] = theta;
             key.cosStep[i] = static_cast<float> (std::cos (theta));
             key.sinStep[i] = static_cast<float> (std::sin (theta));
             key.stringDecay[i] = static_cast<float> (-sigma * samplePeriod);
@@ -90,6 +92,23 @@ void SympatheticBank::reset() noexcept
 void SympatheticBank::setResonance (double resonance) noexcept
 {
     level = static_cast<float> (std::clamp (resonance, 0.0, maxResonance) / physicalResonance);
+}
+
+void SympatheticBank::setPitchRatio (int k, double ratio) noexcept
+{
+    auto& key = keys[static_cast<std::size_t> (k)];
+    auto& current = pitchRatios[static_cast<std::size_t> (k)];
+    if (ratio == current)
+        return;
+
+    current = ratio;
+    for (int n = 0; n < key.numModes; ++n)
+    {
+        const auto i = static_cast<std::size_t> (n);
+        key.cosStep[i] = static_cast<float> (std::cos (key.theta[i] * ratio));
+        key.sinStep[i] = static_cast<float> (std::sin (key.theta[i] * ratio));
+    }
+    updateMultipliers (key);
 }
 
 void SympatheticBank::updateMultipliers (Key& key) noexcept

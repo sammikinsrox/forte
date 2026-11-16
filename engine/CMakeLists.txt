@@ -32,6 +32,8 @@ add_library(forte_engine STATIC
     src/SoundboardIrs.h
     src/SympatheticBank.cpp
     src/SympatheticBank.h
+    src/Tuner.cpp
+    src/Tuner.h
     src/UnisonModes.cpp
     src/UnisonModes.h
     src/VelocityCurve.cpp

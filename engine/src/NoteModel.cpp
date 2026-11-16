@@ -97,6 +97,10 @@ void NoteModel::prepare (const NoteParameters& p, double unisonSpreadCents, doub
                      &driveRe, &driveIm, &strikeWeightRe, &strikeWeightIm })
         v->assign (static_cast<std::size_t> (numModes), 0.0f);
 
+    modeOmega.assign (static_cast<std::size_t> (numModes), 0.0);
+    pitchRatio = 1.0;
+    stepsStale = substepsStale = false;
+
     partialStrikeShape.assign (static_cast<std::size_t> (numPartials), 0.0);
     strikeShapeRatio.assign (static_cast<std::size_t> (numPartials), 1.0f);
 
@@ -132,6 +136,7 @@ void NoteModel::prepare (const NoteParameters& p, double unisonSpreadCents, doub
             const double frequency = omega / (2.0 * std::numbers::pi);
             const double sigmaDamper = detail::damperDecay (p, frequency);  // not the member
 
+            modeOmega[i] = omega;
             cosStep[i] = static_cast<float> (std::cos (omega * samplePeriod));
             sinStep[i] = static_cast<float> (std::sin (omega * samplePeriod));
             cosSubstep[i] = static_cast<float> (std::cos (omega * substepPeriod));
@@ -274,10 +279,61 @@ void NoteModel::setKeyDown (bool down) noexcept
     }
 }
 
-void NoteModel::strike (double velocity, double touch, double softShift) noexcept
+void NoteModel::setPitchRatio (double ratio) noexcept
+{
+    if (ratio == pitchRatio)
+        return;
+
+    pitchRatio = ratio;
+
+    if (! sounding)
+    {
+        stepsStale = substepsStale = true;  // strike() catches up
+        return;
+    }
+
+    retuneSteps();
+    if (inContact)
+        retuneSubsteps();
+    else
+        substepsStale = true;
+
+    updateMultipliers();
+}
+
+void NoteModel::retuneSteps() noexcept
+{
+    const double scale = pitchRatio * samplePeriod;
+    for (std::size_t i = 0; i < modeOmega.size(); ++i)
+    {
+        const double angle = modeOmega[i] * scale;
+        cosStep[i] = static_cast<float> (std::cos (angle));
+        sinStep[i] = static_cast<float> (std::sin (angle));
+    }
+    stepsStale = false;
+}
+
+void NoteModel::retuneSubsteps() noexcept
+{
+    const double scale = pitchRatio * samplePeriod / hammerOversampling;
+    for (std::size_t i = 0; i < modeOmega.size(); ++i)
+    {
+        const double angle = modeOmega[i] * scale;
+        cosSubstep[i] = static_cast<float> (std::cos (angle));
+        sinSubstep[i] = static_cast<float> (std::sin (angle));
+    }
+    substepsStale = false;
+}
+
+void NoteModel::strike (double velocity, double touch, double softShift, double hardnessScale) noexcept
 {
     if (numModes == 0)
         return;
+
+    if (stepsStale)
+        retuneSteps();
+    if (substepsStale)
+        retuneSubsteps();
 
     // The soft pedal fades the hammer off string 0 (SPEC §2.7). The force is shared by what it
     // still strikes, and it feels their mean displacement.
@@ -340,7 +396,7 @@ void NoteModel::strike (double velocity, double touch, double softShift) noexcep
     }
 
     // The felt, mass and knock hold for this strike's whole contact.
-    strikeFeltStiffness = feltStiffness * v.feltStiffnessScale * std::pow (softPedalFeltScale, shift);
+    strikeFeltStiffness = feltStiffness * v.feltStiffnessScale * hardnessScale * std::pow (softPedalFeltScale, shift);
     strikeFeltRelaxation = feltRelaxes ? std::clamp (v.feltRelaxation, 0.0, 1.0) : 0.0;
     strikeHammerMass = hammerMass * v.hammerMassScale;
     strikeKnockGain = knockGain * static_cast<float> (v.knockScale);

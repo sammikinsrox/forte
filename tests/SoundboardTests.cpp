@@ -347,30 +347,6 @@ TEST_CASE ("Switching perspective crossfades from the next partition boundary, a
     }
 }
 
-TEST_CASE ("Width 0 is mono, and Volume scales the output", "[soundboard]")
-{
-    const auto irs = randomIrs (300, 2);
-    const auto in = burstyInput (3000, 3);
-
-    Soundboard soundboard;
-    soundboard.prepare (irs);
-    const auto full = run (soundboard, in);
-
-    soundboard.setWidth (0.0);
-    soundboard.reset();
-    const auto mono = run (soundboard, in);
-    CHECK (mono.left == mono.right);
-    for (std::size_t i = 0; i < 3000; ++i)
-        REQUIRE (std::abs (mono.left[i] - 0.5f * (full.left[i] + full.right[i])) <= 1e-6f * peakOf (full.left));
-
-    soundboard.setWidth (100.0);
-    soundboard.setVolumeDb (-20.0);
-    soundboard.reset();
-    const auto quiet = run (soundboard, in);
-    for (std::size_t i = 0; i < 3000; ++i)
-        REQUIRE (std::abs (quiet.left[i] - 0.1f * full.left[i]) <= 1e-6f * peakOf (full.left));
-}
-
 TEST_CASE ("Brightness tilts the treble by 12 dB at 10 kHz either way, and leaves the bass", "[soundboard]")
 {
     const auto sampleRate = GENERATE (44100.0, 48000.0, 96000.0);
