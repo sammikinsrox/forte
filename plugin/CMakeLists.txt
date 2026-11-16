@@ -25,7 +25,9 @@ target_sources(Forte PRIVATE
     src/PluginProcessor.cpp
     src/PluginProcessor.h
     src/VoicingExport.cpp
-    src/VoicingExport.h)
+    src/VoicingExport.h
+    src/VoicingWorker.cpp
+    src/VoicingWorker.h)
 
 target_compile_definitions(Forte PUBLIC
     JUCE_VST3_CAN_REPLACE_VST2=0

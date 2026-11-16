@@ -3,6 +3,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "LabParameters.h"
+#include "VoicingWorker.h"
 
 #include "forte/engine/Engine.h"
 
@@ -64,6 +65,10 @@ private:
     Engine engine;
     juce::AudioProcessorValueTreeState parameters;
     LabParameters lab;
+
+    // Held by prepareToPlay() and the voicing worker, never by the audio thread.
+    juce::CriticalSection engineLock;
+    VoicingWorker voicingWorker { engine, lab, engineLock };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginProcessor)
 };

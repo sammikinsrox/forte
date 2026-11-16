@@ -63,8 +63,27 @@ public:
     /** The voicing lab's values (SPEC §6.5), at the current render position. Cheap when nothing
         changed, so it can be called every block. Hammer controls take effect at each note's next
         strike; Tape drive glides there over ~20 ms. At every 50 the engine is exactly the
-        committed voicing. It survives reset() and prepare(). Realtime-safe. */
+        committed voicing. It survives reset() and prepare(), and prepare() builds every note
+        with its String controls. Realtime-safe.
+
+        The String controls need the notes' modes recomputed, which isn't realtime: see
+        rebuildStrings(). */
     void setVoicingLab (const lab::Settings& settings) noexcept;
+
+    /** The voicing lab's strings (SPEC §6.5): builds a new model for every note whose strings
+        under settings differ from the ones it last built. A note takes its new model the next
+        time it starts from rest (at a strike, never while it rings), so nothing clicks. Also
+        frees the models notes have let go. Returns how many notes it built.
+
+        Not realtime: it allocates. Call it from one thread at a time, never during prepare()
+        or before the first prepare(); render() and handleMidi() may run meanwhile. */
+    int rebuildStrings (const lab::Settings& settings);
+
+    /** Frees the models notes have let go since. Same thread rules as rebuildStrings(). */
+    void collectRetiredStrings() noexcept;
+
+    /** True while any note has new strings it hasn't taken yet. Safe from any thread. */
+    [[nodiscard]] bool hasIncomingStrings() const noexcept;
 
     [[nodiscard]] const lab::Settings& getVoicingLab() const noexcept;
 
@@ -75,8 +94,8 @@ public:
 
     /** The longest the engine can go on sounding after the last MIDI event: an undamped (or
         pedalled) note decaying from full scale to rest, through its slowest coupled mode, then
-        the soundboard IR's length. Depends only on the piano model and the IRs, not on the
-        sample rate. Safe from any thread. */
+        the soundboard IR's length. Depends only on the piano model, the lab's strings as last
+        built and the IRs, not on the sample rate. Safe from any thread. */
     [[nodiscard]] double getTailSeconds() const noexcept;
 
     [[nodiscard]] double getSampleRate() const noexcept { return sampleRate; }

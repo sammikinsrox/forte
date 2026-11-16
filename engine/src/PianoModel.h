@@ -54,6 +54,9 @@ struct NoteParameters
     int numMeasuredPartials = 0;
     std::array<double, maxMeasuredPartials> measuredPromptDecay {};      // partial n at [n − 1]
     std::array<double, maxMeasuredPartials> measuredAftersoundDecay {};
+    // Every rate above, at frequency f, × (f / f1)^decayTiltExponent, f1 the first partial's:
+    // 0 = as given, > 0 makes the upper partials die faster (the lab's Overtone decay, SPEC §6.5).
+    double decayTiltExponent = 0.0;
 
     // Phantom partials (SPEC §2.3): longitudinal modes driven by the strings' stretching
     double phantomLevel = 0.0;              // 0 = none
@@ -134,16 +137,24 @@ struct PianoModel
     return n * p.fundamental * std::sqrt (1.0 + p.inharmonicity * n * n);
 }
 
+/** The decay tilt's factor at a frequency: (f / f1)^decayTiltExponent. */
+[[nodiscard]] inline double decayTilt (const NoteParameters& p, double frequency) noexcept
+{
+    return std::pow (frequency / partialFrequency (p, 1), p.decayTiltExponent);
+}
+
 /** The prompt sound's law at a frequency: its amplitude decay rate above the measured partials, 1/s. */
 [[nodiscard]] inline double promptDecay (const NoteParameters& p, double frequency) noexcept
 {
-    return p.decayConstant + p.decayPerHertzSquared * frequency * frequency;
+    const double rate = p.decayConstant + p.decayPerHertzSquared * frequency * frequency;
+    return p.decayTiltExponent == 0.0 ? rate : rate * decayTilt (p, frequency);
 }
 
 /** The aftersound's law at a frequency, 1/s. */
 [[nodiscard]] inline double aftersoundDecay (const NoteParameters& p, double frequency) noexcept
 {
-    return p.aftersoundDecayConstant + p.aftersoundDecayPerHertzSquared * frequency * frequency;
+    const double rate = p.aftersoundDecayConstant + p.aftersoundDecayPerHertzSquared * frequency * frequency;
+    return p.decayTiltExponent == 0.0 ? rate : rate * decayTilt (p, frequency);
 }
 
 [[nodiscard]] inline bool isMeasuredPartial (const NoteParameters& p, int partial) noexcept
@@ -154,15 +165,21 @@ struct PianoModel
 /** Partial n's prompt-sound decay rate, 1/s: its measured rate, or the law at its frequency. */
 [[nodiscard]] inline double promptDecayOfPartial (const NoteParameters& p, int partial) noexcept
 {
-    return isMeasuredPartial (p, partial) ? p.measuredPromptDecay[static_cast<std::size_t> (partial - 1)]
-                                          : promptDecay (p, partialFrequency (p, partial));
+    if (! isMeasuredPartial (p, partial))
+        return promptDecay (p, partialFrequency (p, partial));
+
+    const double rate = p.measuredPromptDecay[static_cast<std::size_t> (partial - 1)];
+    return p.decayTiltExponent == 0.0 ? rate : rate * decayTilt (p, partialFrequency (p, partial));
 }
 
 /** Partial n's aftersound decay rate, 1/s: its measured rate, or the law at its frequency. */
 [[nodiscard]] inline double aftersoundDecayOfPartial (const NoteParameters& p, int partial) noexcept
 {
-    return isMeasuredPartial (p, partial) ? p.measuredAftersoundDecay[static_cast<std::size_t> (partial - 1)]
-                                          : aftersoundDecay (p, partialFrequency (p, partial));
+    if (! isMeasuredPartial (p, partial))
+        return aftersoundDecay (p, partialFrequency (p, partial));
+
+    const double rate = p.measuredAftersoundDecay[static_cast<std::size_t> (partial - 1)];
+    return p.decayTiltExponent == 0.0 ? rate : rate * decayTilt (p, partialFrequency (p, partial));
 }
 
 /** The extra decay rate with the damper resting, 1/s: d0 + d1·√(f / 1 kHz). */

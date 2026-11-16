@@ -168,6 +168,57 @@ StrikeVoicing labStrikeVoicing (const lab::Settings& settings, const NoteParamet
     return v;
 }
 
+StringVoicing labStringVoicing (const lab::Settings& settings, const NoteParameters& p) noexcept
+{
+    using C = lab::Control;
+
+    if (settings.isNeutral (lab::Group::strings))
+        return {};
+
+    const double key = p.midiNote;
+    StringVoicing v;
+    v.inharmonicityScale = labValueAtKey (settings, C::inharmonicity, key, 1.0);
+    v.unisonSpreadScale = labValueAtKey (settings, C::unisonSpread, key, 1.0);
+    v.sustainRateScale = labValueAtKey (settings, C::sustain, key, 1.0);
+    v.overtoneDecayExponent = labValueAtKey (settings, C::overtoneDecay, key, 0.0);
+    v.aftersoundRateScale = labValueAtKey (settings, C::secondStage, key, 1.0);
+    v.phantomLevelScale = labValueAtKey (settings, C::phantomLevel, key, 1.0);
+    return v;
+}
+
+NoteParameters applyStringVoicing (const NoteParameters& p, const StringVoicing& v) noexcept
+{
+    if (v == StringVoicing {})
+        return p;
+
+    NoteParameters q = p;
+
+    if (v.inharmonicityScale != 1.0)
+    {
+        // The tuner put the first partial, f0·√(1 + B), on pitch; keep it there.
+        q.inharmonicity = p.inharmonicity * v.inharmonicityScale;
+        q.fundamental = p.fundamental * std::sqrt ((1.0 + p.inharmonicity) / (1.0 + q.inharmonicity));
+    }
+
+    q.unisonSpreadScale = p.unisonSpreadScale * v.unisonSpreadScale;
+
+    const double prompt = v.sustainRateScale;
+    const double aftersound = v.sustainRateScale * v.aftersoundRateScale;
+    q.decayConstant *= prompt;
+    q.decayPerHertzSquared *= prompt;
+    q.aftersoundDecayConstant *= aftersound;
+    q.aftersoundDecayPerHertzSquared *= aftersound;
+    for (int n = 0; n < q.numMeasuredPartials && n < NoteParameters::maxMeasuredPartials; ++n)
+    {
+        q.measuredPromptDecay[static_cast<std::size_t> (n)] *= prompt;
+        q.measuredAftersoundDecay[static_cast<std::size_t> (n)] *= aftersound;
+    }
+
+    q.decayTiltExponent = p.decayTiltExponent + v.overtoneDecayExponent;
+    q.phantomLevel = p.phantomLevel * v.phantomLevelScale;
+    return q;
+}
+
 double labTapeDrive (const lab::Settings& settings, double fitted) noexcept
 {
     return labMap (lab::Control::tapeDrive, settings.get (lab::Control::tapeDrive), fitted);

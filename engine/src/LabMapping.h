@@ -47,6 +47,27 @@ struct StrikeVoicing
 /** The note's hammer under the lab. committedStrikeVoicing() while the Hammer group is at 50. */
 [[nodiscard]] StrikeVoicing labStrikeVoicing (const lab::Settings& settings, const NoteParameters& p) noexcept;
 
+/** The strings' lab voicing on one note (SPEC §6.5). A note takes it the next time it starts
+    from rest. */
+struct StringVoicing
+{
+    double inharmonicityScale = 1.0;
+    double unisonSpreadScale = 1.0;
+    double sustainRateScale = 1.0;     // every decay rate
+    double overtoneDecayExponent = 0.0;
+    double aftersoundRateScale = 1.0;
+    double phantomLevelScale = 1.0;
+
+    friend bool operator== (const StringVoicing&, const StringVoicing&) = default;
+};
+
+/** The note's strings under the lab: StringVoicing {} while the Strings group is at 50. */
+[[nodiscard]] StringVoicing labStringVoicing (const lab::Settings& settings, const NoteParameters& p) noexcept;
+
+/** The note's parameters with the strings' voicing applied. Exactly p at StringVoicing {}.
+    Inharmonicity moves the string's fundamental so its first partial keeps its pitch. */
+[[nodiscard]] NoteParameters applyStringVoicing (const NoteParameters& p, const StringVoicing& voicing) noexcept;
+
 /** The output's tape drive under the lab (fitted = the model's). */
 [[nodiscard]] double labTapeDrive (const lab::Settings& settings, double fitted) noexcept;
 } // namespace forte::detail

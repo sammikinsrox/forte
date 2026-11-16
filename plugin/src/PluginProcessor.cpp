@@ -25,11 +25,13 @@ PluginProcessor::PluginProcessor()
 {
     lab.attach (parameters);
     startTimerHz (10);
+    voicingWorker.start();
 }
 
 PluginProcessor::~PluginProcessor()
 {
     stopTimer();
+    voicingWorker.stop();
 }
 
 void PluginProcessor::timerCallback()
@@ -50,7 +52,9 @@ void PluginProcessor::timerCallback()
 
 void PluginProcessor::prepareToPlay (double sampleRate, int maximumExpectedSamplesPerBlock)
 {
-    // Lab values land at once here, without the tape's glide.
+    // Lab values land at once here, without the tape's glide, and every note is built with the
+    // lab's strings. The voicing worker stays out meanwhile.
+    const juce::ScopedLock locked (engineLock);
     engine.setVoicingLab (lab.read());
     engine.prepare (sampleRate, maximumExpectedSamplesPerBlock);
 }

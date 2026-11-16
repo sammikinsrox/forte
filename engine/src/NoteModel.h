@@ -102,6 +102,16 @@ public:
         whole contact. prepare() sets the committed one. */
     void setStrikeVoicing (const StrikeVoicing& voicing) noexcept { strikeVoicing = voicing; }
 
+    /** What a re-prepared note (the voicing lab's strings, SPEC §6.5) keeps from the model it
+        replaces: the key, the damper and the hammer's voicing. Both must be at rest. */
+    void takeControlStateFrom (const NoteModel& other) noexcept
+    {
+        keyDown = other.keyDown;
+        keyLift = other.keyLift;
+        lift = other.lift;
+        strikeVoicing = other.strikeVoicing;
+    }
+
     /** Runs the note's control-rate work. Call at every controlInterval boundary of absolute
         sample time, so that output doesn't depend on how the host splits blocks. */
     void controlTick (float sustainLift) noexcept;

@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -50,7 +51,14 @@ constexpr int allNotesOff = 123;
 struct Engine::State
 {
     detail::PianoModel model = detail::makeSeedPianoModel();
-    std::array<detail::NoteModel, detail::numNotes> notes;
+    /** The 88 note models (SPEC §2.2). Held by pointer so a note can take re-prepared strings
+        (SPEC §6.5) by exchanging pointers on the audio thread. */
+    std::array<std::unique_ptr<detail::NoteModel>, detail::numNotes> notes = [] {
+        std::array<std::unique_ptr<detail::NoteModel>, detail::numNotes> made;
+        for (auto& n : made)
+            n = std::make_unique<detail::NoteModel>();
+        return made;
+    }();
 
     /** Each note's bridge region, as an index into regionBus. */
     std::array<std::uint8_t, detail::numNotes> noteRegion {};
@@ -80,8 +88,75 @@ struct Engine::State
     float sustainStepPerTick = 1.0f;
     float softPedal = 0.0f;      // the action's shift, read at each strike (SPEC §2.7)
 
-    /** Engine::getTailSeconds(), computed once from the model. */
-    double tailSeconds = 0.0;
+    /** Engine::getTailSeconds(), from each note's strings as built (the lab's included). */
+    std::atomic<double> tailSeconds { 0.0 };
+    std::array<double, detail::numNotes> noteTail {}, noteSlowestDecay {};
+
+    /** The voicing lab's strings (SPEC §6.5). Per note: a model built off the audio thread,
+        waiting for the note to start from rest, and the model it replaced, waiting to be freed
+        off the audio thread. Each slot has one writer and one reader and changes hands by
+        atomic exchange, so the audio thread never allocates, frees or waits. */
+    std::array<std::atomic<detail::NoteModel*>, detail::numNotes> incomingStrings {};
+    std::array<std::atomic<detail::NoteModel*>, detail::numNotes> retiredStrings {};
+
+    /** Off the audio thread: the strings each note's newest model (current or incoming) has. */
+    std::array<detail::StringVoicing, detail::numNotes> builtStrings {};
+
+    ~State()
+    {
+        for (auto* slots : { &incomingStrings, &retiredStrings })
+            for (auto& slot : *slots)
+                delete slot.exchange (nullptr);
+    }
+
+    /** The note's parameters under its strings' lab voicing. */
+    [[nodiscard]] detail::NoteParameters voicedNote (std::size_t i, const detail::StringVoicing& strings) const noexcept
+    {
+        return detail::applyStringVoicing (model.notes[i], strings);
+    }
+
+    void measureNoteTail (std::size_t i, const detail::NoteParameters& p)
+    {
+        noteTail[i] = detail::noteTailSeconds (p, model.unisonSpreadCents);
+        noteSlowestDecay[i] = detail::slowestStringDecay (p, model.unisonSpreadCents);
+    }
+
+    void updateTail()
+    {
+        double notesTail = 0.0;
+        double slowestDecay = std::numeric_limits<double>::infinity();
+        for (std::size_t i = 0; i < noteTail.size(); ++i)
+        {
+            notesTail = std::max (notesTail, noteTail[i]);
+            slowestDecay = std::min (slowestDecay, noteSlowestDecay[i]);
+        }
+
+        // The sympathetic bank can ring on past the strings that drive it. The soundboard rings
+        // on for the IR's length after the strings stop. The convolution's partition grid can
+        // carry rounding residue up to two partitions further, at most this long at the lowest
+        // host rate.
+        const double stringsTail = detail::sympatheticTailSeconds (model, notesTail, slowestDecay);
+        const double irSeconds = static_cast<double> (shippedIrs.length()) / shippedIrs.sampleRate;
+        tailSeconds.store (stringsTail + irSeconds + 2.0 * partitionSize / lowestSampleRate, std::memory_order_relaxed);
+    }
+
+    /** At a strike from rest, the note takes its incoming strings, if any and if the model they
+        replace before has been freed. Realtime-safe: an exchange and a swap of buffers. */
+    void adoptIncomingStrings (std::size_t i) noexcept
+    {
+        if (incomingStrings[i].load (std::memory_order_acquire) == nullptr
+            || retiredStrings[i].load (std::memory_order_acquire) != nullptr)
+            return;
+
+        auto* incoming = incomingStrings[i].exchange (nullptr, std::memory_order_acq_rel);
+        if (incoming == nullptr)
+            return;
+
+        incoming->takeControlStateFrom (*notes[i]);
+        detail::NoteModel* replaced = notes[i].release();
+        notes[i].reset (incoming);
+        retiredStrings[i].store (replaced, std::memory_order_release);
+    }
 
     /** Touch, until the parameter exists (SPEC §6.3). */
     double touch = detail::touchCalibrated;
@@ -140,7 +215,7 @@ struct Engine::State
         }
     }
 
-    detail::NoteModel& note (int midiNote) noexcept { return notes[static_cast<std::size_t> (midiNote - detail::lowestNote)]; }
+    detail::NoteModel& note (int midiNote) noexcept { return *notes[static_cast<std::size_t> (midiNote - detail::lowestNote)]; }
     std::uint32_t& keyCount (int midiNote) noexcept { return keyDownCount[static_cast<std::size_t> (midiNote - detail::lowestNote)]; }
 
     void noteOn (int midiNote, int velocity) noexcept
@@ -151,6 +226,9 @@ struct Engine::State
         auto& count = keyCount (midiNote);
         if (count < UINT32_MAX)
             ++count;
+
+        if (! note (midiNote).isSounding())
+            adoptIncomingStrings (static_cast<std::size_t> (midiNote - detail::lowestNote));
 
         auto& n = note (midiNote);
         n.setKeyDown (true);
@@ -190,7 +268,7 @@ struct Engine::State
             case cc::soft:                softPedal = pedalPosition (value); break;
             case cc::allSoundOff:
                 for (auto& n : notes)
-                    n.silence();
+                    n->silence();
                 sympathetic.silence();
                 soundboard.silence();
                 break;
@@ -210,7 +288,7 @@ struct Engine::State
 
         for (int i = 0; i < detail::numNotes; ++i)
         {
-            auto& n = notes[static_cast<std::size_t> (i)];
+            auto& n = *notes[static_cast<std::size_t> (i)];
             n.controlTick (sustainLift);
             sympathetic.controlTick (i, n.getLift());
         }
@@ -224,13 +302,13 @@ struct Engine::State
 
         for (std::size_t i = 0; i < notes.size(); ++i)
         {
-            noteSounded[i] = notes[i].isSounding();
+            noteSounded[i] = notes[i]->isSounding();
             if (! noteSounded[i])
                 continue;
 
             float* own = noteOutput[i].data();
             std::fill_n (own, length, 0.0f);
-            notes[i].render (own, noteScratch.data(), length);
+            notes[i]->render (own, noteScratch.data(), length);
 
             float* bus = regionBus[noteRegion[i]].data() + offset;
             for (int t = 0; t < length; ++t)
@@ -262,31 +340,21 @@ struct Engine::State
 Engine::Engine()
     : state (std::make_unique<State>())
 {
-    double notesTail = 0.0;
-    double slowestDecay = std::numeric_limits<double>::infinity();
-
-    for (const auto& note : state->model.notes)
+    for (std::size_t i = 0; i < state->model.notes.size(); ++i)
     {
-        notesTail = std::max (notesTail, detail::noteTailSeconds (note, state->model.unisonSpreadCents));
-        slowestDecay = std::min (slowestDecay, detail::slowestStringDecay (note, state->model.unisonSpreadCents));
-        state->noteRegion[static_cast<std::size_t> (note.midiNote - detail::lowestNote)] = static_cast<std::uint8_t> (note.bridgeRegion);
+        const auto& note = state->model.notes[i];
+        state->noteRegion[i] = static_cast<std::uint8_t> (note.bridgeRegion);
+        state->measureNoteTail (i, note);
     }
 
-    // The sympathetic bank can ring on past the strings that drive it.
-    const double stringsTail = detail::sympatheticTailSeconds (state->model, notesTail, slowestDecay);
-
-    // The soundboard rings on for the IR's length after the strings stop. The convolution's
-    // partition grid can carry rounding residue up to two partitions further, at most this long
-    // at the lowest host rate.
-    const double irSeconds = static_cast<double> (state->shippedIrs.length()) / state->shippedIrs.sampleRate;
-    state->tailSeconds = stringsTail + irSeconds + 2.0 * partitionSize / lowestSampleRate;
+    state->updateTail();
 }
 
 Engine::~Engine() = default;
 
 double Engine::getTailSeconds() const noexcept
 {
-    return state->tailSeconds;
+    return state->tailSeconds.load (std::memory_order_relaxed);
 }
 
 void Engine::prepare (double newSampleRate, int newMaxBlockSize)
@@ -294,12 +362,33 @@ void Engine::prepare (double newSampleRate, int newMaxBlockSize)
     sampleRate = newSampleRate;
     maxBlockSize = newMaxBlockSize;
 
-    const auto& model = state->model;
+    auto& s = *state;
+    const auto& model = s.model;
 
-    for (int midiNote = detail::lowestNote; midiNote <= detail::highestNote; ++midiNote)
-        state->note (midiNote).prepare (model.note (midiNote), model.unisonSpreadCents, model.outputGain, sampleRate);
+    // Every note is built with the lab's strings as they stand (SPEC §6.5), and nothing older
+    // is left waiting.
+    bool tailChanged = false;
+    for (std::size_t i = 0; i < s.notes.size(); ++i)
+    {
+        delete s.incomingStrings[i].exchange (nullptr);
+        delete s.retiredStrings[i].exchange (nullptr);
 
-    state->applyStrikeVoicing();
+        const auto strings = detail::labStringVoicing (s.lab, model.notes[i]);
+        const auto voiced = s.voicedNote (i, strings);
+        s.notes[i]->prepare (voiced, model.unisonSpreadCents, model.outputGain, sampleRate);
+
+        if (strings != s.builtStrings[i])
+        {
+            s.builtStrings[i] = strings;
+            s.measureNoteTail (i, voiced);
+            tailChanged = true;
+        }
+    }
+
+    if (tailChanged)
+        s.updateTail();
+
+    s.applyStrikeVoicing();
     state->tapeGlideSamples = tapeGlideSeconds * sampleRate;
 
     state->sympathetic.prepare (model, sampleRate);
@@ -312,7 +401,7 @@ void Engine::prepare (double newSampleRate, int newMaxBlockSize)
 void Engine::reset() noexcept
 {
     for (auto& n : state->notes)
-        n.reset();
+        n->reset();
 
     state->sympathetic.reset();
     state->soundboard.reset();
@@ -447,6 +536,54 @@ void Engine::setVoicingLab (const lab::Settings& settings) noexcept
 const lab::Settings& Engine::getVoicingLab() const noexcept
 {
     return state->lab;
+}
+
+int Engine::rebuildStrings (const lab::Settings& settings)
+{
+    auto& s = *state;
+    collectRetiredStrings();
+
+    if (maxBlockSize == 0)
+        return 0;  // not prepared yet: prepare() builds them
+
+    int built = 0;
+    for (std::size_t i = 0; i < s.notes.size(); ++i)
+    {
+        const auto strings = detail::labStringVoicing (settings, s.model.notes[i]);
+        if (strings == s.builtStrings[i])
+            continue;
+
+        const auto voiced = s.voicedNote (i, strings);
+        auto fresh = std::make_unique<detail::NoteModel>();
+        fresh->prepare (voiced, s.model.unisonSpreadCents, s.model.outputGain, sampleRate);
+
+        // A model the note never took is this thread's again; the newer one replaces it.
+        delete s.incomingStrings[i].exchange (fresh.release(), std::memory_order_acq_rel);
+
+        s.builtStrings[i] = strings;
+        s.measureNoteTail (i, voiced);
+        ++built;
+    }
+
+    if (built > 0)
+        s.updateTail();
+
+    return built;
+}
+
+void Engine::collectRetiredStrings() noexcept
+{
+    for (auto& slot : state->retiredStrings)
+        if (slot.load (std::memory_order_acquire) != nullptr)
+            delete slot.exchange (nullptr, std::memory_order_acq_rel);
+}
+
+bool Engine::hasIncomingStrings() const noexcept
+{
+    for (const auto& slot : state->incomingStrings)
+        if (slot.load (std::memory_order_acquire) != nullptr)
+            return true;
+    return false;
 }
 
 double Engine::getLabPhysicalValue (const lab::Settings& settings, lab::Control control, int midiNote) const noexcept

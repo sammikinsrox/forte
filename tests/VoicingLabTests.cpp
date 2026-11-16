@@ -12,9 +12,11 @@
 #include <catch2/generators/catch_generators.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
+#include <atomic>
 #include <cmath>
 #include <set>
 #include <string_view>
+#include <thread>
 
 using namespace forte;
 using namespace forte::test;
@@ -362,4 +364,184 @@ TEST_CASE ("Voicing lab: the export reads back, says what the values mean, and k
     REQUIRE (previous.existsAsFile());
     CHECK (*bridge::parseVoicing (previous.loadFileAsString(), error) == lab::Settings {});
     folder.getFile().deleteRecursively();
+}
+
+namespace
+{
+/** Renders events from a fresh engine in phases: before each phase's start, `change` runs
+    (with the engine and the phase's index), so a test can rebuild strings between them. */
+template <typename Change>
+Rendered renderPhases (const std::vector<TimedMidi>& events, const std::vector<std::int64_t>& phaseStarts, std::int64_t length, Change&& change)
+{
+    Engine engine;
+    engine.prepare (48000.0, 128);
+
+    Rendered out;
+    for (std::size_t phase = 0; phase < phaseStarts.size(); ++phase)
+    {
+        const auto start = phaseStarts[phase];
+        const auto end = phase + 1 < phaseStarts.size() ? phaseStarts[phase + 1] : length;
+        change (engine, phase);
+
+        std::vector<TimedMidi> inPhase;
+        for (const auto& e : events)
+            if (e.sample >= start && e.sample < end)
+                inPhase.push_back ({ e.sample - start, e.message });
+
+        const auto part = render (engine, inPhase, end - start);
+        out.left.insert (out.left.end(), part.left.begin(), part.left.end());
+        out.right.insert (out.right.end(), part.right.begin(), part.right.end());
+    }
+    return out;
+}
+} // namespace
+
+TEST_CASE ("Voicing lab: string controls reach a note only when it next starts from rest", "[lab][engine][strings]")
+{
+    const auto control = GENERATE (Control::inharmonicity, Control::unisonSpread, Control::sustain,
+                                   Control::overtoneDecay, Control::secondStage, Control::phantomLevel);
+    const auto value = GENERATE (0.0f, 100.0f);
+    INFO ("control " << lab::info (control).id << " at " << value);
+
+    // Phantom partials are on the bass notes only. The change lands while the note rings; a
+    // restrike while it still sounds keeps the old strings; once released and silent, the next
+    // strike takes the new ones.
+    const int note = control == Control::phantomLevel ? 40 : 84;
+    const std::int64_t change = second / 4, ringingRestrike = second / 2, release = 6 * second / 10;
+    const std::int64_t fromRest = 3 * second, length = 3 * second + second / 2;
+    const std::vector<TimedMidi> events { noteOn (0, note, 100), noteOn (ringingRestrike, note, 100),
+                                          noteOff (release, note), noteOff (release, note), noteOn (fromRest, note, 100) };
+
+    const auto committed = renderFresh (events, length);
+    const auto changed = renderPhases (events, { 0, change }, length, [&] (Engine& e, std::size_t phase)
+    {
+        if (phase == 1)
+            REQUIRE (e.rebuildStrings (with (control, value)) > 0);
+    });
+
+    CHECK (slice (changed.left, 0, fromRest) == slice (committed.left, 0, fromRest));
+    CHECK (slice (changed.right, 0, fromRest) == slice (committed.right, 0, fromRest));
+    CHECK (slice (changed.left, fromRest, length) != slice (committed.left, fromRest, length));
+}
+
+TEST_CASE ("Voicing lab: strings back at 50 are the committed ones bit for bit", "[lab][engine][strings]")
+{
+    const std::vector<TimedMidi> notes { noteOn (0, 30, 90), noteOn (100, 60, 110), noteOn (5000, 96, 127) };
+    const auto committed = renderFresh (notes, second);
+
+    const auto out = renderPhases (notes, { 0 }, second, [] (Engine& e, std::size_t)
+    {
+        lab::Settings moved = with (Control::sustain, 10.0f);
+        moved.set (Control::inharmonicity, Register::treble, 90.0f);
+        moved.set (Control::phantomLevel, Register::bass, 100.0f);
+        REQUIRE (e.rebuildStrings (moved) == 88);
+        REQUIRE (e.rebuildStrings (lab::Settings {}) == 88);
+    });
+
+    CHECK (out.left == committed.left);
+    CHECK (out.right == committed.right);
+}
+
+TEST_CASE ("Voicing lab: prepare() builds the lab's strings as a rebuild does", "[lab][engine][strings]")
+{
+    lab::Settings s = with (Control::overtoneDecay, 80.0f);
+    s.set (Control::unisonSpread, Register::middle, 100.0f);
+    const std::vector<TimedMidi> notes { noteOn (0, 45, 100), noteOn (0, 64, 100), noteOn (200, 88, 100) };
+
+    Engine prepared;
+    prepared.setVoicingLab (s);
+    prepared.prepare (48000.0, 128);
+    const auto a = render (prepared, notes, second / 2);
+
+    const auto b = renderPhases (notes, { 0 }, second / 2, [&] (Engine& e, std::size_t) { e.rebuildStrings (s); });
+
+    CHECK (a.left == b.left);
+    CHECK (a.left != renderFresh (notes, second / 2).left);
+}
+
+TEST_CASE ("Voicing lab: inharmonicity keeps the first partial on pitch", "[lab][strings]")
+{
+    const auto model = detail::makeSeedPianoModel();
+
+    for (double scale : { 0.5, 2.0 })
+        for (const auto& p : model.notes)
+        {
+            detail::StringVoicing v;
+            v.inharmonicityScale = scale;
+            const auto q = detail::applyStringVoicing (p, v);
+            CHECK_THAT (q.inharmonicity, WithinRel (p.inharmonicity * scale, 1e-12));
+            CHECK_THAT (detail::partialFrequency (q, 1), WithinRel (detail::partialFrequency (p, 1), 1e-12));
+        }
+}
+
+TEST_CASE ("Voicing lab: a note taking its new strings doesn't allocate", "[lab][engine][strings][audio-thread]")
+{
+    Engine engine;
+    engine.prepare (48000.0, 128);
+    REQUIRE (engine.rebuildStrings (with (Control::sustain, 80.0f)) > 0);
+    REQUIRE (engine.hasIncomingStrings());
+    std::vector<float> left (128), right (128);
+
+    const auto use = heapUseOnAudioThread ([&]
+    {
+        engine.handleMidi ({ { 0x90, 60, 100 }, 3 });
+        engine.handleMidi ({ { 0x90, 84, 100 }, 3 });
+        for (int block = 0; block < 20; ++block)
+            engine.render (left.data(), right.data(), 128);
+    });
+
+    CHECK_FALSE (use.any());
+    engine.collectRetiredStrings();
+}
+
+TEST_CASE ("Voicing lab: longer sustain lengthens the reported tail", "[lab][engine][strings]")
+{
+    Engine engine;
+    engine.prepare (48000.0, 128);
+    const double committed = engine.getTailSeconds();
+
+    engine.rebuildStrings (with (Control::sustain, 100.0f));
+    CHECK (engine.getTailSeconds() > 1.5 * committed);
+
+    engine.rebuildStrings (lab::Settings {});
+    CHECK (engine.getTailSeconds() == committed);
+}
+
+TEST_CASE ("Voicing lab: strings rebuilt on another thread while notes play", "[lab][engine][strings]")
+{
+    // The handover under load: a worker rebuilding the treble's strings over and over while the
+    // audio thread strikes, releases and renders. Nothing may crash, leak or go non-finite.
+    Engine engine;
+    engine.prepare (48000.0, 128);
+    std::atomic<bool> done { false };
+
+    std::thread worker ([&]
+    {
+        for (int i = 0; i < 12; ++i)
+        {
+            lab::Settings s;
+            s.set (Control::sustain, Register::treble, static_cast<float> (10 * (i % 10)));
+            s.set (Control::inharmonicity, Register::treble, static_cast<float> (100 - 8 * (i % 10)));
+            engine.rebuildStrings (s);
+        }
+        engine.collectRetiredStrings();
+        done = true;
+    });
+
+    std::vector<float> left (128), right (128);
+    bool finite = true;
+    for (int block = 0; ! done || block < 200; ++block)
+    {
+        const auto note = static_cast<std::uint8_t> (72 + (block % 30));
+        if (block % 3 == 0)
+            engine.handleMidi ({ { 0x90, note, 90 }, 3 });
+        if (block % 3 == 2)
+            engine.handleMidi ({ { 0x80, note, 0 }, 3 });
+
+        engine.render (left.data(), right.data(), 128);
+        finite = finite && allFinite (left) && allFinite (right);
+    }
+
+    worker.join();
+    CHECK (finite);
 }

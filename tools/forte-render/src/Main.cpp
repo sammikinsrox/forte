@@ -170,7 +170,6 @@ int run (const Options& options)
         return fail ("can't create a WAV writer for " + options.output.getFullPathName());
 
     forte::Engine engine;
-    engine.prepare (options.sampleRate, options.blockSize);
 
     if (options.voicing != juce::File())
     {
@@ -181,10 +180,11 @@ int run (const Options& options)
         if (! voicing)
             return fail (options.voicing.getFullPathName() + ": " + error);
 
-        // Applied before the first sample, so nothing glides: reset() lands every lab value.
+        // Before prepare(), so every note is built with the lab's strings and nothing glides.
         engine.setVoicingLab (*voicing);
-        engine.reset();
     }
+
+    engine.prepare (options.sampleRate, options.blockSize);
 
     juce::AudioBuffer<float> buffer (forte::Engine::numOutputChannels, options.blockSize);
     juce::MidiBuffer midi;
