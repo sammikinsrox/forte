@@ -589,8 +589,10 @@ plays every note twice on two channels, panned and ±2 cents bent, with CC7 = 12
 - **Found on the way:** the board's colour is a zero-phase EQ, and on the direct path (an impulse
   at tap 0) its acausal half is cut off, so the direct path doesn't get the fitted curve: the
   middle and treble regions' 3-6 kHz cuts (−3 to −3.5 dB asked) come out +3 to +4 dB, the
-  treble's 150-300 Hz −3.8 as +3.9. A plausible part of the "tinny" treble; a minimum-phase colour
-  would fix it but changes the committed sound, so it's its own A/B. The lab's colour shelves and
+  treble's 150-300 Hz −3.8 as +3.9. A/B'd on Autumn Leaves and the Chopin prelude against a
+  minimum-phase colour (the direct path then gets the curve exactly; whole pieces +2 dB at
+  1-3.5 kHz, closer to Keyscape's band shares, Chopin −2 dB below 250 Hz): the user found the
+  difference very subtle and kept the current one, so it isn't the "tinny" treble. The lab's colour shelves and
   board tilt inherit the generator's normalisations: boosts reach about half their dB, the tilt
   moves the top less than its slope, and a Mid cut is partly given back everywhere else.
 
