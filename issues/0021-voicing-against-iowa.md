@@ -574,6 +574,26 @@ plays every note twice on two channels, panned and ±2 cents bent, with CC7 = 12
   has partials 2-6 15-30 dB over the fundamental), Keyscape's velocity loudness, release sounds,
   and C7+ notes reaching the −100 dBFS resting level after about a second.
 
+### 16. The voicing lab (2026-11-16)
+
+- **Built** (SPEC §6.5, commits 742fe4f to step 7): 18 Lab parameters in the host, the hammer on
+  the next strike, the strings on a note's next strike from rest, the board as a crossfade to
+  rebuilt IRs, tape at once; Export voicing; `tools/fitting/fold_voicing.py` folds an export into
+  the committed voicing (a rehearsal fold matched the lab's render within ±0.12 dB per
+  third-octave band). At every 50, renders are bit-identical to dabb951's in Debug and Release.
+- **Costs** (88-key sustain glissando, 128-sample blocks, Release, SSE2 build, net of startup):
+  dabb951 8.4-8.5% at 48 kHz, the lab at 50 8.6%, every control at 0 5.3%, at 100 9.4%, the
+  costliest mix (lowest inharmonicity, longest rings, softest and heaviest hammer) 9.2%; at
+  96 kHz 21.2%, 20.3% and 21.9%. The gate is 25% / 50%. Rebuilds run off the audio thread: all
+  88 notes' strings in ~7 ms, the board in ~160-215 ms.
+- **Found on the way:** the board's colour is a zero-phase EQ, and on the direct path (an impulse
+  at tap 0) its acausal half is cut off, so the direct path doesn't get the fitted curve: the
+  middle and treble regions' 3-6 kHz cuts (−3 to −3.5 dB asked) come out +3 to +4 dB, the
+  treble's 150-300 Hz −3.8 as +3.9. A plausible part of the "tinny" treble; a minimum-phase colour
+  would fix it but changes the committed sound, so it's its own A/B. The lab's colour shelves and
+  board tilt inherit the generator's normalisations: boosts reach about half their dB, the tilt
+  moves the top less than its slope, and a Mid cut is partly given back everywhere else.
+
 ## Plan
 
 How to get bright + full + shimmer + rumble without twang. Twang and brightness live in different
@@ -619,8 +639,10 @@ Since §15 the committed voicing is the user's "glass-fix" (2026-11-16), fitted 
   `data/model/decay.json`, `engine/src/DecayFit.inc`. The fit's `SPREAD_KEYS`/`SPREAD_SCALES`
   must match `PianoModel.cpp`'s per-note spread.
 - **Inharmonicity, knock, spread, tape:** in `PianoModel.cpp` (`seedNote`, `makeSeedPianoModel`).
-- **Board:** `make_seed_irs.py` with board-bright's settings (tilt 8) and `COLOUR_FILE` =
-  `data/model/board-colour.json`.
+- **Board:** `make_seed_irs.py` with board-bright's settings, the direct gain (per region) and
+  tilt in `data/model/board.json` (0.5, 8), and `COLOUR_FILE` = `data/model/board-colour.json`.
+- **Voicing lab folds** (§16): `data/model/voicing-overrides.json` on top of all of the above,
+  through `engine/src/VoicingOverrides.inc`; its revision counts the folds (0: none yet).
 
 Before §14, the values to reproduce what was heard:
 
@@ -635,7 +657,7 @@ Before §14, the values to reproduce what was heard:
   velocity-127 notes stay below 0 dBFS (the hammer stability test checks it).
 - **Board** (`tools/seed-irs/make_seed_irs.py`, all at prototype values now):
   - "fuller board": `RADIATION_CORNER_HZ` 250, `STATISTICAL_MODES_FROM_HZ` 80;
-  - "board #9": `DIRECT_LOW_SHELF_DB` 12, with `DIRECT_GAIN` 0.5 the user's favourite for clarity;
+  - "board #9": `DIRECT_LOW_SHELF_DB` 12, with `DIRECT_GAIN` 0.5 (now `board.json`) the user's favourite for clarity;
   - "board-bright" (§11): board #9 plus `MODE_TILT_DB_PER_OCTAVE` 6, `MODE_ROLLOFF_HZ` 12000.
 
   Regenerate with `python tools/seed-irs/make_seed_irs.py`, then rebuild (the IRs are embedded).
