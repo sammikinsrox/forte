@@ -58,6 +58,10 @@ std::unique_ptr<juce::AudioProcessorParameterGroup> LabParameters::createGroup()
         labGroup->addChild (std::move (group));
     }
 
+    labGroup->addChild (std::make_unique<juce::AudioParameterBool> (
+        juce::ParameterID { exportParameterId, 1 }, "Export voicing", false,
+        juce::AudioParameterBoolAttributes().withAutomatable (false)));
+
     return labGroup;
 }
 
@@ -70,6 +74,9 @@ void LabParameters::attach (juce::AudioProcessorValueTreeState& apvts)
             jassert (value != nullptr);
             values[static_cast<std::size_t> (c.control)][static_cast<std::size_t> (r)] = value;
         }
+
+    exportVoicing = apvts.getParameter (exportParameterId);
+    jassert (exportVoicing != nullptr);
 }
 
 lab::Settings LabParameters::read() const noexcept

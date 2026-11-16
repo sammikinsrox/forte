@@ -448,4 +448,9 @@ const lab::Settings& Engine::getVoicingLab() const noexcept
 {
     return state->lab;
 }
+
+double Engine::getLabPhysicalValue (const lab::Settings& settings, lab::Control control, int midiNote) const noexcept
+{
+    return detail::labValueAtKey (settings, control, midiNote, detail::committedLabValue (control, state->model, midiNote));
+}
 } // namespace forte

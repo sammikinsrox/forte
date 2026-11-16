@@ -6,6 +6,7 @@
 
 #include "LabMapping.h"
 #include "PianoModel.h"
+#include "VoicingExport.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
@@ -329,4 +330,36 @@ TEST_CASE ("Voicing lab: the voicing file round-trips, and missing entries are 5
 
     CHECK_FALSE (bridge::parseVoicing (R"({ "format": "something-else", "controls": {} })", error).has_value());
     CHECK_FALSE (bridge::parseVoicing (R"({ "format": "forte-voicing", "controls": { "tapeDrive": 140 } })", error).has_value());
+}
+
+TEST_CASE ("Voicing lab: the export reads back, says what the values mean, and keeps the last file", "[lab]")
+{
+    const Engine engine;
+    lab::Settings s;
+    s.set (Control::feltHardness, Register::bass, 100.0f);
+    s.set (Control::tapeDrive, Register::bass, 0.0f);
+
+    const auto text = makeVoicingFile (engine, s);
+    juce::String error;
+    const auto read = bridge::parseVoicing (text, error);
+    REQUIRE (read.has_value());
+    CHECK (*read == s);
+
+    const auto root = juce::JSON::parse (text);
+    CHECK_THAT (static_cast<double> (root["physical"]["feltHardness"]["bass"]), WithinRel (4.0, 1e-12));
+    CHECK (static_cast<double> (root["physical"]["feltHardness"]["middle"]) == 1.0);
+    CHECK (static_cast<double> (root["physical"]["tapeDrive"]) == 0.0);
+    CHECK (static_cast<double> (root["physical"]["pickup"]["treble"]) == 0.5);
+    CHECK (root["builtFrom"].toString().isNotEmpty());
+
+    const juce::TemporaryFile folder;
+    const auto target = folder.getFile().getChildFile ("Forte").getChildFile ("voicing.json");
+    REQUIRE (exportVoicing (engine, lab::Settings {}, target).wasOk());
+    REQUIRE (exportVoicing (engine, s, target).wasOk());
+
+    CHECK (*bridge::parseVoicing (target.loadFileAsString(), error) == s);
+    const auto previous = target.getSiblingFile ("voicing.previous.json");
+    REQUIRE (previous.existsAsFile());
+    CHECK (*bridge::parseVoicing (previous.loadFileAsString(), error) == lab::Settings {});
+    folder.getFile().deleteRecursively();
 }

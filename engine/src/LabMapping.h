@@ -21,6 +21,15 @@ namespace forte::detail
     value. Exact `fitted` while the control is at 50. */
 [[nodiscard]] double labValueAtKey (const lab::Settings& settings, lab::Control control, double midiNote, double fitted) noexcept;
 
+/** The board's committed settings, as tools/seed-irs/make_seed_irs.py built the shipped IRs
+    (DIRECT_GAIN, MODE_TILT_DB_PER_OCTAVE). */
+inline constexpr double committedPickup = 0.5;
+inline constexpr double committedBoardTilt = 8.0;
+
+/** The committed value a control's 50 stands for on a note: 1 for multipliers, 0 for offsets,
+    the model's own value for the absolute ones. */
+[[nodiscard]] double committedLabValue (lab::Control control, const PianoModel& model, int midiNote) noexcept;
+
 /** The hammer's lab voicing on one note, read at each strike (SPEC §2.9, §6.5). */
 struct StrikeVoicing
 {

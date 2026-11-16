@@ -12,11 +12,18 @@ namespace forte
 
     Parameters: so far only the voicing lab's (SPEC §6.5), shown by the host's generic editor
     until the custom editor exists (SPEC §6.1). The project state is their values plus a
-    state-format version (SPEC §7.3). */
-class PluginProcessor final : public juce::AudioProcessor
+    state-format version (SPEC §7.3).
+
+    Export voicing (SPEC §6.5) is polled on the message thread, never handled on the audio
+    thread: when it's on, the processor writes Documents/Forte/voicing.json and turns it off.
+    With the environment variable FORTE_NO_VOICING_EXPORT set (the tests set it for pluginval,
+    which flips every parameter), it only turns it off. */
+class PluginProcessor final : public juce::AudioProcessor,
+                              private juce::Timer
 {
 public:
     PluginProcessor();
+    ~PluginProcessor() override;
 
     void prepareToPlay (double sampleRate, int maximumExpectedSamplesPerBlock) override;
     void releaseResources() override;
@@ -52,6 +59,8 @@ public:
     static constexpr int stateVersion = 1;
 
 private:
+    void timerCallback() override;
+
     Engine engine;
     juce::AudioProcessorValueTreeState parameters;
     LabParameters lab;

@@ -68,6 +68,11 @@ public:
 
     [[nodiscard]] const lab::Settings& getVoicingLab() const noexcept;
 
+    /** What a control means on a note under settings, in its physical terms (a multiplier, ε,
+        dB/octave, …; see lab::controls' ranges). Reads only the piano model, which never changes
+        after construction, so it's safe from any thread. */
+    [[nodiscard]] double getLabPhysicalValue (const lab::Settings& settings, lab::Control control, int midiNote) const noexcept;
+
     /** The longest the engine can go on sounding after the last MIDI event: an undamped (or
         pedalled) note decaying from full scale to rest, through its slowest coupled mode, then
         the soundboard IR's length. Depends only on the piano model and the IRs, not on the

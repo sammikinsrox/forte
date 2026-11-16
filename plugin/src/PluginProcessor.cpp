@@ -1,5 +1,7 @@
 #include "PluginProcessor.h"
 
+#include "VoicingExport.h"
+
 #include "forte/bridge/RenderBlock.h"
 
 namespace forte
@@ -22,6 +24,28 @@ PluginProcessor::PluginProcessor()
       parameters (*this, nullptr, stateType, createLayout())
 {
     lab.attach (parameters);
+    startTimerHz (10);
+}
+
+PluginProcessor::~PluginProcessor()
+{
+    stopTimer();
+}
+
+void PluginProcessor::timerCallback()
+{
+    auto& button = lab.exportParameter();
+    if (button.getValue() < 0.5f)
+        return;
+
+    if (juce::SystemStats::getEnvironmentVariable ("FORTE_NO_VOICING_EXPORT", {}).isEmpty())
+    {
+        const auto result = exportVoicing (engine, lab.read(), defaultVoicingFile());
+        if (result.failed())
+            DBG ("Forte: Export voicing failed: " << result.getErrorMessage());
+    }
+
+    button.setValueNotifyingHost (0.0f);
 }
 
 void PluginProcessor::prepareToPlay (double sampleRate, int maximumExpectedSamplesPerBlock)
@@ -83,6 +107,9 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
         parameter->setValueNotifyingHost (parameter->getDefaultValue());
 
     parameters.replaceState (juce::ValueTree::fromXml (*xml));
+
+    // A project saved mid-export must not export again when it opens.
+    lab.exportParameter().setValueNotifyingHost (0.0f);
 }
 } // namespace forte
 

@@ -122,6 +122,26 @@ double labValueAtKey (const lab::Settings& settings, lab::Control control, doubl
     return interpolate (a, b, t, labInterpolatesInLog (control));
 }
 
+double committedLabValue (lab::Control control, const PianoModel& model, int midiNote) noexcept
+{
+    using C = lab::Control;
+    const auto& p = model.note (std::clamp (midiNote, lowestNote, highestNote));
+
+    switch (control)
+    {
+        case C::feltSpike:          return p.feltRelaxation;
+        case C::velocityBrightness: return p.contactSpeedExponent;
+        case C::overtoneDecay:
+        case C::colourLow:
+        case C::colourMid:
+        case C::colourHigh:         return 0.0;
+        case C::pickup:             return committedPickup;
+        case C::boardTilt:          return committedBoardTilt;
+        case C::tapeDrive:          return model.tapeDrive;
+        default:                    return 1.0;  // the multipliers
+    }
+}
+
 StrikeVoicing committedStrikeVoicing (const NoteParameters& p) noexcept
 {
     StrikeVoicing v;

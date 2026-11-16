@@ -23,13 +23,20 @@ public:
 
     [[nodiscard]] static juce::String parameterId (lab::Control control, lab::Register reg);
 
-    /** Finds every lab parameter's value in apvts. Call once, after apvts exists. */
+    /** Export voicing: a momentary on/off. Turning it on asks for an export; the processor
+        turns it off again once the file is written. */
+    static constexpr const char* exportParameterId = "lab.exportVoicing";
+
+    /** Finds every lab parameter in apvts. Call once, after apvts exists. */
     void attach (juce::AudioProcessorValueTreeState& apvts);
 
     /** The current values. Realtime-safe: atomic loads only. */
     [[nodiscard]] lab::Settings read() const noexcept;
 
+    [[nodiscard]] juce::RangedAudioParameter& exportParameter() const noexcept { return *exportVoicing; }
+
 private:
     std::array<std::array<std::atomic<float>*, lab::numRegisters>, lab::numControls> values {};
+    juce::RangedAudioParameter* exportVoicing = nullptr;
 };
 } // namespace forte
