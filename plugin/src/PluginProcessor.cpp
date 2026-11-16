@@ -44,7 +44,9 @@ void PluginProcessor::timerCallback()
     {
         const auto result = exportVoicing (engine, lab.read(), defaultVoicingFile());
         if (result.failed())
+        {
             DBG ("Forte: Export voicing failed: " << result.getErrorMessage());
+        }
     }
 
     button.setValueNotifyingHost (0.0f);

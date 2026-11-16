@@ -67,6 +67,23 @@ struct Engine::State
     detail::SoundboardIrs shippedIrs = detail::loadEmbeddedIrs();
     detail::Soundboard soundboard;
 
+    /** The voicing lab's board (SPEC §6.5): the parts it rebuilds the IRs from, the shipped IRs
+        at the prepared rate (what it plays at the Board group's 50s), and, off the audio thread,
+        the board of the soundboard's newest bank (offered or taken) and of the one it played
+        before that offer. */
+    detail::BoardParts boardParts = detail::loadEmbeddedBoardParts();
+    detail::SoundboardIrs shippedAtRate;
+    detail::BoardVoicing builtBoard = detail::committedBoardVoicing();
+    detail::BoardVoicing playingBoard = detail::committedBoardVoicing();
+
+    [[nodiscard]] detail::SoundboardIrs boardIrs (const detail::BoardVoicing& board, double rate) const
+    {
+        if (board == detail::committedBoardVoicing())
+            return shippedAtRate;
+
+        return detail::resampleIrs (detail::buildBoardIrs (boardParts, board), rate);
+    }
+
     detail::SympatheticBank sympathetic;
 
     /** The notes' and banks' bridge force per region, for the current stretch of one partition. */
@@ -392,7 +409,9 @@ void Engine::prepare (double newSampleRate, int newMaxBlockSize)
     state->tapeGlideSamples = tapeGlideSeconds * sampleRate;
 
     state->sympathetic.prepare (model, sampleRate);
-    state->soundboard.prepare (detail::resampleIrs (state->shippedIrs, sampleRate));
+    state->shippedAtRate = detail::resampleIrs (state->shippedIrs, sampleRate);
+    state->builtBoard = state->playingBoard = detail::labBoardVoicing (state->lab);
+    state->soundboard.prepare (state->boardIrs (state->builtBoard, sampleRate));
 
     state->sustainStepPerTick = static_cast<float> (controlInterval / (pedalSmoothingSeconds * sampleRate));
     reset();
@@ -541,7 +560,7 @@ const lab::Settings& Engine::getVoicingLab() const noexcept
 int Engine::rebuildStrings (const lab::Settings& settings)
 {
     auto& s = *state;
-    collectRetiredStrings();
+    collectRetired();
 
     if (maxBlockSize == 0)
         return 0;  // not prepared yet: prepare() builds them
@@ -571,11 +590,44 @@ int Engine::rebuildStrings (const lab::Settings& settings)
     return built;
 }
 
-void Engine::collectRetiredStrings() noexcept
+bool Engine::rebuildBoard (const lab::Settings& settings)
+{
+    auto& s = *state;
+    collectRetired();
+
+    if (maxBlockSize == 0)
+        return false;  // not prepared yet: prepare() builds it
+
+    const auto board = detail::labBoardVoicing (settings);
+    if (board == s.builtBoard)
+        return false;
+
+    // An offer the soundboard never took is withdrawn, so a board moved and put back before
+    // then doesn't fade between two copies of the same IRs (which isn't bit-exact).
+    if (! s.soundboard.withdrawBank())
+        s.playingBoard = s.builtBoard;  // it took the last one (or there was none)
+
+    s.builtBoard = s.playingBoard;
+    if (board == s.playingBoard)
+        return false;
+
+    s.soundboard.offerBank (s.soundboard.makeBank (s.boardIrs (board, sampleRate)));
+    s.builtBoard = board;
+    return true;
+}
+
+void Engine::collectRetired() noexcept
 {
     for (auto& slot : state->retiredStrings)
         if (slot.load (std::memory_order_acquire) != nullptr)
             delete slot.exchange (nullptr, std::memory_order_acq_rel);
+
+    state->soundboard.collectRetiredBank();
+}
+
+bool Engine::hasIncomingBoard() const noexcept
+{
+    return state->soundboard.hasIncomingBank();
 }
 
 bool Engine::hasIncomingStrings() const noexcept

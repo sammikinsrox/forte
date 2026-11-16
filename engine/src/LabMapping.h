@@ -2,6 +2,8 @@
 
 #include "forte/engine/VoicingLab.h"
 
+#include "BoardBuilder.h"
+#include "BoardSettings.h"
 #include "PianoModel.h"
 
 namespace forte::detail
@@ -23,8 +25,8 @@ namespace forte::detail
 
 /** The board's committed settings, as tools/seed-irs/make_seed_irs.py built the shipped IRs
     (DIRECT_GAIN, MODE_TILT_DB_PER_OCTAVE). */
-inline constexpr double committedPickup = 0.5;
-inline constexpr double committedBoardTilt = 8.0;
+inline constexpr double committedPickup = board::directGain;
+inline constexpr double committedBoardTilt = board::modeTiltDbPerOctave;
 
 /** The committed value a control's 50 stands for on a note: 1 for multipliers, 0 for offsets,
     the model's own value for the absolute ones. */
@@ -67,6 +69,10 @@ struct StringVoicing
 /** The note's parameters with the strings' voicing applied. Exactly p at StringVoicing {}.
     Inharmonicity moves the string's fundamental so its first partial keeps its pitch. */
 [[nodiscard]] NoteParameters applyStringVoicing (const NoteParameters& p, const StringVoicing& voicing) noexcept;
+
+/** The board under the lab (SPEC §6.5): per region, the per-register controls read at
+    regionCentreKey(). Exactly committedBoardVoicing() while the Board group is at 50. */
+[[nodiscard]] BoardVoicing labBoardVoicing (const lab::Settings& settings) noexcept;
 
 /** The output's tape drive under the lab (fitted = the model's). */
 [[nodiscard]] double labTapeDrive (const lab::Settings& settings, double fitted) noexcept;

@@ -24,6 +24,12 @@ On top of the generator, for each IR:
   100 Hz-1 kHz, where most of a piano's energy is. The soundboard then leaves a piano's loudness
   roughly as the bridge force had it (unit broadband energy instead made a pedalled glissando
   6 dB louder, the modes being strongest in that band), and both perspectives play equally loud.
+
+It also writes what the engine needs to build the IRs again under the voicing lab's Board
+controls (SPEC §6.5): each IR's resonant part, before the direct path, colour, placement, fade and
+gain, as data/ir/parts/<perspective>-<region>-modes.wav, and the settings above as
+engine/src/BoardSettings.inc. At the lab's 50s the engine's rebuild is these IRs again (the tests
+check it), though it plays the shipped files.
 """
 
 import argparse
@@ -118,6 +124,25 @@ def soundboard_ir(region_seed, sr, taps, radiation_corner=500.0, statistical_fro
     statistical_from. Modes below LOW_MODE_LIMIT_HZ are damped low_mode_damping times more, and
     the direct path gets a low shelf of direct_shelf_db at direct_shelf_hz. The defaults are the
     prototype's own."""
+    ir = soundboard_modes(region_seed, sr, taps, radiation_corner, statistical_from, low_mode_damping,
+                          mode_rolloff, mode_tilt)
+    return ir + direct_path(sr, taps, direct_shelf_db, direct_shelf_hz, direct_gain)
+
+
+def direct_path(sr, taps, direct_shelf_db, direct_shelf_hz, direct_gain):
+    """The smooth (non-resonant) part. At 0.35 the random modes alone swung partial levels by up to
+    +/-20 dB (C4 came out hollow); 2.0 keeps the swings around +/-3-6 dB. Plath calibration must
+    set this."""
+    direct = np.zeros((taps, 2)); direct[0] = [direct_gain, direct_gain]
+    if direct_shelf_db != 0.0:
+        direct = direct_gain * np.repeat(low_shelf(direct_shelf_db, direct_shelf_hz, sr, taps)[:, None], 2, axis=1)
+    return direct
+
+
+def soundboard_modes(region_seed, sr, taps, radiation_corner, statistical_from, low_mode_damping,
+                     mode_rolloff, mode_tilt):
+    """The resonant part of soundboard_ir(), scaled so its louder channel has unit energy. The
+    engine keeps it (data/ir/parts) to rebuild the IRs under the voicing lab (SPEC §6.5)."""
     r = np.random.default_rng(region_seed)
     t = np.arange(taps) / sr
     low = [50, 62, 90, 105, 127, 187, 222, 245, 325]
@@ -146,12 +171,6 @@ def soundboard_ir(region_seed, sr, taps, radiation_corner=500.0, statistical_fro
                 ir[:, c] += (g[sl, None] * np.exp(-alpha[sl, None] * t) *
                              np.sin(2 * np.pi * freqs[sl, None] * t + ph[sl, None])).sum(0)
     ir[:, :] /= np.sqrt((ir ** 2).sum(0).max())
-    # Smooth (non-resonant) part. At 0.35 the random modes alone swung partial levels by up to
-    # +/-20 dB (C4 came out hollow); 2.0 keeps the swings around +/-3-6 dB. Plath calibration must set this.
-    direct = np.zeros_like(ir); direct[0] = [direct_gain, direct_gain]
-    if direct_shelf_db != 0.0:
-        direct = direct_gain * np.repeat(low_shelf(direct_shelf_db, direct_shelf_hz, sr, taps)[:, None], 2, axis=1)
-    ir = ir + direct
     return ir
 
 
@@ -181,24 +200,65 @@ def apply_colour(ir, centres, gains_db):
     return np.fft.irfft(spectrum * gain[:, None], size, axis=0)[: ir.shape[0]]
 
 
+def load_colour():
+    if not COLOUR_FILE:
+        return None
+    import json
+    return json.loads(Path(COLOUR_FILE).read_text())
+
+
 def perspective_irs(name):
+    """The perspective's IRs, and each one's kept mode part (soundboard_modes())."""
     first_seed, spread = PERSPECTIVES[name]
     w = fade_out(TAPS, SR)
-    colour = None
-    if COLOUR_FILE:
-        import json
-        colour = json.loads(Path(COLOUR_FILE).read_text())
-    irs = {}
+    colour = load_colour()
+    irs, modes = {}, {}
     for i, region in enumerate(REGIONS):
-        ir = soundboard_ir(first_seed + i, SR, TAPS, RADIATION_CORNER_HZ, STATISTICAL_MODES_FROM_HZ,
-                           LOW_MODE_DAMPING, DIRECT_LOW_SHELF_DB, DIRECT_LOW_SHELF_HZ, DIRECT_GAIN,
-                           MODE_ROLLOFF_HZ, MODE_TILT_DB_PER_OCTAVE)
+        modes[region] = soundboard_modes(first_seed + i, SR, TAPS, RADIATION_CORNER_HZ, STATISTICAL_MODES_FROM_HZ,
+                                         LOW_MODE_DAMPING, MODE_ROLLOFF_HZ, MODE_TILT_DB_PER_OCTAVE)
+        ir = modes[region] + direct_path(SR, TAPS, DIRECT_LOW_SHELF_DB, DIRECT_LOW_SHELF_HZ, DIRECT_GAIN)
         if colour:
             ir = apply_colour(ir, colour["centresHz"], colour["regions"][region])
         gl, gr = placement_gains(region, spread)
         irs[region] = ir * np.array([gl, gr])[None, :] * w[:, None]
     gain = np.mean([band_power_gain(ir) for ir in irs.values()])
-    return {region: ir / math.sqrt(gain) for region, ir in irs.items()}
+    return {region: ir / math.sqrt(gain) for region, ir in irs.items()}, modes
+
+
+def settings_inc():
+    """engine/src/BoardSettings.inc: everything the engine's rebuild needs besides the mode parts,
+    so that it builds the shipped IRs again from them (SPEC §6.5)."""
+    colour = load_colour()
+    def numbers(xs):
+        return ", ".join(repr(float(x)) for x in xs)
+    lines = [
+        "// Generated by tools/seed-irs/make_seed_irs.py from its board settings and",
+        "// data/model/board-colour.json. Don't edit.",
+        f"inline constexpr int irTaps = {TAPS};",
+        f"inline constexpr double fadeSeconds = {FADE_SECONDS!r};",
+        f"inline constexpr double directGain = {DIRECT_GAIN!r};",
+        f"inline constexpr double directLowShelfDb = {DIRECT_LOW_SHELF_DB!r};",
+        f"inline constexpr double directLowShelfHz = {DIRECT_LOW_SHELF_HZ!r};",
+        f"inline constexpr double modeTiltDbPerOctave = {MODE_TILT_DB_PER_OCTAVE!r};",
+        f"inline constexpr double modeTiltFromHz = {MODE_TILT_FROM_HZ!r};",
+        "inline constexpr int colourFftSize = 1 << 17;",
+        "inline constexpr int bandFftSize = 1 << 16;",
+        "inline constexpr double bandLowHz = 100.0, bandHighHz = 1000.0;",
+        "// Each region's first and last key (SPEC §2.8), and each perspective's stereo spread.",
+        "inline constexpr std::array<std::array<int, 2>, 4> regionKeys { { "
+        + ", ".join(f"{{ {lo}, {hi} }}" for lo, hi in (REGION_KEYS[r] for r in REGIONS)) + " } };",
+        "inline constexpr std::array<double, 2> perspectiveSpread { "
+        + numbers(PERSPECTIVES[p][1] for p in PERSPECTIVES) + " };",
+        f"inline constexpr bool hasColour = {'true' if colour else 'false'};",
+    ]
+    centres = colour["centresHz"] if colour else [1000.0]
+    lines.append(f"inline constexpr std::array<double, {len(centres)}> colourCentresHz {{ {numbers(centres)} }};")
+    lines.append(f"inline constexpr std::array<std::array<double, {len(centres)}>, 4> colourDb {{ {{")
+    for r in REGIONS:
+        gains = colour["regions"][r] if colour else [0.0]
+        lines.append(f"    {{ {numbers(gains)} }},  // {r}")
+    lines.append("} };")
+    return "\n".join(lines) + "\n"
 
 
 def band_power_gain(ir, lo=100.0, hi=1000.0):
@@ -243,15 +303,20 @@ def main():
         check_against_prototype()
         return
 
-    OUT.mkdir(parents=True, exist_ok=True)
+    (OUT / "parts").mkdir(parents=True, exist_ok=True)
     for name in PERSPECTIVES:
-        for region, ir in perspective_irs(name).items():
+        irs, modes = perspective_irs(name)
+        for region, ir in irs.items():
             path = OUT / f"{name}-{region}.wav"
             path.write_bytes(float_wav(ir, SR))
+            (OUT / "parts" / f"{name}-{region}-modes.wav").write_bytes(float_wav(modes[region], SR))
             peak = np.abs(ir).max(0)
             energy = (ir ** 2).sum(0)
             print(f"{path.relative_to(ROOT)}: peak L {peak[0]:.3f} R {peak[1]:.3f}, "
                   f"energy L {energy[0]:.3f} R {energy[1]:.3f}")
+    inc = ROOT / "engine" / "src" / "BoardSettings.inc"
+    inc.write_text(settings_inc(), encoding="utf-8", newline="\n")
+    print(f"{inc.relative_to(ROOT)} and data/ir/parts written")
 
 
 if __name__ == "__main__":

@@ -5,7 +5,9 @@
 #include "SoundboardIrs.h"
 
 #include <array>
+#include <atomic>
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 namespace forte::detail
@@ -30,6 +32,13 @@ namespace forte::detail
     both running on the same delay line meanwhile. Switching back mid-fade reverses it from
     where it is.
 
+    New IRs (the voicing lab's Board controls, SPEC §6.5): a Bank holds both perspectives'
+    partitioned IRs. One is built off the audio thread (makeBank()) and offered; at the next
+    partition boundary with no fade running, the soundboard takes it and crossfades to it as it
+    does to a perspective, and hands back the bank it last faded from, to be freed off the audio
+    thread. A perspective switch asked for during that fade waits for it to end. The handover is
+    by atomic exchange of pointers, so the audio thread never allocates, frees or waits.
+
     Brightness, Width and Volume have fixed values until the parameters exist (SPEC §6.3); the
     setters are for tests and change them at once, without the ~20 ms smoothing of SPEC §2.9.
     Brightness is a first-order high shelf on each region's output: 0 dB at 50, ±12 dB at
@@ -45,12 +54,50 @@ public:
     static constexpr int fftSize = 2 * partitionSize;
     static constexpr double crossfadeSeconds = 0.05;
 
+private:
+    struct Channel
+    {
+        std::array<float, partitionSize> headReversed {};  // taps 0..partitionSize−1, last first
+        std::vector<float> partitions;                      // numPartitions packed spectra, 1/fftSize scaled
+        std::array<float, partitionSize> tail {};           // this block's output from the partitions
+    };
+
+public:
+    /** Both perspectives' IRs, partitioned for the prepared rate and length. */
+    struct Bank
+    {
+        std::vector<Channel> channels;  // [perspective][region][left, right]
+    };
+
+    Soundboard() = default;
+    ~Soundboard();
+    Soundboard (const Soundboard&) = delete;
+    Soundboard& operator= (const Soundboard&) = delete;
+
     /** Builds the convolution for irs (at their own sample rate) and silences everything.
-        Keeps the perspective; allocates. */
+        Keeps the perspective and drops any offered bank; allocates. */
     void prepare (const SoundboardIrs& irs);
 
-    /** Silences the soundboard and restarts its partition grid. A pending perspective switch
-        completes at once, unfaded. */
+    /** A bank for new IRs, which must be at the prepared rate; longer ones are cut to the
+        prepared length. Not realtime; safe while process() runs. */
+    [[nodiscard]] std::unique_ptr<Bank> makeBank (const SoundboardIrs& irs) const;
+
+    /** Offers a bank for the audio thread to fade to, replacing (and freeing) one it hasn't
+        taken yet. Not realtime; one thread at a time. */
+    void offerBank (std::unique_ptr<Bank> bank);
+
+    /** Takes back (and frees) an offered bank the audio thread hasn't taken. Returns whether
+        there was one. Same thread rules as offerBank(). */
+    bool withdrawBank() noexcept;
+
+    /** Frees the bank the audio thread last let go of, if any. Same thread rules as offerBank(). */
+    void collectRetiredBank() noexcept;
+
+    /** True while an offered bank hasn't been taken. Safe from any thread. */
+    [[nodiscard]] bool hasIncomingBank() const noexcept { return incomingBank.load (std::memory_order_acquire) != nullptr; }
+
+    /** Silences the soundboard and restarts its partition grid. A pending perspective switch,
+        and an offered bank, complete at once, unfaded. */
     void reset() noexcept;
 
     /** Stops the soundboard ringing at once (CC120), keeping its grid and any crossfade. */
@@ -76,7 +123,7 @@ public:
         of numSamples per region). numSamples must not exceed samplesToPartitionEnd(). */
     void process (const std::array<const float*, numBridgeRegions>& input, float* left, float* right, int numSamples) noexcept;
 
-    [[nodiscard]] int getActivePerspective() const noexcept { return activeSet; }
+    [[nodiscard]] int getActivePerspective() const noexcept { return activeSet % numPerspectives; }
     [[nodiscard]] bool isCrossfading() const noexcept { return fadingFrom >= 0; }
     [[nodiscard]] int getNumPartitions() const noexcept { return numPartitions; }
 
@@ -84,13 +131,6 @@ public:
     [[nodiscard]] int getIrLength() const noexcept { return irLength; }
 
 private:
-    struct Channel
-    {
-        std::array<float, partitionSize> headReversed {};  // taps 0..partitionSize−1, last first
-        std::vector<float> partitions;                      // numPartitions packed spectra, 1/fftSize scaled
-        std::array<float, partitionSize> tail {};           // this block's output from the partitions
-    };
-
     struct Region
     {
         std::array<float, fftSize> input {};  // the previous block, then this one
@@ -105,10 +145,16 @@ private:
         float b0 = 1.0f, b1 = 0.0f, a1 = 0.0f;
     };
 
+    /** A set is bank × numPerspectives + perspective: banks[set / numPerspectives]. */
     [[nodiscard]] Channel& channel (int set, int region, int side) noexcept
     {
-        return channels[static_cast<std::size_t> ((set * numBridgeRegions + region) * 2 + side)];
+        auto& bank = *banks[static_cast<std::size_t> (set / numPerspectives)];
+        return bank.channels[static_cast<std::size_t> (((set % numPerspectives) * numBridgeRegions + region) * 2 + side)];
     }
+
+    /** At a partition boundary: takes the offered bank into the slot not playing, retiring the
+        bank that was there. False if there's none, or the last retired one isn't freed yet. */
+    bool takeIncomingBank() noexcept;
 
     void endBlock() noexcept;
     void computeTails (int set) noexcept;
@@ -119,15 +165,16 @@ private:
     int newestSpectrum = 0;  // ring index of the latest block's spectrum
     int position = 0;        // samples into the current partition block
 
-    std::vector<Channel> channels;  // [set][region][left, right]
+    std::array<std::unique_ptr<Bank>, 2> banks;  // the one playing, and the one faded from or to
+    std::atomic<Bank*> incomingBank { nullptr }, retiredBank { nullptr };
     std::array<Region, numBridgeRegions> regions;
     RealFft<float> fft;
     std::array<float, fftSize> fftBuffer {};
     std::array<float, 2 * fftSize> accumulator {};  // left, then right, packed spectra
 
-    // Perspective
+    // Perspective and bank
     int activeSet = microphonesPerspective;
-    int requestedSet = microphonesPerspective;
+    int requestedPerspective = microphonesPerspective;
     int fadingFrom = -1;      // the set being faded out, or −1
     int fadePosition = 0;     // samples into the fade
     std::vector<float> fadeIn;  // the incoming set's gain per fade sample

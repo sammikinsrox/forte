@@ -219,6 +219,26 @@ NoteParameters applyStringVoicing (const NoteParameters& p, const StringVoicing&
     return q;
 }
 
+BoardVoicing labBoardVoicing (const lab::Settings& settings) noexcept
+{
+    using C = lab::Control;
+    auto v = committedBoardVoicing();
+
+    if (settings.isNeutral (lab::Group::board))
+        return v;
+
+    v.tiltDbPerOctave = labValueAtKey (settings, C::boardTilt, 0.0, v.tiltDbPerOctave);
+    for (int r = 0; r < numBridgeRegions; ++r)
+    {
+        const auto i = static_cast<std::size_t> (r);
+        const double key = regionCentreKey (r);
+        v.pickup[i] = labValueAtKey (settings, C::pickup, key, v.pickup[i]);
+        v.colourDb[i] = { labValueAtKey (settings, C::colourLow, key, 0.0), labValueAtKey (settings, C::colourMid, key, 0.0),
+                          labValueAtKey (settings, C::colourHigh, key, 0.0) };
+    }
+    return v;
+}
+
 double labTapeDrive (const lab::Settings& settings, double fitted) noexcept
 {
     return labMap (lab::Control::tapeDrive, settings.get (lab::Control::tapeDrive), fitted);

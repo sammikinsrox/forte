@@ -4,8 +4,12 @@
 #include "forte/bridge/VoicingFile.h"
 #include "forte/engine/VoicingLab.h"
 
+#include "BoardBuilder.h"
+#include "Fft.h"
 #include "LabMapping.h"
 #include "PianoModel.h"
+#include "Soundboard.h"
+#include "SoundboardIrs.h"
 #include "VoicingExport.h"
 
 #include <catch2/catch_test_macros.hpp>
@@ -13,6 +17,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <set>
 #include <string_view>
@@ -424,6 +429,22 @@ TEST_CASE ("Voicing lab: string controls reach a note only when it next starts f
     CHECK (slice (changed.left, fromRest, length) != slice (committed.left, fromRest, length));
 }
 
+TEST_CASE ("Voicing lab: time a full 88-note strings rebuild", "[.][timing][lab]")
+{
+    // Hidden: run by hand in Release, forte-tests "[timing]".
+    Engine e;
+    e.prepare (48000.0, 128);
+    const auto moved = with (Control::sustain, 80.0f);
+
+    for (int round = 0; round < 3; ++round)
+    {
+        const auto start = std::chrono::steady_clock::now();
+        REQUIRE (e.rebuildStrings (round % 2 == 0 ? moved : lab::Settings {}) == 88);
+        const std::chrono::duration<double, std::milli> took = std::chrono::steady_clock::now() - start;
+        WARN ("88-note rebuildStrings: " << took.count() << " ms");
+    }
+}
+
 TEST_CASE ("Voicing lab: strings back at 50 are the committed ones bit for bit", "[lab][engine][strings]")
 {
     const std::vector<TimedMidi> notes { noteOn (0, 30, 90), noteOn (100, 60, 110), noteOn (5000, 96, 127) };
@@ -491,7 +512,7 @@ TEST_CASE ("Voicing lab: a note taking its new strings doesn't allocate", "[lab]
     });
 
     CHECK_FALSE (use.any());
-    engine.collectRetiredStrings();
+    engine.collectRetired();
 }
 
 TEST_CASE ("Voicing lab: longer sustain lengthens the reported tail", "[lab][engine][strings]")
@@ -524,7 +545,7 @@ TEST_CASE ("Voicing lab: strings rebuilt on another thread while notes play", "[
             s.set (Control::inharmonicity, Register::treble, static_cast<float> (100 - 8 * (i % 10)));
             engine.rebuildStrings (s);
         }
-        engine.collectRetiredStrings();
+        engine.collectRetired();
         done = true;
     });
 
@@ -544,4 +565,288 @@ TEST_CASE ("Voicing lab: strings rebuilt on another thread while notes play", "[
 
     worker.join();
     CHECK (finite);
+}
+
+namespace
+{
+/** Energy of both channels of every IR in a set, between lo and hi Hz. */
+double bandEnergy (const detail::SoundboardIrs& irs, int perspective, int region, double lo, double hi)
+{
+    constexpr std::size_t n = 1 << 15;
+    detail::RealFft<double> fft;
+    fft.prepare (n);
+    std::vector<double> buffer (n), re (n / 2), im (n / 2);
+    const auto& ir = irs.sets[static_cast<std::size_t> (perspective)][static_cast<std::size_t> (region)];
+    double total = 0.0;
+
+    for (const auto* side : { &ir.left, &ir.right })
+    {
+        std::fill (buffer.begin(), buffer.end(), 0.0);
+        for (std::size_t i = 0; i < std::min (n, side->size()); ++i)
+            buffer[i] = (*side)[i];
+        fft.forward (buffer.data(), re.data(), im.data());
+        for (std::size_t k = 1; k < n / 2; ++k)
+        {
+            const double f = static_cast<double> (k) * irs.sampleRate / static_cast<double> (n);
+            if (f >= lo && f < hi)
+                total += re[k] * re[k] + im[k] * im[k];
+        }
+    }
+    return total;
+}
+
+double decibels (double powerRatio)
+{
+    return 10.0 * std::log10 (powerRatio);
+}
+
+const std::vector<TimedMidi> boardNotes { noteOn (0, 33, 100), noteOn (0, 60, 100), noteOn (0, 76, 110), noteOn (0, 96, 120) };
+} // namespace
+
+TEST_CASE ("Voicing lab: the board rebuilt at 50 is the shipped IRs", "[lab][board]")
+{
+    const auto shipped = detail::loadEmbeddedIrs();
+    const auto rebuilt = detail::buildBoardIrs (detail::loadEmbeddedBoardParts(), detail::committedBoardVoicing());
+
+    double worst = 0.0, peak = 0.0;
+    for (int p = 0; p < detail::numPerspectives; ++p)
+        for (int r = 0; r < detail::numBridgeRegions; ++r)
+        {
+            const auto& a = shipped.sets[static_cast<std::size_t> (p)][static_cast<std::size_t> (r)];
+            const auto& b = rebuilt.sets[static_cast<std::size_t> (p)][static_cast<std::size_t> (r)];
+            REQUIRE (a.left.size() == b.left.size());
+            REQUIRE (a.right.size() == b.right.size());
+            for (std::size_t i = 0; i < a.left.size(); ++i)
+            {
+                worst = std::max ({ worst, static_cast<double> (std::abs (a.left[i] - b.left[i])),
+                                    static_cast<double> (std::abs (a.right[i] - b.right[i])) });
+                peak = std::max ({ peak, static_cast<double> (std::abs (a.left[i])), static_cast<double> (std::abs (a.right[i])) });
+            }
+        }
+
+    INFO ("worst difference " << worst << " against a peak of " << peak);
+    CHECK (worst < 1e-6 * peak);
+}
+
+TEST_CASE ("Voicing lab: board controls move the IRs' spectrum", "[lab][board]")
+{
+    const auto parts = detail::loadEmbeddedBoardParts();
+    const auto committed = detail::buildBoardIrs (parts, detail::committedBoardVoicing());
+
+    // Each band is measured against a reference band: the 100 Hz-1 kHz loudness normalisation
+    // (make_seed_irs.py's) moves everything to give back what a control takes from that band.
+    // Boosts reach less than their dB: the colour is zero-phase, and on the direct path (an
+    // impulse at tap 0) its acausal half is cut off, as it is in the shipped IRs.
+    struct Case
+    {
+        Control control;
+        float value;
+        double lo, hi;        // the band that should move
+        double refLo, refHi;  // against this one
+        double atLeastDb;     // by at least this much (negative: down)
+    };
+
+    const auto [control, value, lo, hi, refLo, refHi, atLeastDb] = GENERATE (values<Case> ({
+        { Control::colourHigh, 100.0f, 4000.0, 16000.0, 300.0, 1000.0, 3.0 },
+        { Control::colourHigh, 0.0f, 4000.0, 16000.0, 300.0, 1000.0, -8.0 },
+        { Control::colourLow, 100.0f, 50.0, 150.0, 500.0, 1500.0, 6.0 },
+        { Control::colourMid, 0.0f, 500.0, 1500.0, 4000.0, 16000.0, -4.0 },
+        { Control::boardTilt, 100.0f, 6000.0, 12000.0, 300.0, 1000.0, 4.0 },
+        { Control::boardTilt, 0.0f, 6000.0, 12000.0, 300.0, 1000.0, -10.0 },
+    }));
+
+    const auto voiced = detail::buildBoardIrs (parts, detail::labBoardVoicing (with (control, value)));
+    for (int p = 0; p < detail::numPerspectives; ++p)
+        for (int r = 0; r < detail::numBridgeRegions; ++r)
+        {
+            const double moved = decibels (bandEnergy (voiced, p, r, lo, hi) / bandEnergy (committed, p, r, lo, hi))
+                               - decibels (bandEnergy (voiced, p, r, refLo, refHi) / bandEnergy (committed, p, r, refLo, refHi));
+            INFO (lab::info (control).id << " at " << value << ", perspective " << p << ", region " << r << ": " << moved << " dB");
+            INFO (lab::info (control).id << " at " << value << ", perspective " << p << ", region " << r << ": " << moved << " dB");
+            CHECK ((atLeastDb > 0.0 ? moved >= atLeastDb : moved <= atLeastDb));
+        }
+}
+
+TEST_CASE ("Voicing lab: pickup sets the direct path's share", "[lab][board]")
+{
+    const auto parts = detail::loadEmbeddedBoardParts();
+    const auto share = [&] (float value)
+    {
+        const auto irs = detail::buildBoardIrs (parts, detail::labBoardVoicing (with (Control::pickup, value)));
+        const auto& ir = irs.sets[0][2].left;
+        double total = 0.0;
+        for (const float v : ir)
+            total += static_cast<double> (v) * v;
+        return static_cast<double> (ir[0]) * ir[0] / total;
+    };
+
+    CHECK (share (0.0f) < share (50.0f));
+    CHECK (share (50.0f) < share (100.0f));
+}
+
+TEST_CASE ("Voicing lab: the board at 50 plays the shipped IRs bit for bit", "[lab][engine][board]")
+{
+    const auto committed = renderFresh (boardNotes, second);
+
+    SECTION ("moved and put back before the soundboard takes it")
+    {
+        const auto out = renderPhases (boardNotes, { 0 }, second, [] (Engine& e, std::size_t)
+        {
+            REQUIRE (e.rebuildBoard (with (Control::colourHigh, 90.0f)));
+            REQUIRE_FALSE (e.rebuildBoard (lab::Settings {}));
+            REQUIRE_FALSE (e.hasIncomingBoard());
+        });
+        CHECK (out.left == committed.left);
+        CHECK (out.right == committed.right);
+    }
+
+    SECTION ("faded to, then back: committed again once the fade ends")
+    {
+        const std::int64_t back = second / 2;
+        const auto out = renderPhases (boardNotes, { 0, back }, second, [] (Engine& e, std::size_t phase)
+        {
+            REQUIRE (e.rebuildBoard (phase == 0 ? with (Control::boardTilt, 100.0f) : lab::Settings {}));
+        });
+
+        const auto settled = back + 2 * 128 + static_cast<std::int64_t> (detail::Soundboard::crossfadeSeconds * 48000.0) + 128;
+        CHECK (slice (out.left, back - 4800, back) != slice (committed.left, back - 4800, back));
+        CHECK (slice (out.left, settled, second) == slice (committed.left, settled, second));
+        CHECK (slice (out.right, settled, second) == slice (committed.right, settled, second));
+    }
+}
+
+TEST_CASE ("Voicing lab: a board change fades in from the next partition boundary", "[lab][engine][board]")
+{
+    lab::Settings s = with (Control::colourMid, 20.0f);
+    s.set (Control::pickup, Register::bass, 100.0f);
+    const std::int64_t change = second / 4 + 37;  // mid-partition
+
+    Engine target;
+    target.setVoicingLab (s);
+    target.prepare (48000.0, 128);
+    const auto voiced = render (target, boardNotes, second);
+    const auto committed = renderFresh (boardNotes, second);
+
+    const auto out = renderPhases (boardNotes, { 0, change }, second, [&] (Engine& e, std::size_t phase)
+    {
+        if (phase == 1)
+            REQUIRE (e.rebuildBoard (s));
+    });
+
+    const auto boundary = (change / 128 + 1) * 128;
+    const auto settled = boundary + static_cast<std::int64_t> (detail::Soundboard::crossfadeSeconds * 48000.0) + 256;
+    CHECK (slice (out.left, 0, boundary) == slice (committed.left, 0, boundary));
+    CHECK (slice (out.left, boundary, boundary + 128) != slice (committed.left, boundary, boundary + 128));
+    CHECK (slice (out.left, settled, second) == slice (voiced.left, settled, second));
+    CHECK (slice (out.right, settled, second) == slice (voiced.right, settled, second));
+
+    // No click: the fade's steps stay within the steady output's own.
+    float steadyStep = 0.0f, fadeStep = 0.0f;
+    for (auto i = static_cast<std::size_t> (boundary - 2400); i < static_cast<std::size_t> (boundary); ++i)
+        steadyStep = std::max (steadyStep, std::abs (out.left[i + 1] - out.left[i]));
+    for (auto i = static_cast<std::size_t> (boundary); i < static_cast<std::size_t> (settled); ++i)
+        fadeStep = std::max (fadeStep, std::abs (out.left[i + 1] - out.left[i]));
+    CHECK (fadeStep < 1.5f * steadyStep);
+}
+
+TEST_CASE ("Voicing lab: prepare() and reset() build and take the lab's board", "[lab][engine][board]")
+{
+    lab::Settings s = with (Control::boardTilt, 25.0f);
+    s.set (Control::colourLow, Register::middle, 80.0f);
+
+    Engine prepared;
+    prepared.setVoicingLab (s);
+    prepared.prepare (44100.0, 128);
+    const auto a = render (prepared, boardNotes, second / 2);
+
+    Engine rebuilt;
+    rebuilt.prepare (44100.0, 128);
+    REQUIRE (rebuilt.rebuildBoard (s));
+    rebuilt.reset();  // takes it at once, unfaded
+    REQUIRE_FALSE (rebuilt.hasIncomingBoard());
+    const auto b = render (rebuilt, boardNotes, second / 2);
+
+    CHECK (a.left == b.left);
+    CHECK (a.right == b.right);
+    CHECK (a.left != renderFresh (boardNotes, second / 2, 128, 44100.0).left);
+}
+
+TEST_CASE ("Voicing lab: the soundboard taking new IRs doesn't allocate", "[lab][engine][board][audio-thread]")
+{
+    Engine engine;
+    engine.prepare (48000.0, 128);
+    std::vector<float> left (128), right (128);
+    engine.handleMidi ({ { 0x90, 60, 100 }, 3 });
+
+    for (const float value : { 80.0f, 20.0f })
+    {
+        REQUIRE (engine.rebuildBoard (with (Control::colourHigh, value)));
+        REQUIRE (engine.hasIncomingBoard());
+
+        const auto use = heapUseOnAudioThread ([&]
+        {
+            for (int block = 0; block < 30; ++block)
+                engine.render (left.data(), right.data(), 128);
+        });
+
+        CHECK_FALSE (use.any());
+        CHECK_FALSE (engine.hasIncomingBoard());
+        engine.collectRetired();
+    }
+}
+
+TEST_CASE ("Voicing lab: board rebuilt on another thread while notes play", "[lab][engine][board]")
+{
+    Engine engine;
+    engine.prepare (48000.0, 128);
+    std::atomic<bool> done { false };
+
+    std::thread worker ([&]
+    {
+        for (int i = 0; i < 6; ++i)
+            engine.rebuildBoard (with (Control::boardTilt, static_cast<float> (15 * i)));
+        engine.collectRetired();
+        done = true;
+    });
+
+    std::vector<float> left (128), right (128);
+    bool finite = true;
+    for (int block = 0; ! done || block < 200; ++block)
+    {
+        if (block % 7 == 0)
+            engine.setListeningPerspective (block % 14 == 0 ? ListeningPerspective::pianist : ListeningPerspective::microphones);
+        if (block % 3 == 0)
+            engine.handleMidi ({ { 0x90, static_cast<std::uint8_t> (40 + block % 50), 90 }, 3 });
+
+        engine.render (left.data(), right.data(), 128);
+        finite = finite && allFinite (left) && allFinite (right);
+    }
+
+    worker.join();
+    CHECK (finite);
+}
+
+TEST_CASE ("Voicing lab: time a board rebuild", "[.][timing][lab]")
+{
+    const auto parts = detail::loadEmbeddedBoardParts();
+    for (const float tilt : { 50.0f, 80.0f })
+    {
+        const auto start = std::chrono::steady_clock::now();
+        const auto irs = detail::buildBoardIrs (parts, detail::labBoardVoicing (with (Control::boardTilt, tilt)));
+        const std::chrono::duration<double, std::milli> took = std::chrono::steady_clock::now() - start;
+        WARN ("buildBoardIrs, tilt at " << tilt << ": " << took.count() << " ms");
+    }
+
+    for (const double rate : { 48000.0, 44100.0, 96000.0 })
+    {
+        Engine e;
+        e.prepare (rate, 128);
+        for (int round = 0; round < 2; ++round)
+        {
+            const auto start = std::chrono::steady_clock::now();
+            REQUIRE (e.rebuildBoard (with (Control::boardTilt, round == 0 ? 80.0f : 20.0f)));
+            const std::chrono::duration<double, std::milli> took = std::chrono::steady_clock::now() - start;
+            WARN ("rebuildBoard at " << rate << " Hz: " << took.count() << " ms");
+        }
+    }
 }

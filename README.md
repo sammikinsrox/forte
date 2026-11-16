@@ -36,8 +36,8 @@ Output, under `build/`:
 | `plugin/` | The VST3/Standalone wrapper. |
 | `tools/forte-render/` | Command-line renderer through the real engine. |
 | `tools/embed/` | Build-time tool that embeds data files (the IRs) in the engine. |
-| `tools/seed-irs/` | Writes the seed soundboard IRs (`python tools/seed-irs/make_seed_irs.py`, needs numpy). |
-| `data/ir/` | The soundboard IRs the engine embeds: 32-bit float WAV, 48 kHz, one per perspective and bridge region. |
+| `tools/seed-irs/` | Writes the seed soundboard IRs, their kept parts and `engine/src/BoardSettings.inc` (`python tools/seed-irs/make_seed_irs.py`, needs numpy). |
+| `data/ir/` | The soundboard IRs the engine embeds: 32-bit float WAV, 48 kHz, one per perspective and bridge region. `parts/` holds each one's resonant modes, which the voicing lab rebuilds the IRs from. |
 | `tests/` | Catch2 tests, the audio-thread allocation guard, and the CTest checks. |
 | `external/JUCE` | JUCE 9.0.5, a pinned submodule. |
 

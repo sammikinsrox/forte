@@ -34,15 +34,22 @@ bool allZero (const float* x, int n) noexcept
 }
 } // namespace
 
-void Soundboard::prepare (const SoundboardIrs& irs)
+Soundboard::~Soundboard()
 {
-    sampleRate = irs.sampleRate;
-    irLength = static_cast<int> (irs.length());
-    numPartitions = std::max (0, (irLength - B + B - 1) / B);
-    fft.prepare (fftSize);
+    delete incomingBank.exchange (nullptr);
+    delete retiredBank.exchange (nullptr);
+}
 
-    channels.assign (static_cast<std::size_t> (numPerspectives * numBridgeRegions * 2), Channel {});
+std::unique_ptr<Soundboard::Bank> Soundboard::makeBank (const SoundboardIrs& irs) const
+{
+    auto bank = std::make_unique<Bank>();
+    bank->channels.assign (static_cast<std::size_t> (numPerspectives * numBridgeRegions * 2), Channel {});
+
+    RealFft<float> bankFft;  // its own: the audio thread may be using the soundboard's
+    bankFft.prepare (fftSize);
+    std::array<float, fftSize> buffer {};
     const float scale = 1.0f / static_cast<float> (fftSize);  // RealFft's inverse returns fftSize·x
+    const int length = std::min (irLength, static_cast<int> (irs.length()));
 
     for (int set = 0; set < numPerspectives; ++set)
     {
@@ -53,8 +60,8 @@ void Soundboard::prepare (const SoundboardIrs& irs)
             for (int side = 0; side < 2; ++side)
             {
                 const auto& taps = side == 0 ? ir.left : ir.right;
-                const auto tap = [&] (int i) { return i < static_cast<int> (taps.size()) ? taps[static_cast<std::size_t> (i)] : 0.0f; };
-                auto& ch = channel (set, region, side);
+                const auto tap = [&] (int i) { return i < length && i < static_cast<int> (taps.size()) ? taps[static_cast<std::size_t> (i)] : 0.0f; };
+                auto& ch = bank->channels[static_cast<std::size_t> ((set * numBridgeRegions + region) * 2 + side)];
 
                 for (int k = 0; k < B; ++k)
                     ch.headReversed[static_cast<std::size_t> (k)] = tap (B - 1 - k);
@@ -63,16 +70,66 @@ void Soundboard::prepare (const SoundboardIrs& irs)
 
                 for (int p = 0; p < numPartitions; ++p)
                 {
-                    fftBuffer.fill (0.0f);
+                    buffer.fill (0.0f);
                     for (int k = 0; k < B; ++k)
-                        fftBuffer[static_cast<std::size_t> (k)] = tap ((p + 1) * B + k) * scale;
+                        buffer[static_cast<std::size_t> (k)] = tap ((p + 1) * B + k) * scale;
 
                     float* spectrum = ch.partitions.data() + p * fftSize;
-                    fft.forward (fftBuffer.data(), spectrum, spectrum + B);
+                    bankFft.forward (buffer.data(), spectrum, spectrum + B);
                 }
             }
         }
     }
+
+    return bank;
+}
+
+void Soundboard::offerBank (std::unique_ptr<Bank> bank)
+{
+    collectRetiredBank();
+    delete incomingBank.exchange (bank.release(), std::memory_order_acq_rel);
+}
+
+bool Soundboard::withdrawBank() noexcept
+{
+    auto* bank = incomingBank.exchange (nullptr, std::memory_order_acq_rel);
+    delete bank;
+    return bank != nullptr;
+}
+
+void Soundboard::collectRetiredBank() noexcept
+{
+    if (retiredBank.load (std::memory_order_acquire) != nullptr)
+        delete retiredBank.exchange (nullptr, std::memory_order_acq_rel);
+}
+
+bool Soundboard::takeIncomingBank() noexcept
+{
+    if (incomingBank.load (std::memory_order_acquire) == nullptr || retiredBank.load (std::memory_order_acquire) != nullptr)
+        return false;
+
+    auto* incoming = incomingBank.exchange (nullptr, std::memory_order_acq_rel);
+    if (incoming == nullptr)
+        return false;
+
+    auto& slot = banks[static_cast<std::size_t> (1 - activeSet / numPerspectives)];
+    retiredBank.store (slot.release(), std::memory_order_release);
+    slot.reset (incoming);
+    return true;
+}
+
+void Soundboard::prepare (const SoundboardIrs& irs)
+{
+    sampleRate = irs.sampleRate;
+    irLength = static_cast<int> (irs.length());
+    numPartitions = std::max (0, (irLength - B + B - 1) / B);
+    fft.prepare (fftSize);
+
+    delete incomingBank.exchange (nullptr);
+    delete retiredBank.exchange (nullptr);
+    banks[0] = makeBank (irs);
+    banks[1].reset();
+    activeSet = requestedPerspective;
 
     for (auto& region : regions)
         region.spectra.assign (static_cast<std::size_t> (numPartitions * fftSize), 0.0f);
@@ -93,7 +150,8 @@ void Soundboard::reset() noexcept
     newestSpectrum = 0;
     silence();
 
-    activeSet = requestedSet;
+    const int bank = takeIncomingBank() ? 1 - activeSet / numPerspectives : activeSet / numPerspectives;
+    activeSet = bank * numPerspectives + requestedPerspective;
     fadingFrom = -1;
     fadePosition = 0;
 }
@@ -108,8 +166,10 @@ void Soundboard::silence() noexcept
         region.asleep = true;
     }
 
-    for (auto& ch : channels)
-        ch.tail.fill (0.0f);
+    for (auto& bank : banks)
+        if (bank != nullptr)
+            for (auto& ch : bank->channels)
+                ch.tail.fill (0.0f);
 
     for (auto& state : tiltState)
         state.fill (0.0f);
@@ -119,7 +179,7 @@ void Soundboard::silence() noexcept
 
 void Soundboard::setPerspective (int perspective) noexcept
 {
-    requestedSet = std::clamp (perspective, 0, numPerspectives - 1);
+    requestedPerspective = std::clamp (perspective, 0, numPerspectives - 1);
 }
 
 void Soundboard::setBrightness (double newBrightness) noexcept
@@ -273,15 +333,26 @@ void Soundboard::renderRegion (int set, int region, int start, int numSamples, f
 
 void Soundboard::endBlock() noexcept
 {
-    // Perspective: a fade ends on a block boundary; a new request starts or reverses one here.
+    // Perspective and bank: a fade ends on a block boundary; a new bank, or a new perspective,
+    // starts one here, and a perspective switched back reverses its own.
     const auto fadeLength = static_cast<int> (fadeIn.size());
 
     if (fadingFrom >= 0 && fadePosition >= fadeLength)
         fadingFrom = -1;
 
-    if (requestedSet != activeSet)
+    const int bank = activeSet / numPerspectives;
+
+    if (fadingFrom < 0 && takeIncomingBank())
     {
-        if (fadingFrom == requestedSet)
+        fadingFrom = activeSet;
+        activeSet = (1 - bank) * numPerspectives + requestedPerspective;
+        fadePosition = 0;
+    }
+    else if (requestedPerspective != activeSet % numPerspectives)
+    {
+        const int target = bank * numPerspectives + requestedPerspective;
+
+        if (fadingFrom == target)
         {
             std::swap (activeSet, fadingFrom);
             fadePosition = fadeLength - fadePosition;
@@ -289,7 +360,7 @@ void Soundboard::endBlock() noexcept
         else if (fadingFrom < 0)
         {
             fadingFrom = activeSet;
-            activeSet = requestedSet;
+            activeSet = target;
             fadePosition = 0;
         }
     }

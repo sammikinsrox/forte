@@ -39,11 +39,12 @@ void VoicingWorker::run()
         if (settings != built)
         {
             engine.rebuildStrings (settings);  // a no-op for notes whose strings didn't change
+            engine.rebuildBoard (settings);    // and for an unchanged board
             built = settings;
         }
         else
         {
-            engine.collectRetiredStrings();
+            engine.collectRetired();
         }
     }
 }

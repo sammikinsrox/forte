@@ -10,6 +10,10 @@ add_library(forte_engine STATIC
     include/forte/engine/Engine.h
     include/forte/engine/MidiEvent.h
     include/forte/engine/VoicingLab.h
+    src/BoardBuilder.cpp
+    src/BoardBuilder.h
+    src/BoardSettings.h
+    src/BoardSettings.inc
     src/EmbeddedFiles.h
     src/Engine.cpp
     src/Fft.h
@@ -34,11 +38,13 @@ add_library(forte_engine STATIC
     src/VelocityCurve.h)
 add_library(forte::engine ALIAS forte_engine)
 
-# The soundboard IRs (SPEC §3.5): data/ir/<perspective>-<region>.wav, built into the engine.
+# The soundboard IRs (SPEC §3.5): data/ir/<perspective>-<region>.wav, built into the engine, and
+# the parts the voicing lab rebuilds them from (SPEC §6.5): data/ir/parts/<...>-modes.wav.
 set(ir_files "")
 foreach(perspective IN ITEMS microphones pianist)
     foreach(region IN ITEMS bass tenor middle treble)
         list(APPEND ir_files "${perspective}-${region}.wav=${PROJECT_SOURCE_DIR}/data/ir/${perspective}-${region}.wav")
+        list(APPEND ir_files "parts/${perspective}-${region}-modes.wav=${PROJECT_SOURCE_DIR}/data/ir/parts/${perspective}-${region}-modes.wav")
     endforeach()
 endforeach()
 forte_embed_files(forte_engine

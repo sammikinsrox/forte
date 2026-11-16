@@ -64,10 +64,10 @@ public:
         changed, so it can be called every block. Hammer controls take effect at each note's next
         strike; Tape drive glides there over ~20 ms. At every 50 the engine is exactly the
         committed voicing. It survives reset() and prepare(), and prepare() builds every note
-        with its String controls. Realtime-safe.
+        with its String controls and the soundboard with its Board controls. Realtime-safe.
 
-        The String controls need the notes' modes recomputed, which isn't realtime: see
-        rebuildStrings(). */
+        The String and Board controls need modes or IRs recomputed, which isn't realtime: see
+        rebuildStrings() and rebuildBoard(). */
     void setVoicingLab (const lab::Settings& settings) noexcept;
 
     /** The voicing lab's strings (SPEC §6.5): builds a new model for every note whose strings
@@ -79,11 +79,22 @@ public:
         or before the first prepare(); render() and handleMidi() may run meanwhile. */
     int rebuildStrings (const lab::Settings& settings);
 
-    /** Frees the models notes have let go since. Same thread rules as rebuildStrings(). */
-    void collectRetiredStrings() noexcept;
+    /** The voicing lab's board (SPEC §6.5): if the Board controls under settings differ from the
+        ones the soundboard last got, builds both perspectives' IRs again from their kept parts
+        (the shipped IRs themselves at the Board group's 50s), which the soundboard crossfades to
+        over ~50 ms from its next 128-sample boundary. Also frees what the engine has let go.
+        Returns whether it built. Same thread rules as rebuildStrings(); it takes tens of ms. */
+    bool rebuildBoard (const lab::Settings& settings);
+
+    /** Frees the strings models and soundboard IRs the engine has let go since. Same thread
+        rules as rebuildStrings(). */
+    void collectRetired() noexcept;
 
     /** True while any note has new strings it hasn't taken yet. Safe from any thread. */
     [[nodiscard]] bool hasIncomingStrings() const noexcept;
+
+    /** True while the soundboard has new IRs it hasn't started fading to. Safe from any thread. */
+    [[nodiscard]] bool hasIncomingBoard() const noexcept;
 
     [[nodiscard]] const lab::Settings& getVoicingLab() const noexcept;
 
