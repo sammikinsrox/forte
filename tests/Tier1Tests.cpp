@@ -1,9 +1,9 @@
 // Tier 1 engine checks (SPEC §8.1) that run inside the unit-test executable. They're never
 // waivable. The determinism check also runs end to end through forte-render (tests/CMakeLists.txt).
+// Live changes are checked here under automation, and in PresetTests.cpp on a preset change.
 //
 // Still to come, as the parts they check arrive:
 // - Velocity calibration: needs each note's fitted pp/mf/ff loudness (SPEC §3.3).
-// - Live changes on a preset change: needs the presets (SPEC §7.1). Automation is checked here.
 // - State compatibility: needs the saved state and the previous release's fixtures (SPEC §7.3).
 
 #include "support/EngineRender.h"

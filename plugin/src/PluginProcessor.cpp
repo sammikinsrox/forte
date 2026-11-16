@@ -241,6 +241,7 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty (stateVersionAttribute, stateVersion, nullptr);
     state.setProperty (voicingRevisionAttribute, Engine::getVoicingRevision(), nullptr);
     state.setProperty (viewAttribute, viewName (view.load()), nullptr);
+    state.appendChild (presets.toState(), nullptr);
 
     if (const auto xml = state.createXml())
         copyXmlToBinary (*xml, destData);
@@ -258,7 +259,13 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
     for (auto* parameter : getParameters())
         parameter->setValueNotifyingHost (parameter->getDefaultValue());
 
-    const auto state = juce::ValueTree::fromXml (*xml);
+    auto state = juce::ValueTree::fromXml (*xml);
+
+    // The preset rides beside the parameters, not in the parameters' own tree.
+    const auto preset = state.getChildWithName (PresetManager::stateType);
+    state.removeChild (preset, nullptr);
+    presets.fromState (preset);
+
     parameters.replaceState (state);
     view.store (viewFromName (state.getProperty (viewAttribute, "simple").toString()));
 

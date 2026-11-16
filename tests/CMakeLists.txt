@@ -35,6 +35,7 @@ target_sources(forte_tests PRIVATE
     EngineTests.cpp
     MidiTests.cpp
     NoteModelTests.cpp
+    PresetTests.cpp
     SoundboardTests.cpp
     SympatheticBankTests.cpp
     Tier1Tests.cpp
@@ -42,7 +43,8 @@ target_sources(forte_tests PRIVATE
     UnisonModesTests.cpp
     VelocityCurveTests.cpp
     VoicingLabTests.cpp
-    # The plugin's voicing export, which is plain JUCE core and the engine.
+    # The plugin's voicing export and presets, which are plain JUCE core and the engine.
+    ${PROJECT_SOURCE_DIR}/plugin/src/Presets.cpp
     ${PROJECT_SOURCE_DIR}/plugin/src/VoicingExport.cpp)
 add_dependencies(forte_tests ForteBuildCommit)
 

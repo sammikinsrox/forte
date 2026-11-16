@@ -5,6 +5,7 @@
 
 #include "LabParameters.h"
 #include "MachineSettings.h"
+#include "PresetManager.h"
 #include "SoundParameters.h"
 #include "VoicingWorker.h"
 
@@ -17,7 +18,8 @@ namespace forte
 /** The VST3/Standalone wrapper around forte::Engine. It holds no DSP of its own.
 
     Parameters: the 10 sound controls (SPEC §6.3) and the voicing lab's (SPEC §6.5). The project
-    state is their values, the editor's view and a state-format version (SPEC §7.3).
+    state is their values, the current preset and the values it loaded (for its `*`), the
+    editor's view and a state-format version (SPEC §7.3).
 
     MIDI: the host's, with the pedal inverts applied (SPEC §4.2), plus the editor's keyboard and
     on-screen pedals. The on-screen pedals and MIDI share one value per pedal, and the latest
@@ -64,14 +66,16 @@ public:
     void setStateInformation (const void* data, int sizeInBytes) override;
 
     /** The saved state's format (SPEC §7.3). A newer Forte reads older states; an older one
-        ignores what it doesn't know. 2: the sound controls and the editor's view. */
-    static constexpr int stateVersion = 2;
+        ignores what it doesn't know. 2: the sound controls and the editor's view. 3: the
+        preset. */
+    static constexpr int stateVersion = 3;
 
     // --- For the editor (message thread unless noted) -------------------------------------
 
     [[nodiscard]] juce::AudioProcessorValueTreeState& getState() noexcept { return parameters; }
     [[nodiscard]] const Engine& getEngine() const noexcept { return engine; }
     [[nodiscard]] const LabParameters& getLab() const noexcept { return lab; }
+    [[nodiscard]] PresetManager& getPresets() noexcept { return presets; }
     juce::MidiKeyboardState keyboardState;
 
     enum class View { simple, advanced, lab };
@@ -121,6 +125,7 @@ private:
     juce::AudioProcessorValueTreeState parameters;
     SoundParameters sound;
     LabParameters lab;
+    PresetManager presets { parameters };
 
     MachineSettings machine = MachineSettings::load();
     std::atomic<bool> invertSustain { false }, invertSoft { false };

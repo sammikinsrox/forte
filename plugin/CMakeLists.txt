@@ -28,6 +28,10 @@ target_sources(Forte PRIVATE
     src/PluginEditor.h
     src/PluginProcessor.cpp
     src/PluginProcessor.h
+    src/PresetManager.cpp
+    src/PresetManager.h
+    src/Presets.cpp
+    src/Presets.h
     src/SoundParameters.cpp
     src/SoundParameters.h
     src/VoicingExport.cpp

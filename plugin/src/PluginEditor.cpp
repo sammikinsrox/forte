@@ -74,6 +74,258 @@ private:
 
     juce::TextButton close { "Close" };
 };
+
+//==============================================================================
+/** Plain text drawn in the theme's muted ink, brighter under the mouse: the preset arrows and
+    the preset name. */
+class TextLink final : public juce::Button
+{
+public:
+    TextLink (const juce::String& text, float size)
+        : juce::Button (text), fontSize (size)
+    {
+        setMouseCursor (juce::MouseCursor::PointingHandCursor);
+    }
+
+    void paintButton (juce::Graphics& g, bool over, bool down) override
+    {
+        const auto& t = forteLook (*this).theme();
+        g.setColour (over || down ? t.ink : t.muted);
+        g.setFont (ForteLookAndFeel::jost (fontSize).withExtraKerningFactor (0.06f));
+        g.drawText (getButtonText(), getLocalBounds(), juce::Justification::centred, true);
+    }
+
+private:
+    float fontSize;
+};
+
+/** The preset name with its ‹ › arrows (SPEC §6.4, §7.1). The arrows step through the factory
+    presets, then the user ones, wrapping, and drop unsaved changes. The name opens the menu:
+    both lists, Save, Save as…, Rename…, Delete and Open presets folder. */
+class PresetNav final : public juce::Component
+{
+public:
+    explicit PresetNav (PresetManager& m)
+        : presets (m)
+    {
+        previous.setTooltip ("Previous preset");
+        next.setTooltip ("Next preset");
+        name.setTooltip ("Presets: load, save, rename, delete");
+        previous.onClick = [this] { presets.step (-1); tick(); };
+        next.onClick = [this] { presets.step (1); tick(); };
+        name.onClick = [this] { showMenu(); };
+        addAndMakeVisible (previous);
+        addAndMakeVisible (next);
+        addAndMakeVisible (name);
+        tick();
+    }
+
+    void tick()
+    {
+        if (const auto shown = presets.displayName(); shown != name.getButtonText())
+        {
+            name.setButtonText (shown);
+            resized();
+        }
+    }
+
+    void resized() override
+    {
+        // The arrows hug the name, the three centred in the bounds.
+        constexpr int arrowWidth = 22;
+        const auto textWidth = juce::GlyphArrangement::getStringWidth (ForteLookAndFeel::jost (14.0f).withExtraKerningFactor (0.06f),
+                                                                        name.getButtonText());
+        const int nameWidth = juce::jmin (getWidth() - 2 * arrowWidth, juce::roundToInt (textWidth) + 16);
+        auto area = getLocalBounds().withSizeKeepingCentre (nameWidth + 2 * arrowWidth, getHeight());
+        previous.setBounds (area.removeFromLeft (arrowWidth));
+        next.setBounds (area.removeFromRight (arrowWidth));
+        name.setBounds (area);
+    }
+
+private:
+    enum MenuItem
+    {
+        save = 1,
+        saveAs,
+        rename,
+        remove,
+        openFolder,
+        firstPreset = 100
+    };
+
+    void showMenu()
+    {
+        auto& lib = presets.library();
+        lib.rescan();
+        const auto current = presets.current();
+        const auto& stops = lib.all();
+
+        juce::PopupMenu menu;
+        menu.addSectionHeader ("Factory");
+        for (std::size_t i = 0; i < stops.size(); ++i)
+            if (stops[i].factory)
+                menu.addItem (firstPreset + static_cast<int> (i), stops[i].name, true, stops[i] == current);
+
+        menu.addSectionHeader ("User");
+        if (lib.userNames().empty())
+            menu.addItem (-1, "None yet: use Save as", false, false);
+        for (std::size_t i = 0; i < stops.size(); ++i)
+            if (! stops[i].factory)
+                menu.addItem (firstPreset + static_cast<int> (i), stops[i].name, true, stops[i] == current);
+
+        menu.addSeparator();
+        menu.addItem (save, "Save", ! current.factory);
+        menu.addItem (saveAs, "Save as...");
+        menu.addItem (rename, "Rename...", ! current.factory);
+        menu.addItem (remove, "Delete", ! current.factory && lib.userPresetExists (current.name));
+        menu.addSeparator();
+        menu.addItem (openFolder, "Open presets folder");
+
+        menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&name),
+                            [safe = juce::Component::SafePointer<PresetNav> (this), stops] (int choice)
+                            {
+                                if (safe != nullptr && choice != 0)
+                                    safe->choose (choice, stops);
+                            });
+    }
+
+    void choose (int choice, const std::vector<presets::Id>& stops)
+    {
+        const auto current = presets.current();
+
+        if (choice >= firstPreset)
+        {
+            const auto index = static_cast<std::size_t> (choice - firstPreset);
+            if (index < stops.size() && ! presets.select (stops[index]))
+                report ("That preset is gone", "\"" + stops[index].name + "\" was moved or deleted.");
+        }
+        else if (choice == save)
+        {
+            check (presets.save());
+        }
+        else if (choice == saveAs)
+        {
+            askName ("Save preset as", current.factory ? juce::String() : current.name, [this] (const juce::String& chosen)
+            {
+                confirmReplace (chosen, [this, chosen] { check (presets.saveAs (chosen)); });
+            });
+        }
+        else if (choice == rename)
+        {
+            askName ("Rename preset", current.name, [this, current] (const juce::String& chosen)
+            {
+                if (chosen == current.name)
+                    return;
+                const bool sameFile = chosen.equalsIgnoreCase (current.name);
+                const auto doIt = [this, chosen] { check (presets.renameCurrent (chosen)); };
+                if (sameFile)
+                    doIt();
+                else
+                    confirmReplace (chosen, doIt);
+            });
+        }
+        else if (choice == remove)
+        {
+            juce::AlertWindow::showAsync (juce::MessageBoxOptions()
+                                              .withIconType (juce::MessageBoxIconType::QuestionIcon)
+                                              .withTitle ("Delete preset")
+                                              .withMessage ("Delete \"" + current.name + "\"? This can't be undone.")
+                                              .withButton ("Delete", 1)
+                                              .withButton ("Cancel", 0)
+                                              .withAssociatedComponent (this),
+                                          [safe = juce::Component::SafePointer<PresetNav> (this)] (int button)
+                                          {
+                                              if (safe != nullptr && button == 1)
+                                                  safe->check (safe->presets.deleteCurrent());
+                                          });
+        }
+        else if (choice == openFolder)
+        {
+            const auto folder = presets.library().getFolder();
+            if (const auto made = folder.createDirectory(); made.failed())
+                report ("Couldn't open the presets folder", made.getErrorMessage());
+            else
+                folder.startAsProcess();
+        }
+
+        tick();
+    }
+
+    /** Asks for a name; calls back with a usable one, never for Cancel or an empty name. */
+    void askName (const juce::String& title, const juce::String& initial, std::function<void (const juce::String&)> then)
+    {
+        auto* window = new juce::AlertWindow (title, "Name:", juce::MessageBoxIconType::NoIcon, this);
+        window->addTextEditor ("name", initial);
+        window->addButton ("OK", 1, juce::KeyPress (juce::KeyPress::returnKey));
+        window->addButton ("Cancel", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+
+        window->enterModalState (true, juce::ModalCallbackFunction::create (
+            [safe = juce::Component::SafePointer<PresetNav> (this), window, then = std::move (then)] (int button)
+            {
+                const auto typed = window->getTextEditorContents ("name");
+                if (safe == nullptr || button != 1)
+                    return;
+
+                const auto clean = presets::Library::cleanName (typed);
+                if (clean.isEmpty())
+                {
+                    safe->report ("No name", "A preset needs a name that can be a file name.");
+                    return;
+                }
+                then (clean);
+                safe->tick();
+            }), true);
+    }
+
+    /** Runs then, after asking first if a user preset of that name would be replaced. */
+    void confirmReplace (const juce::String& chosen, std::function<void()> then)
+    {
+        if (! presets.library().userPresetExists (chosen))
+        {
+            then();
+            return;
+        }
+
+        juce::AlertWindow::showAsync (juce::MessageBoxOptions()
+                                          .withIconType (juce::MessageBoxIconType::QuestionIcon)
+                                          .withTitle ("Replace preset")
+                                          .withMessage ("A preset called \"" + chosen + "\" already exists. Replace it?")
+                                          .withButton ("Replace", 1)
+                                          .withButton ("Cancel", 0)
+                                          .withAssociatedComponent (this),
+                                      [safe = juce::Component::SafePointer<PresetNav> (this), then = std::move (then)] (int button)
+                                      {
+                                          if (safe != nullptr && button == 1)
+                                          {
+                                              then();
+                                              safe->tick();
+                                          }
+                                      });
+    }
+
+    void check (const juce::Result& result)
+    {
+        if (result.failed())
+            report ("Presets", result.getErrorMessage());
+        tick();
+    }
+
+    void report (const juce::String& title, const juce::String& message)
+    {
+        juce::AlertWindow::showAsync (juce::MessageBoxOptions()
+                                          .withIconType (juce::MessageBoxIconType::WarningIcon)
+                                          .withTitle (title)
+                                          .withMessage (message)
+                                          .withButton ("OK", 0)
+                                          .withAssociatedComponent (this),
+                                      nullptr);
+    }
+
+    PresetManager& presets;
+    TextLink previous { juce::String::fromUTF8 ("\xe2\x80\xb9"), 20.0f };
+    TextLink next { juce::String::fromUTF8 ("\xe2\x80\xba"), 20.0f };
+    TextLink name { {}, 14.0f };
+};
 } // namespace
 
 //==============================================================================
@@ -109,6 +361,7 @@ public:
         perspective.onChange = [this] (int index) { perspectiveAttachment->setValueAsCompleteGesture (static_cast<float> (index)); };
         perspectiveAttachment->sendInitialUpdate();
         addAndMakeVisible (perspective);
+        addAndMakeVisible (presetNav);
 
         about.setVisible (false);
         addChildComponent (about);
@@ -141,6 +394,7 @@ public:
 
     void tick()
     {
+        presetNav.tick();
         if (simple != nullptr)
             simple->tick();
         if (advanced != nullptr)
@@ -174,7 +428,7 @@ public:
 
         g.setColour (t.muted);
         g.setFont (ForteLookAndFeel::jost (13.0f));
-        g.drawText ("Notes " + juce::String (shownNotes) + "      CPU " + juce::String (shownCpu) + "%", meterArea(),
+        g.drawText ("Notes " + juce::String (shownNotes) + "   CPU " + juce::String (shownCpu) + "%", meterArea(),
                     juce::Justification::centredRight);
 
         g.setColour (t.line);
@@ -186,6 +440,7 @@ public:
         if (current == View::simple)
         {
             tabs.setBounds (32, 26, 258, 28);
+            presetNav.setBounds (430, 104, 240, 26);  // under the wordmark
             perspective.setBounds (448, 140, 184, 26);
             theme.setBounds (938, 27, 92, 26);
         }
@@ -193,6 +448,7 @@ public:
         {
             tabs.setBounds (168, 16, 258, 26);
             perspective.setBounds (444, 16, 184, 26);
+            presetNav.setBounds (640, 16, 180, 26);
             theme.setBounds (938, 16, 92, 26);
         }
 
@@ -201,7 +457,7 @@ public:
     }
 
 private:
-    [[nodiscard]] static juce::Rectangle<int> meterArea() { return { 650, 16, 270, 26 }; }
+    [[nodiscard]] static juce::Rectangle<int> meterArea() { return { 822, 16, 106, 26 }; }
 
     void showSettingsMenu()
     {
@@ -242,6 +498,7 @@ private:
     Segmented perspective { { "Microphones", "Pianist" } };
     std::unique_ptr<juce::ParameterAttachment> perspectiveAttachment;
     GearButton gear;
+    PresetNav presetNav { processor.getPresets() };
     AboutPanel about;
 
     std::unique_ptr<SimpleView> simple;

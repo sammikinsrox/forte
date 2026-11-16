@@ -16,19 +16,18 @@ commit `0bbbe50`, by reading the code, the tests and CI. Nothing was run for thi
 | Model data and fitting (§3) | Partial. Voiced against Keyscape, but several calibrations are still seeds |
 | MIDI, touch, pedals (§4) | Done |
 | Tuning (§5) | Done |
-| Editor (§6) | Mostly done. The overtone display, lit keys and presets UI are missing |
-| Presets, state, automation (§7) | Automation and state done; **presets missing** |
+| Editor (§6) | Mostly done. The overtone display and lit keys are missing |
+| Presets, state, automation (§7) | Done; the factory presets' values still need your ear |
 | Validation (§8) | Tier 1 mostly done; **Tier 2 and the Tier 3 tooling missing** |
 | Build, CI, release (§9) | Per-push CI done; **installer, release flow and notices missing** |
 | Voicing ([issue 0021](../issues/0021-voicing-against-iowa.md)) | Ongoing: the "tinny / CP-70" treble is still open |
 
 **Biggest gaps before a v1.0 release:**
-1. Presets (§7.1).
-2. AVX2 + SSE2 dispatch (§9.2).
-3. Tier 2 checks, `tools/validate/` and the HTML report (§8.2, §8.4).
-4. Installer, zip and tag-to-draft-release workflow (§9.4–9.5).
-5. LICENSE, CREDITS.md and THIRD-PARTY.md, plus VST branding (§9.6).
-6. Finishing the voicing.
+1. AVX2 + SSE2 dispatch (§9.2).
+2. Tier 2 checks, `tools/validate/` and the HTML report (§8.2, §8.4).
+3. Installer, zip and tag-to-draft-release workflow (§9.4–9.5).
+4. LICENSE, CREDITS.md and THIRD-PARTY.md, plus VST branding (§9.6).
+5. Finishing the voicing, then the factory presets' values by ear.
 
 ---
 
@@ -113,20 +112,21 @@ commit `0bbbe50`, by reading the code, the tests and CI. Nothing was run for thi
 - [~] §6.3 Controls. All 12 are present with the 0–100 rules, double-click reset and Volume "Off".
   The Hardness span (÷4 to ×4) and Brightness range (±12 dB) are first-build values still
   waiting for an ear check (§10).
-- [~] §6.4 Layout. Simple, Advanced and Lab tabs (saved with the project); the five advanced groups;
-  Settings gear with both inverts and About; Notes and CPU meters.
-  - [ ] Preset name with ‹ › arrows (needs §7.1).
+- [x] §6.4 Layout. Simple, Advanced and Lab tabs (saved with the project); the five advanced groups;
+  Settings gear with both inverts and About; Notes and CPU meters; the preset name with ‹ › arrows
+  in every view.
 - [x] §6.5 Voicing lab: all controls, registers, Lab | Committed A/B, Export voicing, fold, revision.
   Bit-identical at its 50s, and its costs were measured.
 
 ## 7. Presets, saved state and automation
 
-- [ ] §7.1 **Presets: nothing built.** That covers the factory list led by "Concert Grand",
-  `.fortepreset` user files in `Documents\Forte\Presets`, wrapping arrows, the `*` changed flag
-  and the name menu.
+- [x] §7.1 Presets (`plugin/src/Presets.cpp`, `PresetManager.cpp`): six factory presets led by
+  "Concert Grand", `.fortepreset` user files in `Documents\Forte\Presets`, wrapping ‹ › arrows,
+  the `*` flag, and the name menu (both lists, Save, Save as, Rename, Delete, Open presets folder).
+  - [ ] The factory list's values are first-build guesses, still to be set by ear (§10).
 - [x] §7.2 Automation: the 10 sound controls with permanent parameter IDs, perspective as two-state.
-- [~] §7.3 Saved state: the 10 values, the view and state version 2 are saved. The preset name and
-  its `*` flag are missing (needs §7.1).
+- [x] §7.3 Saved state (version 3): the 10 values, the view, and the preset with the values it
+  loaded, so its `*` comes back with the project.
 - [x] Per-computer settings: inverts and theme (`MachineSettings.cpp`).
 - [x] §7.4 Bit-identical offline bounce (Tier 1).
   - [ ] Sample-rate rebuild time measured against the "well under 1 s" target (§10).
@@ -137,7 +137,7 @@ commit `0bbbe50`, by reading the code, the tests and CI. Nothing was run for thi
   - [x] Velocity curve monotonic; overlapping note-ons; MIDI timing; determinism (including
     through `forte-render`); live changes under automation.
   - [ ] Velocity calibration ±1 dB. It waits on the fitted pp/mf/ff loudness.
-  - [ ] Live changes on a preset change (needs §7.1).
+  - [x] Live changes on a preset change (`PresetTests.cpp`, every factory preset).
   - [ ] State compatibility against the previous release's fixtures (first fixtures come with the
     v1.0 release).
 - [ ] §8.2 **Tier 2 sound-match checks: none built.** No `tools/validate/` and no nightly workflow.
@@ -170,7 +170,7 @@ commit `0bbbe50`, by reading the code, the tests and CI. Nothing was run for thi
 
 - [x] Hardness span: first-build value ÷4 to ×4.
 - [ ] Brightness range, soft-pedal felt and half-pedal gap settings by ear.
-- [ ] Final factory preset list and values (needs §7.1).
+- [ ] Final factory preset list and values. A first list is in `Presets.cpp`.
 - [~] CPU: SSE2 measured and inside the gate; AVX2 not measured; 96 kHz needs no resampling at
   ~22% (SSE2).
 - [ ] Sample-rate rebuild time.

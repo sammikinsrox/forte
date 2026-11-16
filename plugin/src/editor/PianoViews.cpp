@@ -62,9 +62,7 @@ void SimpleView::paint (juce::Graphics& g)
     g.setFont (ForteLookAndFeel::italiana (72.0f, 0.32f));
     g.drawText ("FORTE", juce::Rectangle<int> (24, 30, baseWidth, 80), juce::Justification::centredTop);
 
-    g.setColour (t.muted);
-    g.setFont (ForteLookAndFeel::jost (14.0f));
-    g.drawText ("Concert Grand", juce::Rectangle<int> (0, 106, baseWidth, 24), juce::Justification::centred);
+    // The preset name and its arrows sit under the wordmark, drawn by the editor's header.
 
     g.setColour (feltRed);
     g.fillRect (0, 404, baseWidth, 10);
