@@ -89,9 +89,18 @@ void SympatheticBank::reset() noexcept
     }
 }
 
+double SympatheticBank::levelOf (double resonance) noexcept
+{
+    // 0 = none to 50 = physical, linear; above, doubling every 12.5: ×2 at 62.5, ×4 at 75, ×16
+    // at 100, where the sympathetic strings swamp the note. The user asked for extremes that get
+    // "whacky"; ×2 at the top had been barely audible.
+    const double r = std::clamp (resonance, 0.0, maxResonance);
+    return r <= physicalResonance ? r / physicalResonance : std::pow (2.0, (r - physicalResonance) / 12.5);
+}
+
 void SympatheticBank::setResonance (double resonance) noexcept
 {
-    level = static_cast<float> (std::clamp (resonance, 0.0, maxResonance) / physicalResonance);
+    level = static_cast<float> (levelOf (resonance));
 }
 
 void SympatheticBank::setPitchRatio (int k, double ratio) noexcept
@@ -274,7 +283,7 @@ double sympatheticTailSeconds (const PianoModel& model, double notesTailSeconds,
     // strings' tail) the bank mode is below g = 2·G·σ_b / (σ_b − σ_s) times that, and decays on
     // from there at σ_b. If not, the e^{−σ_b·t} term outlasts the string: from A = 1 at the
     // strike, it rests after ln(g / resting) / σ_b. The slowest string mode is the worst case.
-    const double gain = model.sympatheticLevel * SympatheticBank::maxResonance / physicalResonance;
+    const double gain = model.sympatheticLevel * SympatheticBank::levelOf (SympatheticBank::maxResonance);
     const double logResting = std::log (static_cast<double> (SympatheticBank::restingAmplitude));
     const double sigmaS = slowestStringDecay;
     double tail = notesTailSeconds;

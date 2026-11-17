@@ -287,10 +287,11 @@ PianoModel makeSeedPianoModel()
     // −15 dBFS, and a full 88-key sustain glissando at velocity 90 peaks just under 0 dBFS.
     model.outputGain = 5.6e-3;
 
-    // Placeholder until Piano in 162 calibrates it (SPEC §3.3): a round gain that puts a held
-    // note's pedal-down minus pedal-up difference about 12–28 dB under the note from E1 to C6,
-    // closer in the sustain than in the attack.
-    model.sympatheticLevel = 0.1;
+    // Placeholder until Piano in 162 calibrates it (SPEC §3.3). 0.1 put a held note's pedal-down
+    // minus pedal-up difference about 12–28 dB under the note from E1 to C6, and the bank at
+    // −16.5 dB of a pedalled piece; by ear twice that (the old Resonance 100, with longer sustain
+    // below A6) "fixes almost all the issues" (issue 0022 §6).
+    model.sympatheticLevel = 0.2;
     return model;
 }
 

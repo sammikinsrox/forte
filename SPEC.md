@@ -263,7 +263,7 @@ Source: [Tuning system](issues/0016-tuning-system.md).
 - **A4:** 415–466 Hz, in whole Hz, default 440.
 - **Unison spread:** a per-note curve (flat 0.7 cent by default) × one overall amount (the Spread control). Individual notes can be adjusted in the voicing overrides.
 - **Stretched equal temperament only.** No other temperaments.
-- **Detune:** 0–100, default 0 (as tuned). A piano a few weeks after its tuning: every note but A4 sits off its tuned pitch by its own fixed amount, spread evenly over ±3 cents at 100 (`detuneShape`, a hash of the note), the same in every session. It moves the whole note, so its unison spread is untouched. Added on the user's ear (issue 0022 §6): the tuning "so perfect that it's uncanny".
+- **Detune:** 0–100, default 0 (as tuned). From a piano a few weeks after its tuning to one nobody has tuned in years: every note but A4 sits off its tuned pitch by its own fixed amount (`detuneShape`, a hash of the note, even over ±1), the same in every session. The range is linear up to ±3 cents at 50, then doubles every 13.5: ±6 at 63.5, ±12 at 77, ±39 at 100 (the user wanted the extremes to get "whacky"). It moves the whole note, so its unison spread is untouched. Added on the user's ear (issue 0022 §6): the tuning "so perfect that it's uncanny".
 
 ## 6. Editor
 
@@ -302,7 +302,7 @@ Sources: [Editor look & feel direction](issues/0006-editor-look-and-feel.md), [E
 |---|---|---|---|---|
 | Hardness | 0–100 | 50 = fitted felt | Log-scale multiplier on the felt stiffness. Span set by ear. Strike-time. | simple dial, advanced knob |
 | Brightness | 0–100 | 50 = no tilt | Treble tilt, about ±12 dB at 10 kHz (exact by ear) | both |
-| Resonance | 0–100 | 50 = physical | Sympathetic bank level. 0 = none, 100 = double. | both |
+| Resonance | 0–100 | 50 = the voiced level | Sympathetic bank level. 0 = none to 50 linear, then doubling every 12.5: ×2 at 62.5, ×4 at 75, ×16 at 100, where it swamps the note. 50 is twice the old calibration (0.2): at 0.1 the bank was −16.5 dB of a pedalled piece and barely audible from 0 to 100; doubled, with longer sustain below A6, "fixes almost all the issues" (issue 0022 §6). | both |
 | Volume | −60 to +6 dB | 0 dB | −60 shows as "Off" | simple fader, advanced knob |
 | Listening perspective | Microphones \| Pianist | Microphones | Selects the IR set | both headers |
 | Sustain | 0–100 | live | Raw pedal position (0 = Up, 100 = Down). Up / Half / Down slider. | both |
@@ -311,7 +311,7 @@ Sources: [Editor look & feel direction](issues/0006-editor-look-and-feel.md), [E
 | A4 | 415–466 Hz | 440 | §5 | advanced |
 | Stretch | 0–100 | 50 | §5 | advanced |
 | Spread | 0–100 | 50 = 0.7 cent | 0 = perfect unison, 100 = 1.4 cent | advanced |
-| Detune | 0–100 | 0 = as tuned | each note off by its own fixed amount, up to ±3 cents at 100 (§5) | advanced |
+| Detune | 0–100 | 0 = as tuned | each note off by its own fixed amount: up to ±3 cents at 50, ±39 at 100 (§5) | advanced |
 | Width | 0–100 | 100 | 0 = mono | advanced |
 | Room | 0–100 | 22 (Studio) | How much room (§2.11). 0 = the dry piano. | advanced |
 | Room size | 0–100 | 30 | The reflections' spacing and the tail's density | advanced |

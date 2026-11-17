@@ -22,7 +22,7 @@ namespace forte::detail
     Energy flows one way: banks never feed each other or the played strings (SPEC §2.1).
 
     Level: each mode's gain at its own frequency, from the drive to the bridge output, is the
-    model's sympatheticLevel at Resonance 50 (0 = none, 100 = double, SPEC §6.3). A mode's
+    model's sympatheticLevel at Resonance 50 (0 = none, 62.5 = double, 100 = ×16, SPEC §6.3). A mode's
     response falls off away from its frequency within its decay's bandwidth.
 
     Damper gate: the key's damper lift (key and sustain pedal, half-pedal included) scales the
@@ -67,6 +67,10 @@ public:
 
     /** 0–100, 50 = physical (SPEC §6.3). Not smoothed. */
     void setResonance (double resonance) noexcept;
+
+    /** The bank's level for a Resonance: 0 at 0, 1 at 50 (linear), then ×2 every 12.5: 2 at
+        62.5, 4 at 75, 16 at 100. */
+    [[nodiscard]] static double levelOf (double resonance) noexcept;
 
     /** Every mode of key (0–87) at ratio × its prepared frequency. Realtime-safe. */
     void setPitchRatio (int key, double ratio) noexcept;

@@ -244,8 +244,11 @@ TEST_CASE ("The hysteretic felt is stiffer than its relaxed self and brightens w
     // the third difference (+18 dB/octave, so the top dominates) over the signal's. The notes are
     // ones the Keyscape-fitted voicing gives a strongly relaxing felt; from F#6 up it has none
     // (§14), and C6's (ε 0.6 on a felt hardened in §18) adds under 10%.
+    // The felt alone: without the second polarisation's tails, whose added sound is the same on
+    // both sides and only dilutes the ratio.
     const int midiNote = GENERATE (36, 60, 72, 76);
-    const auto stulov = seedModel().note (midiNote);
+    auto stulov = seedModel().note (midiNote);
+    stulov.numTailPartials = 0;
     REQUIRE (stulov.feltRelaxation > 0.5);
 
     auto relaxed = stulov;
@@ -340,9 +343,11 @@ TEST_CASE ("Measured partials keep their own decay rates; the laws take over abo
 
 TEST_CASE ("The decay table is in range across the keyboard", "[note][decay]")
 {
-    // The fitted decays (engine/src/DecayFit.inc, from fit_decay.py): every rate positive and
-    // no slower than a 57 s T60, every aftersound no faster than its prompt sound, and the
-    // measured partials where Iowa has notes.
+    // The fitted decays (engine/src/DecayFit.inc, from fit_decay.py) under the voicing: every
+    // rate positive and no slower than a 115 s T60 (the fit's floor, a 57 s T60, halved by the
+    // voicing's Sustain below A6, issue 0022 §6), every aftersound no faster than its prompt
+    // sound, and the measured partials where Iowa has notes.
+    constexpr double slowestRate = 0.06;
     const auto& model = seedModel();
 
     for (int midiNote = forte::detail::lowestNote; midiNote <= forte::detail::highestNote; ++midiNote)
@@ -351,8 +356,8 @@ TEST_CASE ("The decay table is in range across the keyboard", "[note][decay]")
         INFO ("note " << midiNote);
         CHECK (p.numMeasuredPartials >= 0);
         CHECK (p.numMeasuredPartials <= NoteParameters::maxMeasuredPartials);
-        CHECK (p.decayConstant >= 0.12 - 1e-9);
-        CHECK (p.aftersoundDecayConstant >= 0.12 - 1e-9);
+        CHECK (p.decayConstant >= slowestRate - 1e-9);
+        CHECK (p.aftersoundDecayConstant >= slowestRate - 1e-9);
         CHECK (p.decayPerHertzSquared >= 0.0);
         CHECK (p.aftersoundDecayPerHertzSquared >= 0.0);
         if (midiNote >= 36 && midiNote <= 81)
@@ -361,7 +366,7 @@ TEST_CASE ("The decay table is in range across the keyboard", "[note][decay]")
         for (int n = 1; n <= p.numMeasuredPartials; ++n)
         {
             INFO ("partial " << n);
-            CHECK (forte::detail::aftersoundDecayOfPartial (p, n) >= 0.12 - 1e-9);
+            CHECK (forte::detail::aftersoundDecayOfPartial (p, n) >= slowestRate - 1e-9);
             CHECK (forte::detail::aftersoundDecayOfPartial (p, n) <= forte::detail::promptDecayOfPartial (p, n));
             CHECK (forte::detail::promptDecayOfPartial (p, n) <= 60.0);
         }

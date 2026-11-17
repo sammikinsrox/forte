@@ -273,7 +273,7 @@ TEST_CASE ("The reported tail covers the longest-ringing note", "[engine]")
     const double tail = engine.getTailSeconds();
     REQUIRE (tail == stringsTail + irSeconds + 2.0 * forte::detail::Soundboard::partitionSize / 44100.0);
     REQUIRE (tail > 10.0);
-    REQUIRE (tail < 180.0);
+    REQUIRE (tail < 300.0);  // 187 s since the voicing's Sustain below A6 (issue 0022 §6)
 
     const auto length = static_cast<std::int64_t> (tail * sampleRate);
     bool soundsAtAThird = false;

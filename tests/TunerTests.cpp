@@ -129,7 +129,7 @@ TEST_CASE ("Stretch scales the distance from equal temperament, and A4 moves eve
     CHECK (std::abs (tuningRatio (curve, i, 466.0, 50.0) / tuningRatio (curve, i, 440.0, 50.0) - 466.0 / 440.0) < 1e-12);
 }
 
-TEST_CASE ("Detune moves each note by its own fixed amount, up to 3 cents, and leaves A4", "[tuner]")
+TEST_CASE ("Detune moves each note by its own fixed amount, 3 cents at 50, 39 at 100, and leaves A4", "[tuner]")
 {
     // SPEC §5: a piano a few weeks after its tuning. Detune 0 is the tuner's pitch exactly.
     const auto model = makeSeedPianoModel();
@@ -145,7 +145,8 @@ TEST_CASE ("Detune moves each note by its own fixed amount, up to 3 cents, and l
         const double moved = 1200.0 * std::log2 (tuningRatio (curve, i, 440.0, 50.0, 100.0) / tuningRatio (curve, i, 440.0, 50.0));
         CHECK (std::abs (moved - detuneCents (i, 100.0)) < 1e-9);
         CHECK (std::abs (moved) <= maxDetuneCents);
-        CHECK (std::abs (detuneCents (i, 50.0) - 0.5 * detuneCents (i, 100.0)) < 1e-12);
+        CHECK (std::abs (detuneCents (i, 50.0)) <= detuneHalfwayCents);
+        CHECK (std::abs (detuneCents (i, 25.0) - 0.5 * detuneCents (i, 50.0)) < 1e-12);  // linear up to 50
         CHECK (detuneShape (i) == detuneShape (i));  // fixed
 
         sumSquares += detuneShape (i) * detuneShape (i);
@@ -153,6 +154,10 @@ TEST_CASE ("Detune moves each note by its own fixed amount, up to 3 cents, and l
     }
 
     CHECK (detuneShape (69 - lowestNote) == 0.0);
+    CHECK (std::abs (detuneRangeCents (50.0) - detuneHalfwayCents) < 1e-12);
+    CHECK (std::abs (detuneRangeCents (50.0 + detuneDoublingStep) - 2.0 * detuneHalfwayCents) < 1e-12);
+    CHECK (detuneRangeCents (100.0) > 35.0);
+    CHECK (detuneRangeCents (100.0) <= maxDetuneCents);
     // Spread evenly over −1…1: rms about 1/√3, with notes both sharp and flat.
     const double rms = std::sqrt (sumSquares / numNotes);
     CHECK (rms > 0.45);

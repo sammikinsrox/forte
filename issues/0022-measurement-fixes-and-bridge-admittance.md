@@ -192,7 +192,56 @@ pitch by its own fixed amount (a hash of the note, even over ±1) × 3 cents at 
 group, in presets (the 15th field; older files load 0), automatable, `forte-render --control
 detune=`. Issue 0016 §11 had left random tuner imperfection for later "if Forte sounds too clean".
 
-Still open: the treble's ring at 0.1-0.5 s, 3-6 dB short at G5-C6 (no tails above partial 2-4).
+**The treble's ring** (after the commit). With the even voicing, the treble's envelope matched
+Keyscape's to 0.5 s; after it, Keyscape's held on (−38 dB re the strike at 1-2.5 s, 92-99% of it
+on partials 1-8, 20 dB over its noise) and Forte's fell 5-12 dB lower from F#5. Its partials 2-4
+ring on in Keyscape; the tail fit had stopped at the first partial it couldn't fit (bumpy treble
+envelopes), so C6 had tails on 2 partials. `fit_tail.py` now fits each partial on its own (robust
+loss, rms ≤ 4 dB) and fills gaps from the notes around; then `correct` passes move each note's
+tail levels by its whole late sound (0.5-2.5 s re the strike) against Keyscape's, smoothed ±2
+notes, up to B6 and only where Keyscape is 12 dB clear of its noise. Three passes: C5-F6 within
+~2 dB of Keyscape's out to 2.5 s (was up to 9 short). F#6 up left as fitted. `fit_level.py`
+refitted after: note to note 0.1 dB rms. CPU unchanged, bracketed.
+
+The user, on Autumn Leaves and Chopin: "off. Fake, synthesized, casio-tone, rather than a proper
+bell-tone". Measured (`tools/fitting/analysis/wavering.py`, now run on every change): from C4 to
+B6 the partials' level wavering was 0.00-0.03 dB and partial 1's pitch wobble 0.03-0.08 cents,
+against Keyscape's 0.4-1.9 dB and 0.35-1.1 cents. The single tail mode per partial was a perfect
+sine once the fast stage had gone, and the correction had made it louder. Not committed.
+
+**A tail that beats.** The tail is now one mode per string (two on a single string), each at its
+string's detuning plus its own place in `tailSpreadCents` (0.3 cents in the bass, 0.15-0.2 in the
+tenor and middle, up to 0.4 at the top), at unequal shares (58/27/15 %, 68/32 % on two) and rates
+×1, ×1.12, ×0.88. Movement is very sensitive to the shares: 48/32/20 % beat twice Keyscape's,
+70/20/10 % almost not at all. Now (fast / slow waver dB, pitch wobble cents; Keyscape first): C3
+0.04/0.38/0.44 against 0.04/1.28/0.37; C4 0.20/1.55/0.48 against 0.20/1.36/0.34; C5 0.96/1.45/0.66
+against 0.50/1.15/0.29; C6 1.11/1.53 against 0.76/1.95. Like Keyscape's, a partial now dips where
+its fast stage and tail cancel and recovers. Tails refitted and corrected (three passes), levels
+refitted (0.1 dB rms). Held notes 7.4 dB rms from Keyscape's (committed 10.9). CPU +0.3 (AVX2),
++0.6 (SSE2), bracketed. The felt test measures the felt without tails.
+
+The user preferred the committed build: "alive" had "a sort of rapidly changing digital artifact"
+(heard by nulling it against committed). The difference was all tone (99.99 % on the partials, no
+clicks, nothing above 8 kHz), its envelope moving at 0.6 Hz on every note from C3 to C6: one rate
+everywhere, as a chorus moves, where a piano's beats differ note to note. Shelved, as
+`build/ab/alive/alive-shelved.patch` (the multi-mode tail, the per-partial tail fit and the
+correction passes); the engine is back at 3d56fb9. `analysis/wavering.py` stays.
+
+**Resonance** (after): the user could barely hear it from 0 to 100. With the pedal down (My Funny
+Valentine, 94 %) the sympathetic bank was −16.5 dB of the output at 50 and −10.8 at 100; the piece
+0.4 dB louder. Now 0-50 linear as before, then doubling every 25: 75 = ×2 (the old top), 100 = ×4
+(−5.8 dB of the output). The user's old favourite clip (15 Nov) had ×3, and longer sustain, which
+they want everywhere below about A6. A/B in `build/ab/sustain/`.
+
+The user: "resonance is totally the answer … fixes almost all the issues"; sustain ×2 below A6 with
+the bank ×2 "totally the best sounding". Made the default: Sustain 100 on the bass and middle
+registers folded (voicing revision 2, rates ×0.5 at C2 and C4, back to ×1 by C7), and
+`sympatheticLevel` 0.1 → 0.2. Renders within ±0.4 dB per third-octave of that A/B clip. The
+slowest rates now 0.06/s (115 s T60); the engine's reported tail 187 s.
+
+Then wider extremes, asked for "whacky": Resonance above 50 doubles every 12.5 (×16 at 100,
+the bank +10 dB rms over a pedalled piece); Detune is linear to ±3 cents at 50, then doubles
+every 13.5 (±39 cents at 100). No clipping at either extreme (My Funny Valentine peaks −17 dBFS).
 
 Rules that still hold: commit only when asked; `tools/lab-identity.ps1`-style identity checks and
 Release `ctest` (pluginval included) after each step; Reaper locks the Release VST3, so ask the user

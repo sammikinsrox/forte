@@ -174,7 +174,7 @@ TEST_CASE ("A bank decays to exact silence and goes idle", "[sympathetic]")
     CHECK_FALSE (bank.isActive (key));
 }
 
-TEST_CASE ("Resonance scales the bank: 0 is none, 100 is double", "[sympathetic]")
+TEST_CASE ("Resonance scales the bank: 0 is none, 62.5 is double, 100 is 16 times", "[sympathetic]")
 {
     const auto model = forte::detail::makeSeedPianoModel();
     SympatheticBank bank;
@@ -185,8 +185,12 @@ TEST_CASE ("Resonance scales the bank: 0 is none, 100 is double", "[sympathetic]
     const auto physical = runBank (bank, key, drive, second, 1.0f);
 
     bank.reset();
-    bank.setResonance (100.0);
+    bank.setResonance (62.5);
     const auto doubled = runBank (bank, key, drive, second, 1.0f);
+
+    bank.reset();
+    bank.setResonance (100.0);
+    const auto sixteen = runBank (bank, key, drive, second, 1.0f);
 
     bank.reset();
     bank.setResonance (0.0);
@@ -194,7 +198,10 @@ TEST_CASE ("Resonance scales the bank: 0 is none, 100 is double", "[sympathetic]
 
     REQUIRE_FALSE (allZero (physical));
     for (std::size_t i = 0; i < physical.size(); ++i)
+    {
         REQUIRE (doubled[i] == 2.0f * physical[i]);
+        REQUIRE (sixteen[i] == 16.0f * physical[i]);
+    }
     CHECK (allZero (none));
     CHECK_FALSE (bank.isActive (key));
 }
@@ -303,10 +310,13 @@ TEST_CASE ("The bank's tail bound grows when a bank could outlast its drive", "[
     constexpr double notesTail = 50.0;
     constexpr double slowest = 0.05;
 
-    // The seed level is low enough that no bank outlasts the strings. (The strings' rate here is
-    // well clear of the slowest bank modes, the Keyscape fit's floor of 0.12/s, issue 0021 §15:
-    // the bound grows as the two rates meet.)
+    // A quiet bank outlasts nothing: a level whose Resonance-100 gain (×16) is the old seed's top,
+    // 0.1 × 2. (The strings' rate here is well clear of the slowest bank modes, the Keyscape fit's
+    // floor of 0.12/s, issue 0021 §15: the bound grows as the two rates meet.)
+    const double seedLevel = model.sympatheticLevel;
+    model.sympatheticLevel = 0.2 / 16.0;
     CHECK (forte::detail::sympatheticTailSeconds (model, notesTail, slowest) == notesTail);
+    model.sympatheticLevel = seedLevel;
 
     // Loud banks ring on past the strings.
     model.sympatheticLevel = 10.0;

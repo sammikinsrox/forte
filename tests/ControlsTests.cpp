@@ -212,7 +212,7 @@ TEST_CASE ("Hammer is stable on every note at maximum velocity with the hardest 
     }
 }
 
-TEST_CASE ("Resonance 0 removes the sympathetic strings, 100 doubles them", "[controls]")
+TEST_CASE ("Resonance 0 removes the sympathetic strings, 62.5 doubles them, 100 is 16 times", "[controls]")
 {
     // A struck chord with the pedal down, then a second chord's keys' strings left ringing alone.
     const auto level = [] (double resonance)
@@ -230,19 +230,22 @@ TEST_CASE ("Resonance 0 removes the sympathetic strings, 100 doubles them", "[co
         return render (engine, pedalledChord, second / 2).left;
     };
 
-    const auto none = level (0.0), physical = level (50.0), doubled = level (100.0);
+    const auto none = level (0.0), physical = level (50.0), doubled = level (62.5), sixteen = level (100.0);
     CHECK (none != physical);
     CHECK (doubled != physical);
 
-    // The bank's share: physical − none, and doubled − none is twice it.
-    double share = 0.0, twice = 0.0;
+    // The bank's share: physical − none; doubled − none is twice it, sixteen − none 16 times.
+    double share = 0.0, twice = 0.0, more = 0.0;
     for (std::size_t i = 0; i < none.size(); ++i)
     {
         share += std::pow (physical[i] - none[i], 2.0);
         twice += std::pow (doubled[i] - none[i], 2.0);
+        more += std::pow (sixteen[i] - none[i], 2.0);
     }
     CHECK (std::sqrt (twice / share) > 1.9);
     CHECK (std::sqrt (twice / share) < 2.1);
+    CHECK (std::sqrt (more / share) > 15.2);
+    CHECK (std::sqrt (more / share) < 16.8);
 }
 
 TEST_CASE ("Spread waits for the strings to be rebuilt, then for a note's next start from rest", "[controls][tuning]")

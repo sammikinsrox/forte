@@ -3,6 +3,7 @@
 #include "PianoModel.h"
 
 #include <array>
+#include <cmath>
 
 namespace forte::detail
 {
@@ -40,10 +41,20 @@ inline constexpr double calculatedStretch = 50.0;
 [[nodiscard]] double tuningRatio (const StretchCurve& curve, int noteIndex, double a4Hz, double stretch,
                                   double detune = 0.0) noexcept;
 
-/** Detune (SPEC §5): a piano a few weeks after its tuning. Every note but A4 sits off its tuned
-    pitch by its own fixed amount, the same every session: detuneShape(note) × Detune / 100 ×
-    maxDetuneCents. */
-inline constexpr double maxDetuneCents = 3.0;
+/** Detune (SPEC §5): a piano a while after its tuning, up to one nobody has tuned in years.
+    Every note but A4 sits off its tuned pitch by its own fixed amount, the same every session:
+    detuneShape(note) × detuneRangeCents(Detune). */
+inline constexpr double detuneHalfwayCents = 3.0;   // Detune 50: a few weeks after the tuning
+inline constexpr double detuneDoublingStep = 13.5;  // above 50, the range doubles every this many
+inline constexpr double maxDetuneCents = 39.1;      // detuneRangeCents (100), rounded up
+
+/** How far Detune lets a note stray, in cents: linear up to detuneHalfwayCents at 50, then
+    doubling every detuneDoublingStep, ±39 cents at 100. */
+[[nodiscard]] inline double detuneRangeCents (double detune) noexcept
+{
+    return detune <= 50.0 ? detune / 50.0 * detuneHalfwayCents
+                          : detuneHalfwayCents * std::pow (2.0, (detune - 50.0) / detuneDoublingStep);
+}
 
 /** Note noteIndex's fixed share of the detuning, −1 to 1 (0 for A4): a hash of the note, spread
     evenly. */
@@ -52,6 +63,6 @@ inline constexpr double maxDetuneCents = 3.0;
 /** The cents Detune moves a note by. */
 [[nodiscard]] inline double detuneCents (int noteIndex, double detune) noexcept
 {
-    return detuneShape (noteIndex) * detune / 100.0 * maxDetuneCents;
+    return detuneShape (noteIndex) * detuneRangeCents (detune);
 }
 } // namespace forte::detail
