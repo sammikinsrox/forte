@@ -259,9 +259,34 @@ single notes peak at −6 dBFS or below; at 127, 15 notes go over 0 dBFS (F6 +6.
 Keyscape's go over −1. By the user's choice there's no limiter: the output is float. The stability
 tests' blow-up bound moves from 1.0 to +12 dBFS (`stableStrikePeak`).
 
-Next, for the attack: the fast first stage back with the long tail kept (lab Sustain 0 / 0 / 50,
-Second stage 100 / 100 / 50). With the tape off, that brings strike over body to within 0-1.6 dB
-of Keyscape's from C2 to B5 and leaves the first half-second 1-2 dB lower. The user is trying it.
+**The fast first stage (voicing revision 4).** Revision 2's Sustain is undone on the prompt rates,
+and its long tail is kept (lab Sustain 0 / 0 / 50, Second stage 100 / 100 / 50: Sustain is back to
+×1 on every note, Second stage carries revision 2's ×0.5-1 exactly). Strike over body is now
+within 0-1.6 dB of Keyscape's from C2 to B5, and held notes' decay to 2.9 s follows Keyscape's to
+~2 dB (C3-B3 to 0.3). C2-B4 ring 5-7 dB less at 1.5-2.9 s: the slow first stage had been much of
+the sustain the user liked. By ear the user heard no difference between the old setting and a
+halfway one; kept.
+
+**The felt without its spike (voicing revision 5).** The user still wanted "a louder bell tone" on
+the attack. In the strike (0-40 ms), C3-B4's partials 1-3 were within ~1 dB of Keyscape's, but
+partials 4-15 were 4-9 dB short and 16-30 4-11 dB over: a fizz, from the fitted spike (ε 0.8-0.9,
+τ 20 µs: the felt 5-10× stiffer for its first ~20 µs). The user's lab pick, Felt hardness 0 and
+Felt spike 0, gives a felt ~2.5× stiffer through the contact with no spike: partials 1-7 within
+~1 dB of Keyscape's and the fizz gone. It also collapsed C6 up (the treble felt has little or no
+spike, so it only softened: −7 to −26 dB), so the treble's hardness stayed at 50. Folded as Felt
+hardness 0 / 0 / 50, Felt spike 0 / 0 / 0: felt ×0.125 to C4, back to ×0.5 by C7, ε 0 everywhere.
+The user: an improvement, not perfect, most of all in the upper register. Autumn Leaves now has
+Keyscape's rms (−19.5 against −19.7, Chopin −24.4 against −24.4), and its peaks reach +2.7 dBFS
+(Keyscape −1.4): the strikes stand out further than Keyscape's. The stability tests' bound is now
++18 dBFS (Hardness 100 at G2: +12.8).
+
+Checked and ruled out along the way: the strike's spectrum doesn't depend on the sample rate
+(within 0.5 dB, 44.1 to 96 kHz, with or without the spike). The strike position matches Keyscape's
+(fitted from each note's strike-position comb: bass 0.1225 against Forte's 0.12; C4 about 0.11,
+within the method's error). Keyscape's comb notches are as deep as Forte's in the bass and 2-4.5
+dB shallower from C3 up, at both velocities: a minor lever. What's left for the treble's pop is
+its fundamentals' fast drop (§3.2, §4), C5 up 3-9 dB under Keyscape's in how far the low partials
+stand out of the strike.
 
 Rules that still hold: commit only when asked; `tools/lab-identity.ps1`-style identity checks and
 Release `ctest` (pluginval included) after each step; Reaper locks the Release VST3, so ask the user

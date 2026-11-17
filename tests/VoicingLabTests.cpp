@@ -204,8 +204,9 @@ TEST_CASE ("Voicing lab: hammer controls act on the next strike, never on a ring
     const auto value = GENERATE (0.0f, 100.0f);
     INFO ("control " << lab::info (control).id << " at " << value);
 
-    // C6 at velocity 100: every hammer control has something to change there (C6 has a knock
-    // and a relaxing felt). The change lands 16 samples into the contact and again 0.25 s in.
+    // C6 at velocity 100: every hammer control has something to change there (C6 has a knock).
+    // The change lands 16 samples into the contact and again 0.25 s in. Since voicing revision 5
+    // the committed felt has no spike (ε 0), so Felt spike 0 is the committed felt itself.
     constexpr int note = 84;
     const auto split = GENERATE (std::int64_t { 16 }, second / 4);
     const std::int64_t restrike = second / 2;
@@ -217,7 +218,8 @@ TEST_CASE ("Voicing lab: hammer controls act on the next strike, never on a ring
 
     CHECK (slice (changed.left, 0, restrike) == slice (committed.left, 0, restrike));
     CHECK (slice (changed.right, 0, restrike) == slice (committed.right, 0, restrike));
-    CHECK (slice (changed.left, restrike, length) != slice (committed.left, restrike, length));
+    if (! (control == Control::feltSpike && value == 0.0f))
+        CHECK (slice (changed.left, restrike, length) != slice (committed.left, restrike, length));
 }
 
 TEST_CASE ("Voicing lab: the hammer is stable on every note at the controls' extremes", "[lab][engine][hammer]")

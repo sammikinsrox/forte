@@ -5,6 +5,7 @@
 
 #include "NoteModel.h"
 #include "PianoModel.h"
+#include "VoicingOverrides.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
@@ -241,15 +242,21 @@ TEST_CASE ("The hysteretic felt is stiffer than its relaxed self and brightens w
     // with a short relaxation time only the fastest compression meets the stiff felt: the strike
     // gains air over an elastic felt at the relaxed stiffness, without the middle partials
     // rising (no twang). And ff has more air than pp, up to E5 (issue 0021 §7). Air is the rms of
-    // the third difference (+18 dB/octave, so the top dominates) over the signal's. The notes are
-    // ones the Keyscape-fitted voicing gives a strongly relaxing felt; from F#6 up it has none
-    // (§14), and C6's (ε 0.6 on a felt hardened in §18) adds under 10%.
-    // The felt alone: without the second polarisation's tails, whose added sound is the same on
-    // both sides and only dilutes the ratio.
+    // the third difference (+18 dB/octave, so the top dominates) over the signal's.
+    // The committed voicing has no spike since revision 5 (the user's Felt spike 0 on a felt ÷4,
+    // issue 0022 §6), so this tests the model's felt as the hammer fit made these notes, before
+    // the voicing overrides: its stiffness and its spike (ε 0.9, 0.8 at C4). It checks separately
+    // that the committed, elastic felt still brightens with velocity. The felt alone: without the
+    // second polarisation's tails, whose added sound is the same on both sides and only dilutes
+    // the ratio.
     const int midiNote = GENERATE (36, 60, 72, 76);
-    auto stulov = seedModel().note (midiNote);
-    stulov.numTailPartials = 0;
-    REQUIRE (stulov.feltRelaxation > 0.5);
+    auto committed = seedModel().note (midiNote);
+    committed.numTailPartials = 0;
+
+    auto stulov = committed;
+    stulov.feltStiffness /= forte::detail::overrides::notes[static_cast<std::size_t> (midiNote - forte::detail::lowestNote)].feltStiffnessScale;
+    stulov.feltRelaxation = midiNote == 60 ? 0.8 : 0.9;
+    REQUIRE (stulov.feltRelaxationTime > 0.0);
 
     auto relaxed = stulov;
     relaxed.feltStiffness *= 1.0 - stulov.feltRelaxation;
@@ -271,10 +278,17 @@ TEST_CASE ("The hysteretic felt is stiffer than its relaxed self and brightens w
     const auto ff = air (strikeNote (stulov, 112, window));
     const auto mfRelaxed = air (strikeNote (relaxed, 64, window));
 
-    INFO ("note " << midiNote << ": air pp " << pp << ", mf " << mf << ", ff " << ff << "; mf relaxed " << mfRelaxed);
+    const auto ppCommitted = air (strikeNote (committed, 32, window));
+    const auto ffCommitted = air (strikeNote (committed, 112, window));
+
+    INFO ("note " << midiNote << ": air pp " << pp << ", mf " << mf << ", ff " << ff << "; mf relaxed " << mfRelaxed
+                  << "; committed pp " << ppCommitted << ", ff " << ffCommitted);
     CHECK (mf > 1.1 * mfRelaxed);
     if (midiNote <= 76)
+    {
         CHECK (pp < ff);
+        CHECK (ppCommitted < ffCommitted);
+    }
 }
 
 TEST_CASE ("The hammer table is calibrated and smooth across the keyboard", "[note][hammer]")

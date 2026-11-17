@@ -104,8 +104,10 @@ inline float peak (const std::vector<float>& v)
 /** The hammer stability tests' bound on a single velocity-127 strike's peak (SPEC §2.4): a
     blow-up guard, not a level rule. It was 1.0 (0 dBFS) at the first output gain. At Keyscape's
     level (12 dB up, the tape off) single velocity-127 strikes reach about +6 dBFS, as Keyscape's
-    own clip; the output is float, so the host's gain staging handles it. */
-inline constexpr float stableStrikePeak = 4.0f;  // +12 dBFS
+    own clip; the output is float, so the host's gain staging handles it. With the spike-free felt
+    of voicing revision 5 at Hardness 100 (felt ×4), G2 reaches +12.8 dBFS; a blow-up goes orders
+    of magnitude past this. */
+inline constexpr float stableStrikePeak = 8.0f;  // +18 dBFS
 
 /** Index of the first non-zero sample, or -1. */
 inline std::int64_t firstNonZero (const std::vector<float>& v)
