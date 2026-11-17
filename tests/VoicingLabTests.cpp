@@ -357,7 +357,7 @@ TEST_CASE ("Voicing lab: the export reads back, says what the values mean, and k
     CHECK_THAT (static_cast<double> (root["physical"]["feltHardness"]["bass"]), WithinRel (4.0, 1e-12));
     CHECK (static_cast<double> (root["physical"]["feltHardness"]["middle"]) == 1.0);
     CHECK (static_cast<double> (root["physical"]["tapeDrive"]) == 0.0);
-    CHECK (static_cast<double> (root["physical"]["pickup"]["treble"]) == 0.5);
+    CHECK (static_cast<double> (root["physical"]["pickup"]["treble"]) == 0.1);  // data/model/board.json
     CHECK (root["builtFrom"].toString().isNotEmpty());
 
     const juce::TemporaryFile folder;

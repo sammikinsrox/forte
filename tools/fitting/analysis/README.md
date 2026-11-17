@@ -14,6 +14,7 @@ Run them with plain `python` (not `-I`: numpy). Note sweeps come from `../make_n
 | `partial_sigmas.py`, `top_decay.py` | Decay rates per band / per partial; how the 5–16 kHz band dies |
 | `velocity_colour.py`, `vel_slope.py` | Brightness and loudness per velocity against a reference |
 | `attack_map.py`, `nasal.py` | Octave/third-octave balance of the attack and the ringing note |
+| `partial_colour.py` | The per-region colour from partial levels against the reference (issue 0021 §20); the committed curve's last passes came from it |
 | `colour_fit.py`, `colour_by_vel.py` | The per-region colour curve (`data/model/board-colour.json` came from two passes of it) |
 | `ltas.py` | Long-term third-octave spectrum of whole pieces against a reference |
 | `align_ref.py` | Aligns a reference render of a piece to Forte's timeline (checks drift) |

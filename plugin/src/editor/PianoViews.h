@@ -65,8 +65,8 @@ private:
     int hoverKey = -1;
 };
 
-/** The advanced view (SPEC §6.4): the tuning curve and keyboard, and every control in five
-    groups. */
+/** The advanced view (SPEC §6.4): the tuning curve, the Room panel (SPEC §2.11: its six knobs
+    and the room presets' menu) and the keyboard, and every other control in five groups. */
 class AdvancedView final : public juce::Component
 {
 public:
@@ -82,10 +82,14 @@ private:
         int y;
     };
 
+    void showRoomMenu();
+
     PluginProcessor& processor;
     TuningCurve curve;
     std::vector<std::unique_ptr<Knob>> knobs;
     std::vector<Group> groups;
+    std::vector<std::unique_ptr<Knob>> roomKnobs;
+    juce::TextButton roomMenu;
     Pedals pedals;
     PianoKeyboard keyboard;
 };

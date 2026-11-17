@@ -37,6 +37,7 @@ target_sources(forte_tests PRIVATE
     MidiTests.cpp
     NoteModelTests.cpp
     PresetTests.cpp
+    RoomTests.cpp
     SoundboardTests.cpp
     SympatheticBankTests.cpp
     Tier1Tests.cpp

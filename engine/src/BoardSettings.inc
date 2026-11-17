@@ -2,10 +2,10 @@
 // data/model/board.json and data/model/board-colour.json. Don't edit.
 inline constexpr int irTaps = 20000;
 inline constexpr double fadeSeconds = 0.1;
-inline constexpr std::array<double, 4> directGain { 0.5, 0.5, 0.5, 0.5 };  // per region
-inline constexpr double directLowShelfDb = 12.0;
-inline constexpr double directLowShelfHz = 250.0;
-inline constexpr double modeTiltDbPerOctave = 8.0;
+inline constexpr std::array<double, 4> directGain { 0.1, 0.1, 0.1, 0.1 };  // per region
+inline constexpr double directLowShelfDb = 30;
+inline constexpr double directLowShelfHz = 400;
+inline constexpr double modeTiltDbPerOctave = 6.0;
 inline constexpr double modeTiltFromHz = 1000.0;
 inline constexpr int colourFftSize = 1 << 17;
 inline constexpr int bandFftSize = 1 << 16;
@@ -16,8 +16,8 @@ inline constexpr std::array<double, 2> perspectiveSpread { 0.7, 0.9 };
 inline constexpr bool hasColour = true;
 inline constexpr std::array<double, 29> colourCentresHz { 40.0, 50.4, 63.5, 80.0, 100.8, 127.0, 160.0, 201.6, 254.0, 320.0, 403.2, 508.0, 640.0, 806.3, 1015.9, 1280.0, 1612.7, 2031.9, 2560.0, 3225.4, 4063.7, 5120.0, 6450.8, 8127.5, 10240.0, 12901.6, 16255.0, 20480.0, 25803.2 };
 inline constexpr std::array<std::array<double, 29>, 4> colourDb { {
-    { -8.0, -8.0, -8.0, 3.1, 5.61, 1.61, -1.86, -1.59, -0.17, -2.72, -2.99, -1.12, 4.86, 7.98, 11.23, 12.33, 12.5, 12.5, 9.8, 6.88, 10.16, 12.5, 12.5, 12.5, 11.3, 11.3, 11.3, 11.3, 11.3 },  // bass
-    { 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, -4.01, -5.53, -4.7, -3.99, -0.88, -1.07, -1.78, -2.58, 5.23, 8.07, 8.43, 2.39, -1.88, -1.0, -3.5, -3.5, -3.5, 8.83, 11.3, 11.3, 11.3, 11.3, 11.3 },  // tenor
-    { 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 6.15, -1.0, -1.72, 0.53, 1.18, 3.0, 4.36, 1.02, 0.03, -3.5, -3.5, -3.5, -3.5, -3.5, -3.5, -3.5, -3.5, 11.3, 11.3, 11.3, 7.71 },  // middle
-    { 8.0, 6.79, -2.13, 2.36, 0.81, 8.0, -5.17, 2.85, -8.0, -6.78, -8.0, -8.0, -8.0, -2.68, 0.08, -0.25, 0.85, 1.12, 0.09, -1.96, -3.5, -3.5, -3.5, -3.5, 10.96, 11.3, 11.3, 11.3, 2.33 },  // treble
+    { -8.0, -8.0, -8.0, 0.22, 4.9, -1.96, -6.96, -8.0, 1.8, 2.71, 4.32, 3.95, 5.2, 6.9, 6.84, 8.0, 8.0, 8.0, 5.87, 3.17, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0 },  // bass
+    { 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, -5.83, -6.46, -7.04, -1.57, -2.63, 1.23, 0.31, -0.88, 4.51, 4.74, 7.25, 2.2, -1.03, 2.03, -2.41, -3.5, -3.5, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0 },  // tenor
+    { 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 6.15, -3.78, -4.0, -1.42, -2.4, -5.32, -0.43, -1.09, 5.26, -0.06, -1.56, -2.93, -4.85, -3.5, -3.5, -3.5, -3.5, 8.0, 8.0, 8.0, 7.71 },  // middle
+    { 8.0, 6.79, -2.13, 2.36, 0.81, 8.0, -5.17, 2.85, -8.0, -6.78, -8.0, -8.0, -8.0, -1.28, 1.4, 1.08, 2.18, 2.53, -1.65, -3.7, -3.89, -0.74, -3.5, -3.5, 8.0, 8.0, 8.0, 8.0, 2.33 },  // treble
 } };

@@ -49,6 +49,12 @@ bool setControl (forte::Controls& c, const juce::String& assignment, juce::Strin
     else if (name == "spread")     c.tuning.spread = v;
     else if (name == "width")      c.width = v;
     else if (name == "volume")     c.volumeDb = v;
+    else if (name == "roomAmount")   c.room.amount = v;
+    else if (name == "roomSize")     c.room.size = v;
+    else if (name == "roomDecay")    c.room.decaySeconds = v;
+    else if (name == "roomDamping")  c.room.damping = v;
+    else if (name == "roomPredelay") c.room.predelayMs = v;
+    else if (name == "roomEarly")    c.room.early = v;
     else
     {
         error = "unknown control " + name;
@@ -67,8 +73,9 @@ constexpr const char* usage =
     "  --tail   seconds rendered after the last MIDI event (default 3)\n"
     "  --voicing a voicing lab file (SPEC 6.5), as Export voicing writes it (default: all 50)\n"
     "  --control a sound control (SPEC 6.3) by its parameter id: hardness, brightness, resonance,\n"
-    "           touch, a4, stretch, spread, width (0-100, a4 in Hz) or volume (dB). Repeatable.\n"
-    "           stretch=0 is plain equal temperament.\n"
+    "           touch, a4, stretch, spread, width (0-100, a4 in Hz) or volume (dB); the room's\n"
+    "           roomAmount, roomSize, roomDamping, roomEarly (0-100), roomDecay (s), roomPredelay\n"
+    "           (ms). Repeatable. stretch=0 is plain equal temperament; roomAmount=0 is the dry piano.\n"
     "  --isa    sse2 or avx2: the engine's hot loops (default: the best this CPU has; SPEC 9.2)\n"
     "  --lab-values writes, instead of rendering, what the voicing means on each note and bridge\n"
     "           region in physical terms (for tools/fitting/fold_voicing.py)\n";

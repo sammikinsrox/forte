@@ -10,8 +10,8 @@
 
 namespace forte::presets
 {
-/** A preset's contents (SPEC §7.1): the 8 character controls, as whole numbers. Volume, A4 and
-    the pedals are never in a preset. */
+/** A preset's contents (SPEC §7.1): the 8 character controls and the room's 6, as whole numbers.
+    Volume, A4 and the pedals are never in a preset. */
 struct Values
 {
     int hardness = 50;
@@ -23,11 +23,20 @@ struct Values
     int width = 100;
     int perspective = 0;  // 0 = Microphones, 1 = Pianist
 
+    // The room (SPEC §2.11), as its parameters hold it; the defaults are the Studio room.
+    int roomAmount = 22;
+    int roomSize = 30;
+    int roomDecay = 8;      // tenths of a second, 2-100
+    int roomDamping = 55;
+    int roomPredelay = 4;   // ms
+    int roomEarly = 60;
+
     friend bool operator== (const Values&, const Values&) = default;
 };
 
-/** One of the 8 controls: its plugin parameter id (SoundParameters::Ids), its range and where it
-    lives in Values. The order is the file's and the tests'. */
+/** One of the 14 controls: its plugin parameter id (SoundParameters::Ids), its range and where it
+    lives in Values. The order is the file's and the tests'. A file without the room's values
+    (written before the room) loads them as defaults. */
 struct Field
 {
     const char* id;
@@ -35,7 +44,7 @@ struct Field
     int Values::* member;
 };
 
-inline constexpr std::array<Field, 8> fields { {
+inline constexpr std::array<Field, 14> fields { {
     { "hardness", 0, 100, &Values::hardness },
     { "brightness", 0, 100, &Values::brightness },
     { "resonance", 0, 100, &Values::resonance },
@@ -44,7 +53,16 @@ inline constexpr std::array<Field, 8> fields { {
     { "spread", 0, 100, &Values::spread },
     { "width", 0, 100, &Values::width },
     { "perspective", 0, 1, &Values::perspective },
+    { "roomAmount", 0, 100, &Values::roomAmount },
+    { "roomSize", 0, 100, &Values::roomSize },
+    { "roomDecay", 2, 100, &Values::roomDecay },
+    { "roomDamping", 0, 100, &Values::roomDamping },
+    { "roomPredelay", 0, 100, &Values::roomPredelay },
+    { "roomEarly", 0, 100, &Values::roomEarly },
 } };
+
+/** The room's 6 fields: the room presets set these and nothing else. */
+inline constexpr std::size_t firstRoomField = 8;
 
 /** Every value clamped into its range. */
 [[nodiscard]] Values clamped (Values values) noexcept;
@@ -52,6 +70,26 @@ inline constexpr std::array<Field, 8> fields { {
 /** A preset's values over the controls it doesn't hold (Volume, A4). */
 [[nodiscard]] Controls applyTo (const Values& values, Controls controls) noexcept;
 [[nodiscard]] ListeningPerspective perspectiveOf (const Values& values) noexcept;
+
+/** The room's values as the engine takes them. */
+[[nodiscard]] RoomControls roomOf (const Values& values) noexcept;
+
+//==============================================================================
+/** A room preset (SPEC §2.11): the 6 room values only, chosen from the Room panel's menu.
+    "Studio" is the default room. */
+struct Room
+{
+    const char* name;
+    int amount, size, decay, damping, predelay, early;  // as Values holds them
+};
+
+[[nodiscard]] const std::vector<Room>& roomPresets();
+
+/** values with room's 6 values in place of its own. */
+[[nodiscard]] Values withRoom (Values values, const Room& room) noexcept;
+
+/** The room preset values' room matches, if any. */
+[[nodiscard]] const Room* matchingRoom (const Values& values) noexcept;
 
 //==============================================================================
 struct Factory

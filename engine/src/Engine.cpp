@@ -4,6 +4,7 @@
 #include "LabMapping.h"
 #include "NoteModel.h"
 #include "PianoModel.h"
+#include "Room.h"
 #include "ScopedFlushDenormals.h"
 #include "Soundboard.h"
 #include "SoundboardIrs.h"
@@ -132,6 +133,10 @@ struct Engine::State
     /** The IRs as shipped, at 48 kHz; prepare() resamples them for the host rate. */
     detail::SoundboardIrs shippedIrs = detail::loadEmbeddedIrs();
     detail::Soundboard soundboard;
+
+    /** The room (SPEC §2.11), after the tape; and its tail, for getTailSeconds(). */
+    detail::Room room;
+    std::atomic<double> roomTailSeconds { 0.0 };
 
     /** The voicing lab's board (SPEC §6.5): the parts it rebuilds the IRs from, the shipped IRs
         at the prepared rate (what it plays at the Board group's 50s), and, off the audio thread,
@@ -475,6 +480,7 @@ struct Engine::State
                     n->silence();
                 sympathetic.silence();
                 soundboard.silence();
+                room.reset();  // asleep: it wakes cleared
                 break;
 
             case cc::resetAllControllers: sustainTarget = 0.0f; softPedal = 0.0f; break;
@@ -568,6 +574,8 @@ Engine::Engine()
     s.resonance.jump (s.controls.resonance);
     s.width.jump (widthOf (s.controls.width));
     s.volume.jump (volumeGainOf (s.controls.volumeDb));
+    s.room.setControls (s.controls.room, true);
+    s.roomTailSeconds.store (detail::Room::tailSeconds (s.controls.room), std::memory_order_relaxed);
     s.publishTuning();
     s.updateTail();
 }
@@ -576,7 +584,7 @@ Engine::~Engine() = default;
 
 double Engine::getTailSeconds() const noexcept
 {
-    return state->tailSeconds.load (std::memory_order_relaxed);
+    return state->tailSeconds.load (std::memory_order_relaxed) + state->roomTailSeconds.load (std::memory_order_relaxed);
 }
 
 int Engine::getNumSoundingNotes() const noexcept
@@ -661,6 +669,7 @@ void Engine::prepare (double newSampleRate, int newMaxBlockSize)
     s.soundboard.prepare (s.boardIrs (s.builtBoard, sampleRate));
 
     s.sustainStepPerTick = static_cast<float> (controlInterval / (pedalSmoothingSeconds * sampleRate));
+    s.room.prepare (sampleRate);
     reset();
 }
 
@@ -672,6 +681,7 @@ void Engine::reset() noexcept
 
     s.sympathetic.reset();
     s.soundboard.reset();
+    s.room.reset();
     s.keyDownCount.fill (0);
     s.sustainTarget = s.sustainLift = 0.0f;
     s.softPedal = 0.0f;
@@ -784,6 +794,7 @@ void Engine::render (float* left, float* right, int numSamples) noexcept
                 }
         }
 
+        s.room.process (left + position, right + position, stretch);
         s.widthAndVolume (left + position, right + position, stretch);
         position += stretch;
     }
@@ -817,6 +828,8 @@ void Engine::setControls (const Controls& controls) noexcept
     s.resonance.glideTo (std::clamp (controls.resonance, 0.0, 100.0), s.glideSamples);
     s.width.glideTo (widthOf (controls.width), s.glideSamples);
     s.volume.glideTo (volumeGainOf (controls.volumeDb), s.glideSamples);
+    s.room.setControls (controls.room, ! prepared);
+    s.roomTailSeconds.store (detail::Room::tailSeconds (controls.room), std::memory_order_relaxed);
 
     if (! prepared)
         s.finishGlides();  // prepare() starts from the settled values

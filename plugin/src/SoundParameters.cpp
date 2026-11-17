@@ -1,5 +1,7 @@
 #include "SoundParameters.h"
 
+#include "Presets.h"
+
 namespace forte
 {
 namespace
@@ -54,6 +56,25 @@ std::unique_ptr<juce::AudioProcessorParameterGroup> SoundParameters::createGroup
     return group;
 }
 
+std::unique_ptr<juce::AudioProcessorParameterGroup> SoundParameters::createRoomGroup()
+{
+    auto group = std::make_unique<juce::AudioProcessorParameterGroup> ("room", "Room", " | ");
+    const presets::Values defaults;  // the Studio room
+
+    group->addChild (wholeNumber (Ids::roomAmount, "Room", 0, 100, defaults.roomAmount));
+    group->addChild (wholeNumber (Ids::roomSize, "Room size", 0, 100, defaults.roomSize));
+    group->addChild (std::make_unique<juce::AudioParameterInt> (
+        juce::ParameterID { Ids::roomDecay, parameterVersion }, "Room decay", 2, 100, defaults.roomDecay,
+        juce::AudioParameterIntAttributes()
+            .withLabel ("s")
+            .withStringFromValueFunction ([] (int tenths, int) { return juce::String (tenths / 10.0, 1) + " s"; })
+            .withValueFromStringFunction ([] (const juce::String& text) { return juce::roundToInt (text.getDoubleValue() * 10.0); })));
+    group->addChild (wholeNumber (Ids::roomDamping, "Room damping", 0, 100, defaults.roomDamping));
+    group->addChild (wholeNumber (Ids::roomPredelay, "Room pre-delay", 0, 100, defaults.roomPredelay, "ms"));
+    group->addChild (wholeNumber (Ids::roomEarly, "Room early", 0, 100, defaults.roomEarly));
+    return group;
+}
+
 void SoundParameters::attach (juce::AudioProcessorValueTreeState& apvts)
 {
     const auto find = [&] (const char* id)
@@ -73,6 +94,12 @@ void SoundParameters::attach (juce::AudioProcessorValueTreeState& apvts)
     stretch = find (Ids::stretch);
     spread = find (Ids::spread);
     width = find (Ids::width);
+    roomAmount = find (Ids::roomAmount);
+    roomSize = find (Ids::roomSize);
+    roomDecay = find (Ids::roomDecay);
+    roomDamping = find (Ids::roomDamping);
+    roomPredelay = find (Ids::roomPredelay);
+    roomEarly = find (Ids::roomEarly);
 }
 
 Controls SoundParameters::read() const noexcept
@@ -89,6 +116,12 @@ Controls SoundParameters::read() const noexcept
     c.tuning.spread = get (spread);
     c.width = get (width);
     c.volumeDb = get (volume);
+    c.room.amount = get (roomAmount);
+    c.room.size = get (roomSize);
+    c.room.decaySeconds = get (roomDecay) / 10.0;
+    c.room.damping = get (roomDamping);
+    c.room.predelayMs = get (roomPredelay);
+    c.room.early = get (roomEarly);
     return c;
 }
 

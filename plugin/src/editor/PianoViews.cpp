@@ -9,6 +9,12 @@ namespace forte::ui
 {
 using Ids = SoundParameters::Ids;
 
+namespace
+{
+// The Room panel's top, under the shortened tuning curve.
+constexpr int roomTop = 330;
+} // namespace
+
 //==============================================================================
 Pedals::Pedals (PluginProcessor& p, juce::Component& parent, const juce::String& softLabel)
     : processor (p)
@@ -278,12 +284,50 @@ AdvancedView::AdvancedView (PluginProcessor& p)
         y += 124;
     }
     groups.push_back ({ "Pedals", y });
+
+    // The Room panel, under the tuning curve.
+    const std::vector<std::pair<const char*, const char*>> room {
+        { Ids::roomAmount, "Room" }, { Ids::roomSize, "Size" }, { Ids::roomDecay, "Decay" },
+        { Ids::roomDamping, "Damping" }, { Ids::roomPredelay, "Pre-delay" }, { Ids::roomEarly, "Early" } };
+    for (std::size_t i = 0; i < room.size(); ++i)
+    {
+        roomKnobs.push_back (std::make_unique<Knob> (p.getState(), room[i].first, room[i].second, Knob::Size::knob));
+        roomKnobs.back()->setBounds (24 + static_cast<int> (i) * 96, roomTop + 30, 80, 96);
+        addAndMakeVisible (*roomKnobs.back());
+    }
+
+    roomMenu.setTooltip ("Room presets: set the six room controls at once");
+    roomMenu.onClick = [this] { showRoomMenu(); };
+    addAndMakeVisible (roomMenu);
+}
+
+void AdvancedView::showRoomMenu()
+{
+    const auto& rooms = presets::roomPresets();
+    const auto* current = presets::matchingRoom (processor.getPresets().liveValues());
+
+    juce::PopupMenu menu;
+    for (std::size_t i = 0; i < rooms.size(); ++i)
+        menu.addItem (static_cast<int> (i) + 1, rooms[i].name, true, current == &rooms[i]);
+
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (roomMenu),
+                        [this, safe = juce::Component::SafePointer<AdvancedView> (this)] (int chosen)
+    {
+        if (safe == nullptr || chosen <= 0)
+            return;
+        processor.getPresets().applyRoom (presets::roomPresets()[static_cast<std::size_t> (chosen - 1)]);
+    });
 }
 
 void AdvancedView::tick()
 {
     pedals.tick();
     curve.tick();
+
+    const auto* room = presets::matchingRoom (processor.getPresets().liveValues());
+    const juce::String text = juce::String (room != nullptr ? room->name : "Custom") + juce::String::fromUTF8 (" \xe2\x96\xbe");
+    if (roomMenu.getButtonText() != text)
+        roomMenu.setButtonText (text);
 }
 
 void AdvancedView::paint (juce::Graphics& g)
@@ -299,13 +343,20 @@ void AdvancedView::paint (juce::Graphics& g)
         g.drawHorizontalLine (group.y + 22, 828.0f, 1076.0f);
     }
 
+    g.setColour (t.muted);
+    g.setFont (ForteLookAndFeel::jost (13.0f, true));
+    g.drawText ("Room", 24, roomTop, 300, 20, juce::Justification::centredLeft);
+    g.setColour (t.line);
+    g.drawHorizontalLine (roomTop + 22, 24.0f, 804.0f);
+
     g.setColour (feltRed);
     g.fillRoundedRectangle (24.0f, 488.0f, 780.0f, 6.0f, 2.0f);
 }
 
 void AdvancedView::resized()
 {
-    curve.setBounds (24, 70, 780, 408);
+    curve.setBounds (24, 70, 780, roomTop - 82);
+    roomMenu.setBounds (24 + 6 * 96 + 16, roomTop + 60, 160, 30);
     keyboard.setBounds (24, 494, 780, 172);
 
     const int pedalsY = groups.back().y;

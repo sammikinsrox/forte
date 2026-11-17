@@ -30,6 +30,8 @@ add_library(forte_engine STATIC
     src/KernelsSse2.cpp
     src/PianoModel.cpp
     src/PianoModel.h
+    src/Room.cpp
+    src/Room.h
     src/ScopedFlushDenormals.h
     src/Soundboard.cpp
     src/Soundboard.h

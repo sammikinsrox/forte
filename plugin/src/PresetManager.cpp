@@ -38,6 +38,11 @@ Values PresetManager::liveValues() const
     return v;
 }
 
+void PresetManager::applyRoom (const presets::Room& room)
+{
+    apply (presets::withRoom (liveValues(), room));
+}
+
 bool PresetManager::isModified() const
 {
     const auto live = liveValues();

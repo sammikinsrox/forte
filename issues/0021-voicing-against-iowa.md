@@ -645,6 +645,70 @@ wants more air. Measured on the long sweep (`build/ab/diagnose/`; Keyscape's lon
 Autumn Leaves, whole piece against the old build: same level, 1-3.5 kHz +2.3 dB (Keyscape's
 share, −13.5, now matched), above 4 kHz +3.3 dB, below 250 Hz −0.6 dB.
 
+### 19. The board without a pickup, and a room (2026-11-16)
+
+After §18 the user: "noticeably better", the twang gone, the high notes the best yet, but the whole
+instrument "sounds like an electric grand". Their lab moves all pointed away from a pickup (Pickup
+0.15, Board tilt −4, Colour mid −6.5, Tape 3.7, softer felt, heavier hammer), and they asked for a
+room.
+
+- **What makes it a pickup:** the seed board's direct path, the bridge force straight to both
+  channels, dominated at 0.5. Without it the prototype's modes sounded hollow and peaky (§3): their
+  density fell as f^-0.5 above 1.1 kHz, so the treble had few, isolated modes.
+- **A left/right coherence comparison** (Forte's channels far more alike than Keyscape's above
+  1 kHz) turned out not to measure the board: a partial through any two fixed filters stays fully
+  coherent, and Keyscape's low numbers there are mostly its two microphones' independent hiss.
+  Not used.
+- **The board now:** direct gain 0.1, a +30 dB minimum-phase shelf at 400 Hz on it (the bass came
+  through the direct path, the modes' radiation corner being 500 Hz), mode density constant above
+  1.1 kHz (`TREBLE_DENSITY_EXPONENT` 0), tilt 6 dB/octave. Autumn Leaves dry against Keyscape,
+  third-octave long-term spectrum: 100-400 Hz within ±2.3 dB (it was 5-13 dB short with the direct
+  path simply turned down), 5-8 kHz within ±3.5 dB, 1.3-2.5 kHz still 3-7 dB short and 1 kHz +7
+  (the committed colour's bumps, fitted to the old board).
+- **The colour refit didn't converge:** the single-note colour fit asked, pass after pass, for −6 dB
+  at 1-4 kHz in the tenor and +6 above 6.5 kHz everywhere, until the curve sat at its ±8 dB clamps.
+  Part of it was the tenor's decay floor (raised from 4e-8 to 7e-8 at C3, `fit_decay.py`); the rest
+  was the fit chasing high partials that decay away, which an EQ can't restore. The committed
+  colour is kept; single notes and whole pieces disagree, and §18's pieces matched Keyscape.
+- **The room** (SPEC §2.11): early reflections and an 8-line modulated FDN after the tape, with six
+  automatable controls, six room presets and the room in every preset; Room 0 is the dry piano bit
+  for bit. The engine alone is dry; the plugin defaults to Studio. Under a point of CPU.
+
+### 20. Thin at mid-to-high velocities (2026-11-16)
+
+The user, on §19: "pretty darn good at lower velocities", but from mid to mid-high velocity it goes
+"thin … more like a very pure guitar tone than a piano tone"; maybe the hammer, maybe not.
+
+Partial balance per velocity on the 3 s sweeps (`velspec`-style: partials 2-3, 4-7, 8-15 re
+partial 1, strike 5-80 ms, medians per octave). At C4-B4 before the fix:
+
+| C4-B4 | Keyscape | Forte (§19) |
+|---|---|---|
+| level v64 → v96 / → v127 | +7.2 / +17.3 dB | +4.7 / +11.5 |
+| partials 4-7 at v64 / v96 | −9.9 / −7.8 | −17.3 / −15.9 |
+| partials 8-15, v32 → v127 | −54 → −17 | −44 → −24 |
+
+pp matched; from mf up Forte didn't get louder or brighter enough, and partials 4-7 were ~7 dB
+short at every velocity from mf. What moved partials 4-7 at C4: felt ×2 (+2 dB), hammer ×0.76
+(+2), strike position 0.12 → 0.10 (+0.4), the tape off (nothing; the tape isn't what holds the
+loudness down either, +0.7 dB at v127). **The bare strings** (`forte-string-probe`, no board) give
+partials 4-7 at −9.2 dB at v64, Keyscape's −9.9: the hammer and strings were right, the board
+stage lost ~8 dB there. The whole-note colour fit (`colour_fit.py`) had hidden it: in the same
+1-2 kHz band the octaves of higher notes were louder than Keyscape's.
+
+- **Colour from partials:** `tools/fitting/analysis/partial_colour.py` fits the per-region colour
+  from each partial's level against Keyscape's (5-400 ms, v64/96, each note normalised), pooled
+  by frequency. Two passes, then residuals within ±2 dB.
+- **Loudness:** hammer speeds ff 4.5 → 6.5 m/s (velocity 112), the cap 8 → 11 (`fit_hammer.py`).
+- **Velocity brightness:** contact speed exponent 0.5 → 0.8.
+- **C5-C6 felt** softened (0.6 → 0.35 at C5, 0.45 at C6): they came out 5-6 dB too bright at v96.
+
+After, C4-B4: level +7.2 / +14.9 dB at v96 / v127 (Keyscape +7.2 / +17.3); partials 4-7 at v64,
+v96, v127 −14.9, −11.2, −8.7 (Keyscape −9.9, −7.8, −9.0); partials 8-15 at v96 / v127 −24.9 /
+−18.5 (−26.0 / −16.8); at v32 now darker than Keyscape above partial 8. C5-B5 within ~3 dB at v64
+and v96. Autumn Leaves (dry): 1.3-2.5 kHz 2-4 dB closer to Keyscape, but 3-8 kHz now 0-7 dB over
+it (loud notes brighter); Velocity brightness in the lab is the knob if loud passages sound edgy.
+
 ## Plan
 
 How to get bright + full + shimmer + rumble without twang. Twang and brightness live in different

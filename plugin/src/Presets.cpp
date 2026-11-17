@@ -20,7 +20,54 @@ Controls applyTo (const Values& values, Controls controls) noexcept
     controls.tuning.stretch = values.stretch;
     controls.tuning.spread = values.spread;
     controls.width = values.width;
+    controls.room = roomOf (values);
     return controls;
+}
+
+RoomControls roomOf (const Values& values) noexcept
+{
+    RoomControls r;
+    r.amount = values.roomAmount;
+    r.size = values.roomSize;
+    r.decaySeconds = values.roomDecay / 10.0;
+    r.damping = values.roomDamping;
+    r.predelayMs = values.roomPredelay;
+    r.early = values.roomEarly;
+    return r;
+}
+
+const std::vector<Room>& roomPresets()
+{
+    // First-build values, to be set by ear. Amount, size, decay (tenths of s), damping,
+    // pre-delay (ms), early.
+    static const std::vector<Room> list {
+        { "Dry", 0, 30, 8, 55, 4, 60 },
+        { "Studio", 22, 30, 8, 55, 4, 60 },
+        { "Chamber", 30, 45, 14, 50, 10, 55 },
+        { "Recital Hall", 32, 62, 19, 45, 18, 50 },
+        { "Concert Hall", 35, 80, 24, 45, 25, 45 },
+        { "Cathedral", 45, 100, 55, 60, 40, 35 },
+    };
+    return list;
+}
+
+Values withRoom (Values values, const Room& room) noexcept
+{
+    values.roomAmount = room.amount;
+    values.roomSize = room.size;
+    values.roomDecay = room.decay;
+    values.roomDamping = room.damping;
+    values.roomPredelay = room.predelay;
+    values.roomEarly = room.early;
+    return values;
+}
+
+const Room* matchingRoom (const Values& values) noexcept
+{
+    for (const auto& room : roomPresets())
+        if (withRoom (values, room) == values)
+            return &room;
+    return nullptr;
 }
 
 ListeningPerspective perspectiveOf (const Values& values) noexcept
@@ -31,14 +78,25 @@ ListeningPerspective perspectiveOf (const Values& values) noexcept
 const std::vector<Factory>& factoryPresets()
 {
     // First-build values (SPEC §7.1, §10): the user sets the final list and numbers by ear.
-    // Field order: hardness, brightness, resonance, touch, stretch, spread, width, perspective.
+    // Field order: hardness, brightness, resonance, touch, stretch, spread, width, perspective;
+    // then a room preset by name (the default is Studio).
+    const auto room = [] (const char* name)
+    {
+        for (const auto& r : roomPresets())
+            if (juce::String (r.name) == name)
+                return r;
+        jassertfalse;
+        return roomPresets().front();
+    };
+
     static const std::vector<Factory> list {
         { "Concert Grand", {} },
-        { "Pianist's Seat", { 50, 50, 50, 50, 50, 50, 100, 1 } },
-        { "Mellow", { 35, 40, 55, 50, 50, 50, 100, 0 } },
+        { "Pianist's Seat", withRoom ({ 50, 50, 50, 50, 50, 50, 100, 1 }, room ("Chamber")) },
+        { "Mellow", withRoom ({ 35, 40, 55, 50, 50, 50, 100, 0 }, room ("Recital Hall")) },
         { "Bright", { 65, 62, 50, 50, 50, 50, 100, 0 } },
-        { "Intimate", { 40, 45, 40, 50, 50, 40, 70, 1 } },
+        { "Intimate", withRoom ({ 40, 45, 40, 50, 50, 40, 70, 1 }, room ("Dry")) },
         { "Honest Equal", { 50, 50, 50, 50, 0, 50, 100, 0 } },
+        { "Concert Hall", withRoom ({ 50, 52, 55, 50, 50, 50, 100, 0 }, room ("Concert Hall")) },
     };
     return list;
 }

@@ -1,4 +1,4 @@
-﻿"""The strings' decay (SPEC §3.3, issue 0021 step 2), in the pipeline's shape:
+"""The strings' decay (SPEC §3.3, issue 0021 step 2), in the pipeline's shape:
 
     python tools/fitting/fit_decay.py measure   Iowa → data/reference-measurements/iowa-decay.json
     python tools/fitting/fit_decay.py measure-sweep <wav> --hold H --gap G
@@ -95,11 +95,12 @@ MIN_B3 = 1e-9                     # s; the law's f² term, at least (0.025/s at 
 # the note's prompt law (or its fundamental's rate if slower) and b3 = floor_b3(midi); its
 # aftersound at least the same from the aftersound's b1, and at least a third of its prompt rate
 # (MAX_RATIO). Keyscape's partials, measured only while 25 dB over its hiss, give b3 of about 4e-8
-# at C3, 1e-7 at C4 and 1.1-1.5e-7 at C5-C6; the fit read its faint upper partials near that
+# at C3 (noisy: 7e-8 matches its median rates at 1.5-2.5 kHz, and the colour fit, issue 0021 §19,
+# kept asking for less 1-4 kHz in the tenor with 4e-8), 1e-7 at C4 and 1.1-1.5e-7 at C5-C6; the fit read its faint upper partials near that
 # hiss as ringing for up to a minute, so Forte's upper partials outlasted the fundamental and the
 # note grew brighter as it rang: the metallic twang.
 FLOOR_B3_KEYS = (48, 60, 72)      # Keyscape's clean rates: b3 rises with pitch, held outside
-FLOOR_B3 = (4e-8, 1.0e-7, 1.2e-7) # s
+FLOOR_B3 = (7e-8, 1.0e-7, 1.2e-7) # s
 
 
 def floor_b3(midi):

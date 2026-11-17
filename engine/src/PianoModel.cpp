@@ -136,10 +136,12 @@ NoteParameters seedNote (int midiNote)
     constexpr double spreadScales[] { 1.0, 0.35, 0.15 };
     p.unisonSpreadScale = interpolate (key, spreadKeys, spreadScales);
 
-    // How far the contact follows the blow: the felt meets mf × (v / mf)^0.5 while the strings
-    // still take the real blow's loudness. A physical felt brightened far faster with velocity
-    // than Keyscape (9-14 dB too dark at velocity 32, 2-7 dB too bright at 127; issue 0021 §15).
-    p.contactSpeedExponent = 0.5;
+    // How far the contact follows the blow: the felt meets mf × (v / mf)^0.8 while the strings
+    // still take the real blow's loudness. With the old voicing a physical felt (1) brightened far
+    // faster with velocity than Keyscape (issue 0021 §15), so it was 0.5; against Keyscape after
+    // the board of §19 that left the middle ~10 dB too bright in partials 8-15 at velocity 32 and
+    // a few dB too dark at 127, and 0.8 fits best (§20).
+    p.contactSpeedExponent = 0.8;
 
     // Phantom partials on the lowest 30 notes (A0–D3), at the listening-test prototype's level
     // and longitudinal modes until they're fitted against Iowa ff (SPEC §3.3).

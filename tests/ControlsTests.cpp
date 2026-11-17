@@ -125,8 +125,15 @@ TEST_CASE ("A ringing note glides to a new A4 without a click", "[controls][tuni
     CHECK (powerAt (out.left, from, to, 466.0) > 30.0 * powerAt (out.left, from, to, 440.0));
     CHECK (powerAt (held.left, from, to, 440.0) > 30.0 * powerAt (held.left, from, to, 466.0));
 
-    // No step at the change bigger than the note's own.
-    CHECK (largestStep (out.left, at - 2000, at + 4000) <= 1.2f * largestStep (held.left, at - 2000, at + 4000));
+    // No step at the change bigger than the note's own, for its level: as the partials glide
+    // across the board's resonances the note swells (up to ~2× over 30 ms) and its steps with it,
+    // smoothly, while a click would be a step out of proportion to the level.
+    const auto stepPerLevel = [&] (const std::vector<float>& v)
+    {
+        return largestStep (v, at - 2000, at + 4000) / static_cast<float> (rms (v, at - 2000, at + 4000));
+    };
+    INFO ("step per rms: glide " << stepPerLevel (out.left) << ", held " << stepPerLevel (held.left));
+    CHECK (stepPerLevel (out.left) <= 1.2f * stepPerLevel (held.left));
 }
 
 TEST_CASE ("Volume scales the output after the tape, and -60 dB is silence", "[controls]")

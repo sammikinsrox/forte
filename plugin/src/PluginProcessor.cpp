@@ -22,6 +22,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
 {
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
     layout.add (SoundParameters::createGroup());
+    layout.add (SoundParameters::createRoomGroup());
     layout.add (LabParameters::createGroup());
     return layout;
 }

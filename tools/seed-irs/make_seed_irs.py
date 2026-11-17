@@ -52,7 +52,7 @@ FADE_SECONDS = 0.1
 
 # Where the board's radiation stops rising. At 500 Hz the modes are 21 dB down at 100 Hz, so the
 # bass and low mids come through the smooth direct path alone.
-RADIATION_CORNER_HZ = 500.0
+RADIATION_CORNER_HZ = 500
 
 # Where the statistical modes start. Below it are only nine fixed modes, none between 127 and
 # 187 Hz.
@@ -62,8 +62,8 @@ STATISTICAL_MODES_FROM_HZ = 300.0
 # minimum-phase low shelf on the direct path (0 dB = none).
 LOW_MODE_LIMIT_HZ = 300.0
 LOW_MODE_DAMPING = 1.0
-DIRECT_LOW_SHELF_DB = 12.0
-DIRECT_LOW_SHELF_HZ = 250.0
+DIRECT_LOW_SHELF_DB = 30
+DIRECT_LOW_SHELF_HZ = 400
 
 # data/model/board.json holds the settings the voicing lab folds into (SPEC §6.5,
 # tools/fitting/fold_voicing.py):
@@ -82,6 +82,12 @@ MODE_TILT_FROM_HZ = 1000.0
 
 # Where the modes' radiation rolls off at the top.
 MODE_ROLLOFF_HZ = 12000.0
+
+# Above 1.1 kHz the prototype's mode density fell as f^-0.5, so the treble had few, isolated
+# modes and a board without the direct path sounded hollow and peaky. A plate's modal density is
+# constant with frequency (issue 0021 §19): 0, so the modes overlap there and the board, not a
+# pickup, can carry the sound.
+TREBLE_DENSITY_EXPONENT = 0.0
 
 # A colour curve per region (SPEC §3.4): third-octave gains in dB, interpolated in log frequency,
 # from a JSON file {"centresHz": [...], "regions": {"bass": [...], ...}} (None = no colour).
@@ -145,16 +151,18 @@ def direct_path(sr, taps, direct_shelf_db, direct_shelf_hz, direct_gain):
 
 
 def soundboard_modes(region_seed, sr, taps, radiation_corner, statistical_from, low_mode_damping,
-                     mode_rolloff, mode_tilt):
+                     mode_rolloff, mode_tilt, treble_density_exponent=0.5):
     """The resonant part of soundboard_ir(), scaled so its louder channel has unit energy. The
-    engine keeps it (data/ir/parts) to rebuild the IRs under the voicing lab (SPEC §6.5)."""
+    engine keeps it (data/ir/parts) to rebuild the IRs under the voicing lab (SPEC §6.5).
+    Above 1.1 kHz the mode density falls as f^-treble_density_exponent (the prototype's 0.5; a
+    plate's is constant, 0)."""
     r = np.random.default_rng(region_seed)
     t = np.arange(taps) / sr
     low = [50, 62, 90, 105, 127, 187, 222, 245, 325]
     f_hi = []
     f = statistical_from
     while f < 12000:                              # concert grand: ~2x upright density below 1.1 kHz
-        dens = 0.12 if f < 1100 else 0.12 * (1100 / f) ** 0.5
+        dens = 0.12 if f < 1100 else 0.12 * (1100 / f) ** treble_density_exponent
         f += r.exponential(1 / dens); f_hi.append(f)
     freqs = np.array(low + f_hi)
     eta = r.uniform(0.01, 0.03, freqs.size)
@@ -219,7 +227,8 @@ def perspective_irs(name):
     irs, modes = {}, {}
     for i, region in enumerate(REGIONS):
         modes[region] = soundboard_modes(first_seed + i, SR, TAPS, RADIATION_CORNER_HZ, STATISTICAL_MODES_FROM_HZ,
-                                         LOW_MODE_DAMPING, MODE_ROLLOFF_HZ, MODE_TILT_DB_PER_OCTAVE)
+                                         LOW_MODE_DAMPING, MODE_ROLLOFF_HZ, MODE_TILT_DB_PER_OCTAVE,
+                                         TREBLE_DENSITY_EXPONENT)
         ir = modes[region] + direct_path(SR, TAPS, DIRECT_LOW_SHELF_DB, DIRECT_LOW_SHELF_HZ, float(DIRECT_GAIN[region]))
         if colour:
             ir = apply_colour(ir, colour["centresHz"], colour["regions"][region])

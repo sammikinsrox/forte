@@ -1,9 +1,9 @@
 {
-  "directGain": {
-    "bass": 0.5,
-    "tenor": 0.5,
-    "middle": 0.5,
-    "treble": 0.5
-  },
-  "modeTiltDbPerOctave": 8.0
+    "directGain":  {
+                       "bass":  0.1,
+                       "tenor":  0.1,
+                       "middle":  0.1,
+                       "treble":  0.1
+                   },
+    "modeTiltDbPerOctave":  6
 }

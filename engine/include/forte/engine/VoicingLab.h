@@ -41,8 +41,8 @@ enum class Control
     phantomLevel,        // none … fitted … ×2
 
     // Board: the IRs are rebuilt and crossfaded
-    pickup,              // direct-path gain 0 … 0.5 … 2
-    boardTilt,           // modes above 1 kHz: −4 … +8 … +16 dB/octave
+    pickup,              // direct-path gain 0 … 0.1 … 2
+    boardTilt,           // modes above 1 kHz: −4 … +6 … +16 dB/octave
     colourLow,           // −12 … 0 … +12 dB below 250 Hz, over the fitted colour
     colourMid,           // −12 … 0 … +12 dB from 250 Hz to 2.5 kHz
     colourHigh,          // −12 … 0 … +12 dB above 2.5 kHz
@@ -90,8 +90,8 @@ inline constexpr std::array<ControlInfo, numControls> controls { {
     { Control::overtoneDecay,      "overtoneDecay",      "Overtone decay",      Group::strings, true,  "rates x (f_n/f_1)^k, k -0.5 ... 0 ... +0.5" },
     { Control::secondStage,        "secondStage",        "Second stage",        Group::strings, true,  "aftersound rate x2 ... fitted ... x0.5 (log)" },
     { Control::phantomLevel,       "phantomLevel",       "Phantom level",       Group::strings, false, "0 ... fitted ... x2" },
-    { Control::pickup,             "pickup",             "Pickup",              Group::board,   true,  "direct-path gain 0 ... 0.5 ... 2" },
-    { Control::boardTilt,          "boardTilt",          "Board tilt",          Group::board,   false, "modes above 1 kHz -4 ... +8 ... +16 dB/octave" },
+    { Control::pickup,             "pickup",             "Pickup",              Group::board,   true,  "direct-path gain 0 ... 0.1 ... 2" },
+    { Control::boardTilt,          "boardTilt",          "Board tilt",          Group::board,   false, "modes above 1 kHz -4 ... +6 ... +16 dB/octave" },
     { Control::colourLow,          "colourLow",          "Colour low",          Group::board,   true,  "-12 ... 0 ... +12 dB below 250 Hz" },
     { Control::colourMid,          "colourMid",          "Colour mid",          Group::board,   true,  "-12 ... 0 ... +12 dB 250 Hz - 2.5 kHz" },
     { Control::colourHigh,         "colourHigh",         "Colour high",         Group::board,   true,  "-12 ... 0 ... +12 dB above 2.5 kHz" },

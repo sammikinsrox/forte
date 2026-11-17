@@ -33,6 +33,21 @@ struct Tuning
     friend bool operator== (const Tuning&, const Tuning&) = default;
 };
 
+/** The room (SPEC §2.11, §6.3): early reflections and a reverberant tail around the piano. The
+    engine alone is dry (amount 0), the piano as committed; the rest are the "Studio" room
+    preset's, which the plugin's parameters default to with its amount, 22. */
+struct RoomControls
+{
+    double amount = 0.0;        // 0–100: how much room, 0 = none (the dry piano, untouched)
+    double size = 30.0;         // 0–100: the reflections' spacing and the tail's density
+    double decaySeconds = 0.8;  // 0.2–10: the tail's RT60 at low frequencies
+    double damping = 55.0;      // 0–100: how much sooner the highs die (0 = as long as the lows)
+    double predelayMs = 4.0;    // 0–100 ms before the first reflection
+    double early = 60.0;        // 0–100: the early reflections' level (50 = their own)
+
+    friend bool operator== (const RoomControls&, const RoomControls&) = default;
+};
+
 /** The sound controls (SPEC §6.3), as the plugin's parameters hold them. At their defaults the
     engine is the piano as committed. */
 struct Controls
@@ -44,6 +59,7 @@ struct Controls
     Tuning tuning;
     double width = 100.0;      // 0 = mono, 100 = as the soundboard places it
     double volumeDb = 0.0;     // −60 (off) to +6
+    RoomControls room;
 
     friend bool operator== (const Controls&, const Controls&) = default;
 };
@@ -184,8 +200,9 @@ public:
 
     /** The longest the engine can go on sounding after the last MIDI event: an undamped (or
         pedalled) note decaying from full scale to rest, through its slowest coupled mode, then
-        the soundboard IR's length. Depends only on the piano model, the lab's strings as last
-        built and the IRs, not on the sample rate. Safe from any thread. */
+        the soundboard IR's length, then the room's tail at the current Room controls. Depends
+        only on the piano model, the lab's strings as last built, the IRs and the Room controls,
+        not on the sample rate. Safe from any thread. */
     [[nodiscard]] double getTailSeconds() const noexcept;
 
     /** How many notes were sounding (not idle) at the end of the last render(), for the editor's

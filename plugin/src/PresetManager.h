@@ -22,8 +22,12 @@ public:
     [[nodiscard]] presets::Library& library() noexcept { return lib; }
     [[nodiscard]] presets::Id current() const;
 
-    /** The 8 controls as the parameters hold them now. */
+    /** The 14 controls as the parameters hold them now. */
     [[nodiscard]] presets::Values liveValues() const;
+
+    /** Sets the room's 6 controls to a room preset's, leaving the rest (SPEC §2.11). The piano
+        preset then shows as modified unless it already had that room. */
+    void applyRoom (const presets::Room& room);
 
     /** True when the controls differ from what the current preset loaded: the `*`. */
     [[nodiscard]] bool isModified() const;

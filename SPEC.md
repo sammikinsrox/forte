@@ -50,7 +50,7 @@ MIDI → Hammer (felt spring, 4× contact, soft-pedal shift)
      → one-way bridge force (+ the knock, past the note's high-pass)
      → [sympathetic bank (12/key, damper-gated)] → bridge region bus ×4
      → per-region stereo convolution (active perspective; crossfade on switch)
-     → Brightness tilt per region → sum → Tape → Width → Volume → stereo out
+     → Brightness tilt per region → sum → Tape → Room → Width → Volume → stereo out
 ```
 
 Energy flows **one way**: strings → bridge regions and the sympathetic bank, with nothing flowing back. The soundboard's energy drain is already included in the measured decay times.
@@ -106,7 +106,8 @@ A continuous 0–1 hammer shift that changes which strings are struck and the fe
 - **Stereo:** placement comes from the regions, with no panning. Bass is on the left, in both perspectives.
 - **Brightness:** a treble tilt on each region's output.
 - **Tape:** after the regions are summed, a tape-style saturator, as in the default patch of the user's Keyscape: (tanh(d·x + b) − tanh b) / (d·(1 − tanh² b)) with b = 0.15 (even harmonics as well as odd), unity gain for small signals. The drive d is 8, chosen by ear (§15); 0 = none. Computed in the algebraically equal form tanh(d·x) / (d·(1 + tanh b · tanh(d·x))) so tiny signals stay exact in float.
-- **Width, then Volume:** applied after the tape.
+- **Direct path (issue 0021 §19):** each region's IR is the board's resonant modes plus a smooth direct path. Above the low mids the direct path is small (0.1), so the board, not a pickup, carries the sound; a +30 dB minimum-phase shelf at 400 Hz keeps it for the bass, where a board's lowest modes radiate as one piston anyway. The modes' density is constant above 1.1 kHz, as a plate's is, so they overlap in the treble.
+- **Room, Width, then Volume:** applied after the tape (§2.11).
 
 ### 2.9 Live parameter changes
 
@@ -124,6 +125,16 @@ Ringing notes are never cut off by a parameter change, a preset load or automati
 ### 2.10 Measured cost
 
 The prototype benchmark ([Modal resonator CPU benchmark](issues/0011-modal-resonator-cpu-benchmark.md)) measured the core parts at ~4% average / 6% p99 of one core with AVX2, and 8% / 12% with SSE2, at 48 kHz. Allowing 2–3× for the rest of the real engine, the expected total is ~15–25%.
+
+### 2.11 Room
+
+The room the piano stands in, after the tape and before Width and Volume (issue 0021 §19). The soundboard is the instrument; the room is where it's heard.
+
+- **Pre-delay, then early reflections:** ten taps per side from both channels (odd taps cross over, widening the image), spaced by Size, through a one-pole low-pass set by Damping, at the Early level.
+- **Late tail:** the pre-delayed input and the early reflections, diffused by four series all-passes per side, into an 8-line feedback delay network with a Hadamard mix. Each line's gain gives the Decay time (RT60 at low frequencies) for its length; a one-pole low-pass in each loop shortens the highs by Damping (Jot). Each line's length wanders slowly (±0.25 ms, 0.1–0.9 Hz), so no mode rings on into a metallic tone. Left and right are two orthogonal sums of the lines: decorrelated.
+- **Level:** the wet sound is added to the dry at a gain that rises as the square of Room (1.5 at 100), so its low half is fine-grained; the tail's level is kept near even as Decay and Size move. **Room 0 is the dry piano, bit for bit.**
+- **The engine alone is dry** (its default Room is 0, the piano as committed, which `forte-render` renders); the plugin's parameters default to the **Studio** room.
+- **Determinism and cost:** every sample depends only on earlier samples and a parameter clock counted from reset, so output doesn't depend on block splits (§7.4); the controls glide over ~50 ms on that clock. Asleep (no work) at Room 0 and once its input has been silent longer than its tail. Its tail joins the engine's reported tail. Under a point of one core at 48 kHz.
 
 ## 3. Piano model data and fitting
 
@@ -300,6 +311,12 @@ Sources: [Editor look & feel direction](issues/0006-editor-look-and-feel.md), [E
 | Stretch | 0–100 | 50 | §5 | advanced |
 | Spread | 0–100 | 50 = 0.7 cent | 0 = perfect unison, 100 = 1.4 cent | advanced |
 | Width | 0–100 | 100 | 0 = mono | advanced |
+| Room | 0–100 | 22 (Studio) | How much room (§2.11). 0 = the dry piano. | advanced |
+| Room size | 0–100 | 30 | The reflections' spacing and the tail's density | advanced |
+| Room decay | 0.2–10 s (in 0.1 s) | 0.8 s | The tail's RT60 at low frequencies | advanced |
+| Room damping | 0–100 | 55 | How much sooner the highs die (0 = as long as the lows) | advanced |
+| Room pre-delay | 0–100 ms | 4 ms | Before the first reflection | advanced |
+| Room early | 0–100 | 60 | The early reflections' level (50 = their own) | advanced |
 
 ### 6.4 Layout
 
@@ -318,6 +335,7 @@ Sources: [Editor look & feel direction](issues/0006-editor-look-and-feel.md), [E
   - **Strings:** Spread · Resonance
   - **Output:** Brightness · Width · Volume
   - **Pedals:** Sustain · Soft
+  - **Room** (under the tuning curve): Room · Size · Decay · Damping · Pre-delay · Early, and the room presets' menu (Dry, Studio, Chamber, Recital Hall, Concert Hall, Cathedral; "Custom" when the knobs match none). A room preset sets only the six room controls.
 - **Header:**
   - **Settings gear** (both views): *Invert sustain pedal*, *Invert soft pedal*, and an **About** panel with credits and licence notices (§9.6).
   - **Advanced view meters:** **Notes** (notes currently sounding) and **CPU** (% of one core).
@@ -354,8 +372,8 @@ The user voices the model by ear from inside the host, to find what the measurem
 | Strings | Overtone decay (partial n's rates × (f_n / f_1)^k) | yes | k = −0.5 (upper partials ring longer) … 0 … +0.5 (die faster) |
 | Strings | Second stage (aftersound rate) | yes | ×2 … fitted … ×0.5, log |
 | Strings | Phantom level | — | none … fitted … ×2 |
-| Board | Pickup (direct-path gain) | yes | 0 … 0.5 … 2 |
-| Board | Board tilt above 1 kHz | — | −4 … +8 … +16 dB/octave |
+| Board | Pickup (direct-path gain) | yes | 0 … 0.1 (fitted) … 2 |
+| Board | Board tilt above 1 kHz | — | −4 … +6 (fitted) … +16 dB/octave |
 | Board | Colour Low / Mid / High (shelves at 250 Hz and 2.5 kHz over the fitted curve) | yes | −12 … 0 … +12 dB |
 | Output | Tape drive | — | 0 (off) … 8 … 24 |
 
@@ -372,15 +390,17 @@ Source: [Presets, saved state and automation](issues/0018-presets-state-automati
 |---|---|---|---|
 | Hardness, Brightness, Resonance, Touch, Stretch, Spread, Width | ✓ | ✓ | ✓ |
 | Listening perspective | ✓ | ✓ (two-state) | ✓ |
+| Room, Room size, Room decay, Room damping, Room pre-delay, Room early | ✓ | ✓ | ✓ |
 | Volume, A4 | — | ✓ | ✓ |
 | Sustain, Soft | — | — (MIDI only) | — (they start released) |
 | Pedal inverts, theme | — | — | — (per computer, `%APPDATA%\Forte\settings.json`) |
 
 ### 7.1 Presets
 
-- **Contents:** the 8 character controls only.
-- **Factory presets:** about 5–8, built in and read-only. **"Concert Grand"** (all defaults) comes first. Candidates are Pianist's Seat, Mellow, Bright, Intimate and Honest Equal. The final list is set by ear.
-- **User preset files:** `Documents\Forte\Presets\<name>.fortepreset`, as JSON. Each holds a format version, the model id, the name and the 8 whole-number values.
+- **Contents:** the 8 character controls and the room's 6 (§2.11).
+- **Factory presets:** about 5–8, built in and read-only. **"Concert Grand"** (all defaults, the Studio room) comes first. Then Pianist's Seat (Chamber), Mellow (Recital Hall), Bright, Intimate (Dry), Honest Equal and Concert Hall (Concert Hall). The final list is set by ear.
+- **Room presets:** Dry, Studio, Chamber, Recital Hall, Concert Hall, Cathedral: the room's 6 values only, from the Room panel's menu (§6.4). First-build values, set by ear.
+- **User preset files:** `Documents\Forte\Presets\<name>.fortepreset`, as JSON. Each holds a format version, the model id, the name and the 14 whole-number values (Room decay in tenths of a second). A file without the room's values (written before the room) loads them as the defaults.
 - **Arrows:** ‹ › step through the factory presets, then the user presets alphabetically, and wrap at the ends.
 - **Changed indicator:** `*` marks unsaved changes. Arrowing away discards them silently.
 - **Name menu:** Factory and User lists, Save, Save as…, Rename, Delete and Open presets folder.

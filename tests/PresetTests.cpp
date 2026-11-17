@@ -50,9 +50,17 @@ TEST_CASE ("Concert Grand comes first and is every control at its default", "[pr
     CHECK (juce::String (factory.front().name) == "Concert Grand");
     CHECK (factory.front().values == Values {});
 
-    // The defaults are the engine's own (SPEC §6.3).
-    CHECK (applyTo (Values {}, Controls {}) == Controls {});
+    // The defaults are the engine's own (SPEC §6.3), but for the room: the engine alone is dry,
+    // the plugin's default is the Studio room preset (SPEC §2.11).
+    auto withoutRoom = applyTo (Values {}, Controls {});
+    CHECK (withoutRoom.room != Controls {}.room);
+    withoutRoom.room = Controls {}.room;
+    CHECK (withoutRoom == Controls {});
     CHECK (perspectiveOf (Values {}) == ListeningPerspective::microphones);
+
+    REQUIRE (matchingRoom (Values {}) != nullptr);
+    CHECK (juce::String (matchingRoom (Values {})->name) == "Studio");
+    CHECK (Controls {}.room.amount == 0.0);
 }
 
 TEST_CASE ("Factory presets have unique names and values in range", "[presets]")
@@ -181,6 +189,43 @@ TEST_CASE ("User presets save, rename (even by case only) and delete", "[presets
 
     CHECK (library.save ("a/b", v).failed());
     CHECK (library.save ("", v).failed());
+}
+
+TEST_CASE ("Room presets set the room's six values and nothing else", "[presets][room]")
+{
+    const auto& rooms = roomPresets();
+    REQUIRE (rooms.size() >= 4);
+    CHECK (juce::String (rooms.front().name) == "Dry");
+    CHECK (rooms.front().amount == 0);
+
+    const Values start { 10, 20, 30, 40, 0, 60, 70, 1 };
+    std::set<juce::String> names;
+    for (const auto& room : rooms)
+    {
+        INFO (room.name);
+        CHECK (names.insert (room.name).second);
+        const auto v = withRoom (start, room);
+        CHECK (clamped (v) == v);
+        CHECK (matchingRoom (v) == &room);
+
+        // The piano's 8 are untouched.
+        for (std::size_t i = 0; i < firstRoomField; ++i)
+            CHECK (v.*fields[i].member == start.*fields[i].member);
+
+        const auto r = roomOf (v);
+        CHECK (r.amount == room.amount);
+        CHECK (r.decaySeconds == room.decay / 10.0);
+    }
+}
+
+TEST_CASE ("A preset file written before the room loads the default room", "[presets][room]")
+{
+    const auto read = fromJson (R"({ "format": "forte-preset", "version": 1,
+                                     "values": { "hardness": 60, "brightness": 50, "resonance": 50, "touch": 50,
+                                                 "stretch": 50, "spread": 50, "width": 100, "perspective": 0 } })");
+    REQUIRE (read.has_value());
+    CHECK (read->hardness == 60);
+    CHECK (juce::String (matchingRoom (*read)->name) == "Studio");
 }
 
 TEST_CASE ("Typed preset names are made safe as file names", "[presets]")
