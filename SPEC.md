@@ -479,7 +479,7 @@ Source: [Build, installer and release](issues/0020-build-installer-release.md), 
 - **Compiler:** MSVC (Visual Studio 2026), with `/O2 /fp:fast`. Flush-to-zero and denormals-are-zero are set inside the engine.
 - **JUCE:** a git submodule pinned to **JUCE 9.0.5**. Upgrading it is a deliberate commit.
 - **Build:** CMake. The targets are the VST3, the Standalone, `forte-render` and the tests. They all link **one shared engine library**.
-- **Version:** one semantic version number in CMake, starting at `1.0.0`.
+- **Version:** one semantic version number in CMake. Preview builds for the user's experiments are `0.9.x` (from `0.9.0`, 2026-11-17); `1.0.0` is the finished v1, after the sign-off.
 
 ### 9.2 CPU paths and performance gate
 
@@ -514,17 +514,17 @@ Source: [Build, installer and release](issues/0020-build-installer-release.md), 
 
 ### 9.5 Release flow
 
-1. Bump the version and push a tag `vX.Y.Z`.
-2. CI runs Tier 1 and Tier 2, builds the installer and zip, and creates a **draft** GitHub Release with the report attached.
-3. The user runs the blind A/B sign-off and the performance gate.
-4. The user publishes.
+1. Bump the version in `CMakeLists.txt` and commit it.
+2. Either push a tag `vX.Y.Z` (`.github/workflows/release.yml`) or run `tools/release/make-release.ps1` on the user's PC. Both build Release, run every test with pluginval, package the installer and the zip (`tools/release/package.ps1`, `installer/forte.iss`) and create a **draft** GitHub Release, visible only to the owner. Tier 2 and its report join this step once they exist.
+3. The user installs the draft's build, and for 1.0.0 and later runs the blind A/B sign-off and the performance gate.
+4. The user publishes (previews `0.9.x` as pre-releases).
 
 ### 9.6 Release contents, notices and branding
 
 - **Files:**
   - `LICENSE` (GPLv3) and the AGPLv3 text, with a link to the matching source tag;
-  - `CREDITS.md`: Iowa MIS, Salamander (CC BY 3.0), Piano in 162, Plath (CC BY 4.0, modified) and the papers;
-  - `THIRD-PARTY.md`: JUCE, the VST3 SDK (MIT), Jost and Italiana (OFL, embedded unmodified), and every JUCE-bundled library actually in the binary, checked against the real build.
+  - `CREDITS.md`: the references the voicing was measured from (Iowa MIS, the user's Keyscape renders; Salamander, Piano in 162 and Plath once used) and the papers;
+  - `THIRD-PARTY.md`: JUCE, the VST3 SDK (MIT), Jost and Italiana (OFL, embedded unmodified), and every JUCE-bundled library actually in the binary, checked against the real build (0.9.0: FLAC, zlib, libpng, IJG JPEG, libwebp, HarfBuzz, SheenBidi, LunaSVG, PlutoVG); the package carries each one's licence text in `licenses/`.
 - **About panel:** the same credits and notices.
 - **Records:**
   - the validation report is attached to each release;

@@ -1,8 +1,9 @@
-﻿# Reference recordings. Downloaded by tools/fetch-references and never committed or shipped (SPEC §3.1).
+# Reference recordings. Downloaded by tools/fetch-references and never committed or shipped (SPEC §3.1).
 refs/
 
 # Build output
 /build/
+/dist/
 /out/
 CMakeUserPresets.json
 .vs/

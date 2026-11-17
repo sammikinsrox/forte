@@ -1,0 +1,76 @@
+# Release (issue 0020, SPEC §9.4): a pushed tag vX.Y.Z builds Release, runs every test with
+# pluginval, packages the installer and the portable zip, and makes a DRAFT GitHub Release with
+# both attached. Nothing is public until the user publishes the draft. tools/release/
+# make-release.ps1 does the same from the user's PC. The Tier 2 sound-match report isn't built yet.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (must exist and match CMakeLists.txt's version), e.g. v0.9.1"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-2025
+    env:
+      TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out (with JUCE submodule)
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Tag matches the version
+        shell: pwsh
+        run: |
+          if ((Get-Content CMakeLists.txt -Raw) -notmatch 'project\(Forte VERSION (\d+\.\d+\.\d+)') { throw "No version" }
+          if ("v$($Matches[1])" -ne $env:TAG) { throw "Tag $env:TAG doesn't match CMakeLists.txt's $($Matches[1])" }
+
+      - name: Get pluginval
+        shell: pwsh
+        run: ./tools/get-pluginval.ps1
+
+      - name: Get VST3 validator
+        shell: pwsh
+        run: ./tools/get-vst3-validator.ps1
+
+      - name: Get Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Configure
+        run: cmake --preset vs2026 -DFORTE_REQUIRE_CHECK_TOOLS=ON
+
+      - name: Build
+        run: cmake --build --preset release --parallel
+
+      - name: Tests (pluginval included)
+        run: ctest --preset release
+
+      - name: Package
+        shell: pwsh
+        run: ./tools/release/package.ps1
+
+      - name: Draft release
+        shell: pwsh
+        run: |
+          $version = $env:TAG.TrimStart("v")
+          $name = "Forte-$version-windows-x64"
+          $assets = @("dist/$name-setup.exe", "dist/$name.zip")
+          gh release view $env:TAG 2>$null | Out-Null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:TAG @assets --clobber
+          } else {
+            $flags = @("--draft", "--verify-tag", "--title", "Forte $version", "--generate-notes")
+            if ($version.StartsWith("0.")) { $flags += "--prerelease" }
+            gh release create $env:TAG @flags @assets
+          }
+          exit $LASTEXITCODE

@@ -4,6 +4,7 @@ name: CI
 
 on:
   push:
+    branches: ["**"]   # not tags: a release tag runs release.yml, which tests too
   pull_request:
   workflow_dispatch:
 

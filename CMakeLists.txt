@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 
 # The one version number for every Forte binary (SPEC §9.1).
-project(Forte VERSION 1.0.0 LANGUAGES C CXX)
+project(Forte VERSION 0.9.0 LANGUAGES C CXX)
 
 if(NOT MSVC)
     message(FATAL_ERROR "Forte v1 builds with MSVC (Visual Studio 2026) only. See SPEC §9.1.")
