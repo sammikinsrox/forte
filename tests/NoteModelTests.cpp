@@ -207,8 +207,9 @@ TEST_CASE ("The hysteretic felt is stiffer than its relaxed self and brightens w
     // gains air over an elastic felt at the relaxed stiffness, without the middle partials
     // rising (no twang). And ff has more air than pp, up to E5 (issue 0021 §7). Air is the rms of
     // the third difference (+18 dB/octave, so the top dominates) over the signal's. The notes are
-    // ones the Keyscape-fitted voicing gives a relaxing felt; from F#6 up it has none (§14).
-    const int midiNote = GENERATE (36, 60, 76, 84);
+    // ones the Keyscape-fitted voicing gives a strongly relaxing felt; from F#6 up it has none
+    // (§14), and C6's (ε 0.6 on a felt hardened in §18) adds under 10%.
+    const int midiNote = GENERATE (36, 60, 72, 76);
     const auto stulov = seedModel().note (midiNote);
     REQUIRE (stulov.feltRelaxation > 0.5);
 

@@ -84,6 +84,11 @@ struct NoteParameters
     double knockLevel = 0.0;
     double knockLowPassHz = 0.0;
 
+    // The board radiates the lowest fundamentals weakly: each partial's bridge output is weighted
+    // by a 4th-order Butterworth high-pass's magnitude at radiationCornerHz (0 = none). In
+    // Keyscape's low bass, partials 2-3 sit ~34 dB over the fundamental (issue 0021 §18).
+    double radiationCornerHz = 0.0;
+
     // How far the felt's contact follows the blow (1 = physical): the hammer meets the strings at
     // mf × (v / mf)^contactSpeedExponent, and the strike's drive is scaled by v over that, so
     // the note keeps the real blow's loudness while its brightness changes less with velocity.

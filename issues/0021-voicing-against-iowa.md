@@ -608,6 +608,43 @@ plays every note twice on two channels, panned and ±2 cents bent, with CC7 = 12
 - **The lab is the editor's third view** (SPEC §6.5): knobs per register, physical values, the
   focused control across the keyboard with draggable anchors, and a Lab | Committed A/B.
 
+### 18. The twang that grows, the dull strike, the bass fundamentals (2026-11-16)
+
+The user: the tone is "5/10" to Keyscape's 10, "more like a harpsichord mixed with a piano",
+"string-y rather than bell-y"; a metallic twang comes in 1-2 s into a note, more at higher
+velocity (85-127), mostly around C4; high notes weak with no presence; the whole instrument
+wants more air. Measured on the long sweep (`build/ab/diagnose/`; Keyscape's long render starts
+2.25 s after the schedule):
+
+- **The upper partials barely decayed.** The decay fit read Keyscape's faint upper partials near
+  its hiss as ringing: C4's partials 25-32 at 0.15-0.37/s (slower than the fundamental's 1.2), b3
+  at its 1e-9 floor everywhere, several C5+ partials at the 0.12/s floor. So the note grew
+  brighter as it rang (C4-B4's 5-16 kHz share −50.7 dB at the strike, −39.3 at 1-2 s; Keyscape
+  −51.8, −56.2): the growing twang, and the harpsichord's even decay. Measured only while 25 dB
+  over its hiss, Keyscape's partials follow σ ≈ b1 + b3·f² with b3 ≈ 4e-8 at C3, 1e-7 at C4,
+  1.1-1.5e-7 at C5-C6. **Fix:** `fit_decay.py floor`, a physical floor on every partial's prompt
+  and aftersound rate with those b3s, never shortening a fundamental. C4's 5-16 kHz share at 1-2 s
+  is now −93 dB.
+- **The strike was dull where the felt had been softened** (felt scale 0.12-0.15 at C3 and C5-C6,
+  likely against the twang that was really the decay): partials 4-15 at the strike 7-65 dB under
+  Keyscape's, the high notes nearly sine waves. The user's lab tries agreed (harder felt, less
+  spike, heavier hammer, more pickup). **Fix:** `VOICING` in `fit_hammer.py` to 0.15 at C2-G#2,
+  0.5 C3, 0.6 G3, 0.7 C4, 0.6 F#4-C6, 1.0 from F#6. C5-E5's strikes now match Keyscape's within a
+  few dB; G5-C6 are closer but their partials 8-15 still fall short.
+- **The low bass's fundamentals were too strong:** Keyscape's A0-B1 partials 2-3 sit ~34 dB over
+  the fundamental, Forte's ~10 (the colour already sat at its −8 dB limit at 40-63 Hz). **Fix:**
+  `radiationCornerHz` = 65, a 4th-order high-pass weight on each partial's bridge output (A0's
+  fundamental −27 dB, F1's −14, C2's −3).
+- **Tape:** at drive 8, loud notes are compressed by ~2 dB at v96 and ~4 dB at v120 at the attack
+  (C4). A candidate for the "harpsichord shortly after the attack" that's left as the user's
+  choice (Tape drive in the lab).
+- **Still open:** C4-E4's partials 2-3 are ~12 dB under Keyscape's against the fundamental at the
+  strike and later (not the hammer: unchanged by the felt); Keyscape's treble fundamentals drop
+  fast while partials 2-3 ring on (the bell), Forte's hold the fundamental.
+
+Autumn Leaves, whole piece against the old build: same level, 1-3.5 kHz +2.3 dB (Keyscape's
+share, −13.5, now matched), above 4 kHz +3.3 dB, below 250 Hz −0.6 dB.
+
 ## Plan
 
 How to get bright + full + shimmer + rumble without twang. Twang and brightness live in different

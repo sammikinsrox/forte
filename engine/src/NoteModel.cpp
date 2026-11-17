@@ -61,6 +61,14 @@ UnisonModes modesOfPartial (const NoteParameters& p, int partial, const double (
 
     return solveUnisonModes (strings, exponents, coupling);
 }
+
+/** The board's weak radiation of the lowest partials (NoteParameters::radiationCornerHz). */
+double radiationWeight (const NoteParameters& p, int partial) noexcept
+{
+    if (p.radiationCornerHz <= 0.0)
+        return 1.0;
+    return 1.0 / std::sqrt (1.0 + std::pow (p.radiationCornerHz / partialFrequency (p, partial), 8.0));
+}
 } // namespace
 
 void NoteModel::prepare (const NoteParameters& p, double unisonSpreadCents, double outputGain, double sampleRate)
@@ -126,6 +134,7 @@ void NoteModel::prepare (const NoteParameters& p, double unisonSpreadCents, doub
         partialStrikeShape[static_cast<std::size_t> (partial - 1)] = strikeShape;
         const double bridgeSlope = p.stringTension * partial * std::numbers::pi / p.stringLength * (partial % 2 == 0 ? 1.0 : -1.0);
         const UnisonModes modes = modesOfPartial (p, partial, offsets);
+        const double radiation = radiationWeight (p, partial);
 
         // Displacement per N·s of hammer force into each string. Modal mass is half the string's.
         double stringDrive[UnisonModes::maxStrings] {};
@@ -167,7 +176,7 @@ void NoteModel::prepare (const NoteParameters& p, double unisonSpreadCents, doub
             viewMissedRe[i] = static_cast<float> (viewMissed.real());
             viewMissedIm[i] = static_cast<float> (viewMissed.imag());
 
-            outputWeight[i] = static_cast<float> (bridgeSlope * modes.bridgeWeight[j] * outputGain);
+            outputWeight[i] = static_cast<float> (bridgeSlope * modes.bridgeWeight[j] * outputGain * radiation);
 
             if (partial <= numDrivingPartials)
                 phantomWeight[i] = static_cast<float> (partial * modes.bridgeWeight[j]);
@@ -754,6 +763,7 @@ double noteTailSeconds (const NoteParameters& p, double unisonSpreadCents)
     for (int partial = 1; partialFrequency (p, partial) < maxPartialHz; ++partial)
     {
         const UnisonModes modes = modesOfPartial (p, partial, offsets);
+        const double radiation = radiationWeight (p, partial);
 
         for (double shift : { 0.0, 0.5, 1.0 })
         {
@@ -774,7 +784,7 @@ double noteTailSeconds (const NoteParameters& p, double unisonSpreadCents)
             // total is the number of strings struck, never zero.
             for (int j = 0; j < modes.numModes; ++j)
             {
-                const double share = std::abs (amplitude[j]) / std::abs (total);
+                const double share = radiation * std::abs (amplitude[j]) / std::abs (total);
                 const double sigma = -modes.exponent[j].real();
 
                 if (share > 0.0 && sigma > 0.0)

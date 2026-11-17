@@ -125,6 +125,10 @@ NoteParameters seedNote (int midiNote)
     p.knockLevel = interpolate (key, knockKeys, knockLevels);
     p.knockLowPassHz = 150.0;
 
+    // The board's weak radiation of the lowest fundamentals (issue 0021 §18): A0's -27 dB, F1's
+    // -14, C2's -3; the overtones, the bass's growl, are untouched.
+    p.radiationCornerHz = 65.0;
+
     // The unison spread narrows from C4 up (fit_decay.py's spread_scale() must agree). With the
     // full spread, the treble's upper partials beat into a sustained glassy ring that Keyscape's
     // don't have; narrower, the decay fit matches the sweep 2-3× closer (issue 0021 §15).

@@ -1,4 +1,4 @@
-"""The hammer and felt (SPEC §3.3, issue 0021 step 1), in the pipeline's shape:
+﻿"""The hammer and felt (SPEC §3.3, issue 0021 step 1), in the pipeline's shape:
 
     python tools/fitting/fit_hammer.py measure   Iowa → data/reference-measurements/iowa-hammer.json
     python tools/fitting/fit_hammer.py voice     the felt set by ear → data/model/hammer.json
@@ -94,7 +94,7 @@ EXPONENT_SHIFT = 0.0              # added to the seed's p
 # and RELAXATION everywhere. Fitted to the user's Keyscape sweep over a grid of felts (issue 0021
 # §14): the strike's partials 2-6 at velocities 64-127. The top octaves match best with no
 # relaxation (ε = 0); in the bass the felt makes no difference.
-VOICING = [(36, 0.25, 0.9), (48, 0.12, 0.9), (60, 0.5, 0.8), (66, 0.5, 0.9), (72, 0.15, 0.9), (84, 0.15, 0.6), (90, 0.25, 0.0), (108, 0.25, 0.0)]
+VOICING = [(36, 0.15, 0.9), (44, 0.15, 0.9), (48, 0.5, 0.9), (55, 0.6, 0.9), (60, 0.7, 0.8), (66, 0.6, 0.9), (72, 0.6, 0.9), (84, 0.6, 0.6), (90, 1.0, 0.0), (108, 1.0, 0.0)]
 REFERENCE_COMPRESSION = 5e-4      # m, where a shifted exponent leaves the force unchanged
 SEED_SPEEDS = (0.7, 2.0, 4.5)     # m/s at velocities 32, 64, 112
 SEED_MAX_SPEED = 8.0              # m/s, velocity 127 never exceeds it

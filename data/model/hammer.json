@@ -3,7 +3,7 @@
  "notes": {
   "A0": {
    "midi": 21,
-   "feltStiffness": 681000000.0,
+   "feltStiffness": 408600000.0,
    "feltExponent": 2.3,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -12,7 +12,7 @@
   },
   "Bb0": {
    "midi": 22,
-   "feltStiffness": 681000000.0,
+   "feltStiffness": 408600000.0,
    "feltExponent": 2.3,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -21,7 +21,7 @@
   },
   "B0": {
    "midi": 23,
-   "feltStiffness": 681000000.0,
+   "feltStiffness": 408600000.0,
    "feltExponent": 2.3,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -30,7 +30,7 @@
   },
   "C1": {
    "midi": 24,
-   "feltStiffness": 681000000.0,
+   "feltStiffness": 408600000.0,
    "feltExponent": 2.3,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -39,7 +39,7 @@
   },
   "Db1": {
    "midi": 25,
-   "feltStiffness": 681000000.0,
+   "feltStiffness": 408600000.0,
    "feltExponent": 2.3,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -48,7 +48,7 @@
   },
   "D1": {
    "midi": 26,
-   "feltStiffness": 681000000.0,
+   "feltStiffness": 408600000.0,
    "feltExponent": 2.3,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -57,7 +57,7 @@
   },
   "Eb1": {
    "midi": 27,
-   "feltStiffness": 681000000.0,
+   "feltStiffness": 408600000.0,
    "feltExponent": 2.3,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -66,7 +66,7 @@
   },
   "E1": {
    "midi": 28,
-   "feltStiffness": 681000000.0,
+   "feltStiffness": 408600000.0,
    "feltExponent": 2.3,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -75,7 +75,7 @@
   },
   "F1": {
    "midi": 29,
-   "feltStiffness": 681000000.0,
+   "feltStiffness": 408600000.0,
    "feltExponent": 2.3,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -84,7 +84,7 @@
   },
   "Gb1": {
    "midi": 30,
-   "feltStiffness": 681000000.0,
+   "feltStiffness": 408600000.0,
    "feltExponent": 2.3,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -93,7 +93,7 @@
   },
   "G1": {
    "midi": 31,
-   "feltStiffness": 681000000.0,
+   "feltStiffness": 408600000.0,
    "feltExponent": 2.3,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -102,7 +102,7 @@
   },
   "Ab1": {
    "midi": 32,
-   "feltStiffness": 681000000.0,
+   "feltStiffness": 408600000.0,
    "feltExponent": 2.3,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -111,7 +111,7 @@
   },
   "A1": {
    "midi": 33,
-   "feltStiffness": 681000000.0,
+   "feltStiffness": 408600000.0,
    "feltExponent": 2.3,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -120,7 +120,7 @@
   },
   "Bb1": {
    "midi": 34,
-   "feltStiffness": 681000000.0,
+   "feltStiffness": 408600000.0,
    "feltExponent": 2.3,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -129,7 +129,7 @@
   },
   "B1": {
    "midi": 35,
-   "feltStiffness": 681000000.0,
+   "feltStiffness": 408600000.0,
    "feltExponent": 2.3,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -138,7 +138,7 @@
   },
   "C2": {
    "midi": 36,
-   "feltStiffness": 681000000.0,
+   "feltStiffness": 408600000.0,
    "feltExponent": 2.3,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -147,7 +147,7 @@
   },
   "Db2": {
    "midi": 37,
-   "feltStiffness": 708600000.0,
+   "feltStiffness": 452000000.0,
    "feltExponent": 2.308,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -156,7 +156,7 @@
   },
   "D2": {
    "midi": 38,
-   "feltStiffness": 737300000.0,
+   "feltStiffness": 499900000.0,
    "feltExponent": 2.317,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -165,7 +165,7 @@
   },
   "Eb2": {
    "midi": 39,
-   "feltStiffness": 767100000.0,
+   "feltStiffness": 553000000.0,
    "feltExponent": 2.325,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -174,7 +174,7 @@
   },
   "E2": {
    "midi": 40,
-   "feltStiffness": 798200000.0,
+   "feltStiffness": 611600000.0,
    "feltExponent": 2.333,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -183,7 +183,7 @@
   },
   "F2": {
    "midi": 41,
-   "feltStiffness": 830500000.0,
+   "feltStiffness": 676500000.0,
    "feltExponent": 2.342,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -192,7 +192,7 @@
   },
   "Gb2": {
    "midi": 42,
-   "feltStiffness": 864100000.0,
+   "feltStiffness": 748300000.0,
    "feltExponent": 2.35,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -201,7 +201,7 @@
   },
   "G2": {
    "midi": 43,
-   "feltStiffness": 899100000.0,
+   "feltStiffness": 827700000.0,
    "feltExponent": 2.358,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -210,7 +210,7 @@
   },
   "Ab2": {
    "midi": 44,
-   "feltStiffness": 935500000.0,
+   "feltStiffness": 915600000.0,
    "feltExponent": 2.367,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -219,7 +219,7 @@
   },
   "A2": {
    "midi": 45,
-   "feltStiffness": 973300000.0,
+   "feltStiffness": 1368000000.0,
    "feltExponent": 2.375,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -228,7 +228,7 @@
   },
   "Bb2": {
    "midi": 46,
-   "feltStiffness": 1013000000.0,
+   "feltStiffness": 2045000000.0,
    "feltExponent": 2.383,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -237,7 +237,7 @@
   },
   "B2": {
    "midi": 47,
-   "feltStiffness": 1054000000.0,
+   "feltStiffness": 3057000000.0,
    "feltExponent": 2.392,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -246,7 +246,7 @@
   },
   "C3": {
    "midi": 48,
-   "feltStiffness": 1096000000.0,
+   "feltStiffness": 4568000000.0,
    "feltExponent": 2.4,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -255,106 +255,106 @@
   },
   "Db3": {
    "midi": 49,
-   "feltStiffness": 1261000000.0,
+   "feltStiffness": 5186000000.0,
    "feltExponent": 2.408,
-   "feltRelaxation": 0.8917,
+   "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
    "hammerSpeeds": [0.7, 2.0, 4.5],
    "maxHammerSpeed": 8.0
   },
   "D3": {
    "midi": 50,
-   "feltStiffness": 1458000000.0,
+   "feltStiffness": 5888000000.0,
    "feltExponent": 2.417,
-   "feltRelaxation": 0.8833,
+   "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
    "hammerSpeeds": [0.7, 2.0, 4.5],
    "maxHammerSpeed": 8.0
   },
   "Eb3": {
    "midi": 51,
-   "feltStiffness": 1696000000.0,
+   "feltStiffness": 6685000000.0,
    "feltExponent": 2.425,
-   "feltRelaxation": 0.875,
+   "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
    "hammerSpeeds": [0.7, 2.0, 4.5],
    "maxHammerSpeed": 8.0
   },
   "E3": {
    "midi": 52,
-   "feltStiffness": 1981000000.0,
+   "feltStiffness": 7589000000.0,
    "feltExponent": 2.433,
-   "feltRelaxation": 0.8667,
+   "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
    "hammerSpeeds": [0.7, 2.0, 4.5],
    "maxHammerSpeed": 8.0
   },
   "F3": {
    "midi": 53,
-   "feltStiffness": 2322000000.0,
+   "feltStiffness": 8616000000.0,
    "feltExponent": 2.442,
-   "feltRelaxation": 0.8583,
+   "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
    "hammerSpeeds": [0.7, 2.0, 4.5],
    "maxHammerSpeed": 8.0
   },
   "Gb3": {
    "midi": 54,
-   "feltStiffness": 2732000000.0,
+   "feltStiffness": 9782000000.0,
    "feltExponent": 2.45,
-   "feltRelaxation": 0.85,
+   "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
    "hammerSpeeds": [0.7, 2.0, 4.5],
    "maxHammerSpeed": 8.0
   },
   "G3": {
    "midi": 55,
-   "feltStiffness": 3226000000.0,
+   "feltStiffness": 11110000000.0,
    "feltExponent": 2.458,
-   "feltRelaxation": 0.8417,
+   "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
    "hammerSpeeds": [0.7, 2.0, 4.5],
    "maxHammerSpeed": 8.0
   },
   "Ab3": {
    "midi": 56,
-   "feltStiffness": 3816000000.0,
+   "feltStiffness": 10560000000.0,
    "feltExponent": 2.467,
-   "feltRelaxation": 0.8333,
+   "feltRelaxation": 0.88,
    "feltRelaxationTime": 2e-05,
    "hammerSpeeds": [0.7, 2.0, 4.5],
    "maxHammerSpeed": 8.0
   },
   "A3": {
    "midi": 57,
-   "feltStiffness": 4528000000.0,
+   "feltStiffness": 10320000000.0,
    "feltExponent": 2.475,
-   "feltRelaxation": 0.825,
+   "feltRelaxation": 0.86,
    "feltRelaxationTime": 2e-05,
    "hammerSpeeds": [0.7, 2.0, 4.5],
    "maxHammerSpeed": 8.0
   },
   "Bb3": {
    "midi": 58,
-   "feltStiffness": 5386000000.0,
+   "feltStiffness": 10300000000.0,
    "feltExponent": 2.483,
-   "feltRelaxation": 0.8167,
+   "feltRelaxation": 0.84,
    "feltRelaxationTime": 2e-05,
    "hammerSpeeds": [0.7, 2.0, 4.5],
    "maxHammerSpeed": 8.0
   },
   "B3": {
    "midi": 59,
-   "feltStiffness": 6416000000.0,
+   "feltStiffness": 10450000000.0,
    "feltExponent": 2.492,
-   "feltRelaxation": 0.8083,
+   "feltRelaxation": 0.82,
    "feltRelaxationTime": 2e-05,
    "hammerSpeeds": [0.7, 2.0, 4.5],
    "maxHammerSpeed": 8.0
   },
   "C4": {
    "midi": 60,
-   "feltStiffness": 7661000000.0,
+   "feltStiffness": 10730000000.0,
    "feltExponent": 2.5,
    "feltRelaxation": 0.8,
    "feltRelaxationTime": 2e-05,
@@ -363,7 +363,7 @@
   },
   "Db4": {
    "midi": 61,
-   "feltStiffness": 8789000000.0,
+   "feltStiffness": 11990000000.0,
    "feltExponent": 2.513,
    "feltRelaxation": 0.8167,
    "feltRelaxationTime": 2e-05,
@@ -372,7 +372,7 @@
   },
   "D4": {
    "midi": 62,
-   "feltStiffness": 10150000000.0,
+   "feltStiffness": 13500000000.0,
    "feltExponent": 2.525,
    "feltRelaxation": 0.8333,
    "feltRelaxationTime": 2e-05,
@@ -381,7 +381,7 @@
   },
   "Eb4": {
    "midi": 63,
-   "feltStiffness": 11840000000.0,
+   "feltStiffness": 15350000000.0,
    "feltExponent": 2.538,
    "feltRelaxation": 0.85,
    "feltRelaxationTime": 2e-05,
@@ -390,7 +390,7 @@
   },
   "E4": {
    "midi": 64,
-   "feltStiffness": 13970000000.0,
+   "feltStiffness": 17650000000.0,
    "feltExponent": 2.55,
    "feltRelaxation": 0.8667,
    "feltRelaxationTime": 2e-05,
@@ -399,7 +399,7 @@
   },
   "F4": {
    "midi": 65,
-   "feltStiffness": 16720000000.0,
+   "feltStiffness": 20580000000.0,
    "feltExponent": 2.562,
    "feltRelaxation": 0.8833,
    "feltRelaxationTime": 2e-05,
@@ -408,7 +408,7 @@
   },
   "Gb4": {
    "midi": 66,
-   "feltStiffness": 20410000000.0,
+   "feltStiffness": 24490000000.0,
    "feltExponent": 2.575,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -417,7 +417,7 @@
   },
   "G4": {
    "midi": 67,
-   "feltStiffness": 17450000000.0,
+   "feltStiffness": 25590000000.0,
    "feltExponent": 2.587,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -426,7 +426,7 @@
   },
   "Ab4": {
    "midi": 68,
-   "feltStiffness": 14900000000.0,
+   "feltStiffness": 26710000000.0,
    "feltExponent": 2.6,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -435,7 +435,7 @@
   },
   "A4": {
    "midi": 69,
-   "feltStiffness": 12710000000.0,
+   "feltStiffness": 27840000000.0,
    "feltExponent": 2.612,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -444,7 +444,7 @@
   },
   "Bb4": {
    "midi": 70,
-   "feltStiffness": 10820000000.0,
+   "feltStiffness": 28980000000.0,
    "feltExponent": 2.625,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -453,7 +453,7 @@
   },
   "B4": {
    "midi": 71,
-   "feltStiffness": 9200000000.0,
+   "feltStiffness": 30110000000.0,
    "feltExponent": 2.637,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -462,7 +462,7 @@
   },
   "C5": {
    "midi": 72,
-   "feltStiffness": 7808000000.0,
+   "feltStiffness": 31230000000.0,
    "feltExponent": 2.65,
    "feltRelaxation": 0.9,
    "feltRelaxationTime": 2e-05,
@@ -471,7 +471,7 @@
   },
   "Db5": {
    "midi": 73,
-   "feltStiffness": 6467000000.0,
+   "feltStiffness": 25870000000.0,
    "feltExponent": 2.663,
    "feltRelaxation": 0.875,
    "feltRelaxationTime": 2e-05,
@@ -480,7 +480,7 @@
   },
   "D5": {
    "midi": 74,
-   "feltStiffness": 5568000000.0,
+   "feltStiffness": 22270000000.0,
    "feltExponent": 2.675,
    "feltRelaxation": 0.85,
    "feltRelaxationTime": 2e-05,
@@ -489,7 +489,7 @@
   },
   "Eb5": {
    "midi": 75,
-   "feltStiffness": 4920000000.0,
+   "feltStiffness": 19680000000.0,
    "feltExponent": 2.688,
    "feltRelaxation": 0.825,
    "feltRelaxationTime": 2e-05,
@@ -498,7 +498,7 @@
   },
   "E5": {
    "midi": 76,
-   "feltStiffness": 4427000000.0,
+   "feltStiffness": 17710000000.0,
    "feltExponent": 2.7,
    "feltRelaxation": 0.8,
    "feltRelaxationTime": 2e-05,
@@ -507,7 +507,7 @@
   },
   "F5": {
    "midi": 77,
-   "feltStiffness": 4036000000.0,
+   "feltStiffness": 16140000000.0,
    "feltExponent": 2.712,
    "feltRelaxation": 0.775,
    "feltRelaxationTime": 2e-05,
@@ -516,7 +516,7 @@
   },
   "Gb5": {
    "midi": 78,
-   "feltStiffness": 3713000000.0,
+   "feltStiffness": 14850000000.0,
    "feltExponent": 2.725,
    "feltRelaxation": 0.75,
    "feltRelaxationTime": 2e-05,
@@ -525,7 +525,7 @@
   },
   "G5": {
    "midi": 79,
-   "feltStiffness": 3440000000.0,
+   "feltStiffness": 13760000000.0,
    "feltExponent": 2.737,
    "feltRelaxation": 0.725,
    "feltRelaxationTime": 2e-05,
@@ -534,7 +534,7 @@
   },
   "Ab5": {
    "midi": 80,
-   "feltStiffness": 3200000000.0,
+   "feltStiffness": 12800000000.0,
    "feltExponent": 2.75,
    "feltRelaxation": 0.7,
    "feltRelaxationTime": 2e-05,
@@ -543,7 +543,7 @@
   },
   "A5": {
    "midi": 81,
-   "feltStiffness": 2985000000.0,
+   "feltStiffness": 11940000000.0,
    "feltExponent": 2.762,
    "feltRelaxation": 0.675,
    "feltRelaxationTime": 2e-05,
@@ -552,7 +552,7 @@
   },
   "Bb5": {
    "midi": 82,
-   "feltStiffness": 2786000000.0,
+   "feltStiffness": 11150000000.0,
    "feltExponent": 2.775,
    "feltRelaxation": 0.65,
    "feltRelaxationTime": 2e-05,
@@ -561,7 +561,7 @@
   },
   "B5": {
    "midi": 83,
-   "feltStiffness": 2599000000.0,
+   "feltStiffness": 10400000000.0,
    "feltExponent": 2.787,
    "feltRelaxation": 0.625,
    "feltRelaxationTime": 2e-05,
@@ -570,7 +570,7 @@
   },
   "C6": {
    "midi": 84,
-   "feltStiffness": 2419000000.0,
+   "feltStiffness": 9675000000.0,
    "feltExponent": 2.8,
    "feltRelaxation": 0.6,
    "feltRelaxationTime": 2e-05,
@@ -579,7 +579,7 @@
   },
   "Db6": {
    "midi": 85,
-   "feltStiffness": 2677000000.0,
+   "feltStiffness": 10710000000.0,
    "feltExponent": 2.817,
    "feltRelaxation": 0.5,
    "feltRelaxationTime": 2e-05,
@@ -588,7 +588,7 @@
   },
   "D6": {
    "midi": 86,
-   "feltStiffness": 3034000000.0,
+   "feltStiffness": 12140000000.0,
    "feltExponent": 2.833,
    "feltRelaxation": 0.4,
    "feltRelaxationTime": 2e-05,
@@ -597,7 +597,7 @@
   },
   "Eb6": {
    "midi": 87,
-   "feltStiffness": 3490000000.0,
+   "feltStiffness": 13960000000.0,
    "feltExponent": 2.85,
    "feltRelaxation": 0.3,
    "feltRelaxationTime": 2e-05,
@@ -606,7 +606,7 @@
   },
   "E6": {
    "midi": 88,
-   "feltStiffness": 4055000000.0,
+   "feltStiffness": 16220000000.0,
    "feltExponent": 2.867,
    "feltRelaxation": 0.2,
    "feltRelaxationTime": 2e-05,
@@ -615,7 +615,7 @@
   },
   "F6": {
    "midi": 89,
-   "feltStiffness": 4745000000.0,
+   "feltStiffness": 18980000000.0,
    "feltExponent": 2.883,
    "feltRelaxation": 0.1,
    "feltRelaxationTime": 2e-05,
@@ -624,7 +624,7 @@
   },
   "Gb6": {
    "midi": 90,
-   "feltStiffness": 5580000000.0,
+   "feltStiffness": 22320000000.0,
    "feltExponent": 2.9,
    "feltRelaxation": 0.0,
    "feltRelaxationTime": 2e-05,
@@ -633,7 +633,7 @@
   },
   "G6": {
    "midi": 91,
-   "feltStiffness": 6654000000.0,
+   "feltStiffness": 26620000000.0,
    "feltExponent": 2.917,
    "feltRelaxation": 0.0,
    "feltRelaxationTime": 2e-05,
@@ -642,7 +642,7 @@
   },
   "Ab6": {
    "midi": 92,
-   "feltStiffness": 7894000000.0,
+   "feltStiffness": 31570000000.0,
    "feltExponent": 2.933,
    "feltRelaxation": 0.0,
    "feltRelaxationTime": 2e-05,
@@ -651,7 +651,7 @@
   },
   "A6": {
    "midi": 93,
-   "feltStiffness": 9320000000.0,
+   "feltStiffness": 37280000000.0,
    "feltExponent": 2.95,
    "feltRelaxation": 0.0,
    "feltRelaxationTime": 2e-05,
@@ -660,7 +660,7 @@
   },
   "Bb6": {
    "midi": 94,
-   "feltStiffness": 10960000000.0,
+   "feltStiffness": 43840000000.0,
    "feltExponent": 2.967,
    "feltRelaxation": 0.0,
    "feltRelaxationTime": 2e-05,
@@ -669,7 +669,7 @@
   },
   "B6": {
    "midi": 95,
-   "feltStiffness": 12840000000.0,
+   "feltStiffness": 51370000000.0,
    "feltExponent": 2.983,
    "feltRelaxation": 0.0,
    "feltRelaxationTime": 2e-05,
@@ -678,7 +678,7 @@
   },
   "C7": {
    "midi": 96,
-   "feltStiffness": 15000000000.0,
+   "feltStiffness": 60000000000.0,
    "feltExponent": 3.0,
    "feltRelaxation": 0.0,
    "feltRelaxationTime": 2e-05,
@@ -687,7 +687,7 @@
   },
   "Db7": {
    "midi": 97,
-   "feltStiffness": 17350000000.0,
+   "feltStiffness": 69410000000.0,
    "feltExponent": 3.0,
    "feltRelaxation": 0.0,
    "feltRelaxationTime": 2e-05,
@@ -696,7 +696,7 @@
   },
   "D7": {
    "midi": 98,
-   "feltStiffness": 20020000000.0,
+   "feltStiffness": 80060000000.0,
    "feltExponent": 3.0,
    "feltRelaxation": 0.0,
    "feltRelaxationTime": 2e-05,
@@ -705,7 +705,7 @@
   },
   "Eb7": {
    "midi": 99,
-   "feltStiffness": 23030000000.0,
+   "feltStiffness": 92130000000.0,
    "feltExponent": 3.0,
    "feltRelaxation": 0.0,
    "feltRelaxationTime": 2e-05,
@@ -714,7 +714,7 @@
   },
   "E7": {
    "midi": 100,
-   "feltStiffness": 26440000000.0,
+   "feltStiffness": 105800000000.0,
    "feltExponent": 3.0,
    "feltRelaxation": 0.0,
    "feltRelaxationTime": 2e-05,
@@ -723,7 +723,7 @@
   },
   "F7": {
    "midi": 101,
-   "feltStiffness": 30290000000.0,
+   "feltStiffness": 121200000000.0,
    "feltExponent": 3.0,
    "feltRelaxation": 0.0,
    "feltRelaxationTime": 2e-05,
@@ -732,7 +732,7 @@
   },
   "Gb7": {
    "midi": 102,
-   "feltStiffness": 34640000000.0,
+   "feltStiffness": 138600000000.0,
    "feltExponent": 3.0,
    "feltRelaxation": 0.0,
    "feltRelaxationTime": 2e-05,
@@ -741,7 +741,7 @@
   },
   "G7": {
    "midi": 103,
-   "feltStiffness": 39540000000.0,
+   "feltStiffness": 158200000000.0,
    "feltExponent": 3.0,
    "feltRelaxation": 0.0,
    "feltRelaxationTime": 2e-05,
@@ -750,7 +750,7 @@
   },
   "Ab7": {
    "midi": 104,
-   "feltStiffness": 45070000000.0,
+   "feltStiffness": 180300000000.0,
    "feltExponent": 3.0,
    "feltRelaxation": 0.0,
    "feltRelaxationTime": 2e-05,
@@ -759,7 +759,7 @@
   },
   "A7": {
    "midi": 105,
-   "feltStiffness": 51290000000.0,
+   "feltStiffness": 205200000000.0,
    "feltExponent": 3.0,
    "feltRelaxation": 0.0,
    "feltRelaxationTime": 2e-05,
@@ -768,7 +768,7 @@
   },
   "Bb7": {
    "midi": 106,
-   "feltStiffness": 58290000000.0,
+   "feltStiffness": 233200000000.0,
    "feltExponent": 3.0,
    "feltRelaxation": 0.0,
    "feltRelaxationTime": 2e-05,
@@ -777,7 +777,7 @@
   },
   "B7": {
    "midi": 107,
-   "feltStiffness": 66160000000.0,
+   "feltStiffness": 264600000000.0,
    "feltExponent": 3.0,
    "feltRelaxation": 0.0,
    "feltRelaxationTime": 2e-05,
@@ -786,7 +786,7 @@
   },
   "C8": {
    "midi": 108,
-   "feltStiffness": 75000000000.0,
+   "feltStiffness": 300000000000.0,
    "feltExponent": 3.0,
    "feltRelaxation": 0.0,
    "feltRelaxationTime": 2e-05,

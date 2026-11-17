@@ -522,8 +522,10 @@ TEST_CASE ("Voicing lab: longer sustain lengthens the reported tail", "[lab][eng
     engine.prepare (48000.0, 128);
     const double committed = engine.getTailSeconds();
 
+    // Not ×2: since the low bass's fundamentals are radiated weakly (issue 0021 §18), the committed
+    // tail is the sympathetic bank's bound, which the lab's strings don't move.
     engine.rebuildStrings (with (Control::sustain, 100.0f));
-    CHECK (engine.getTailSeconds() > 1.5 * committed);
+    CHECK (engine.getTailSeconds() > 1.2 * committed);
 
     engine.rebuildStrings (lab::Settings {});
     CHECK (engine.getTailSeconds() == committed);
