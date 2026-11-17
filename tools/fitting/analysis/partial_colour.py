@@ -16,7 +16,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import numpy as np
-from forte_audio import read_wav
+from forte_audio import power_spectrum, read_wav
 import sweep_align as sa
 
 CENTRES = [40 * 2 ** (k / 3) for k in range(0, 29)]   # 40 Hz .. 16 kHz, as board-colour.json
@@ -57,7 +57,7 @@ def measure(path):
     if os.path.exists(cache):
         return pickle.load(open(cache, "rb"))
     x, rate = read_wav(path)
-    mono = x.mean(axis=1)
+    mono = x   # stereo: spectra average the channels' powers (issue 0022 §1)
     out = {}
     for t, m, v, found, _ in sa.onsets(mono, rate):
         if v not in VELS:
@@ -66,7 +66,7 @@ def measure(path):
         if np.abs(mono[int(found * rate): int((found + 0.3) * rate)]).max() > 0.99:
             continue
         nfft = 1 << int(np.ceil(np.log2(len(seg) * 4)))
-        spec = np.abs(np.fft.rfft(seg * np.hanning(len(seg)), nfft)) ** 2
+        spec = power_spectrum(seg, nfft)
         freqs = np.fft.rfftfreq(nfft, 1 / rate)
         out[(m, v)] = partials(spec, freqs, 440 * 2 ** ((m - 69) / 12))
     pickle.dump(out, open(cache, "wb"))

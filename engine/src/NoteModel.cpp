@@ -45,8 +45,10 @@ UnisonModes modesOfPartial (const NoteParameters& p, int partial, const double (
     const double frequency = partialFrequency (p, partial);
     const bool measured = isMeasuredPartial (p, partial);
 
+    // A partial with a tail (the second polarisation) has its aftersound there: its strings
+    // decay at the prompt rate, uncoupled.
     double coupling = 0.0;
-    if (strings > 1 && partial <= NoteModel::coupledPartials)
+    if (strings > 1 && partial <= NoteModel::coupledPartials && ! hasTail (p, partial))
         coupling = std::max (0.0, (promptDecayOfPartial (p, partial) - aftersoundDecayOfPartial (p, partial)) / strings);
 
     std::complex<double> exponents[UnisonModes::maxStrings];
@@ -62,6 +64,12 @@ UnisonModes modesOfPartial (const NoteParameters& p, int partial, const double (
     return solveUnisonModes (strings, exponents, coupling);
 }
 
+/** How many of the note's partials have a tail mode, up to its partials below the limit. */
+int tailPartials (const NoteParameters& p, int numPartials) noexcept
+{
+    return std::clamp (std::min (p.numTailPartials, NoteParameters::maxTailPartials), 0, numPartials);
+}
+
 /** The board's weak radiation of the lowest partials (NoteParameters::radiationCornerHz). */
 double radiationWeight (const NoteParameters& p, int partial) noexcept
 {
@@ -71,8 +79,10 @@ double radiationWeight (const NoteParameters& p, int partial) noexcept
 }
 } // namespace
 
-void NoteModel::prepare (const NoteParameters& p, double unisonSpreadCents, double outputGain, double sampleRate)
+void NoteModel::prepare (const NoteParameters& p, double unisonSpreadCents, double modelOutputGain, double sampleRate)
 {
+    // The note's own level (voiced even) on everything it outputs.
+    const double outputGain = modelOutputGain * std::pow (10.0, p.levelDb / 20.0);
     samplePeriod = 1.0 / sampleRate;
     hasDamper = p.hasDamper;
     hammerMass = p.hammerMass;
@@ -85,6 +95,7 @@ void NoteModel::prepare (const NoteParameters& p, double unisonSpreadCents, doub
     softPedalFeltScale = p.softPedalFeltScale;
     knockGain = static_cast<float> (p.knockLevel * outputGain);
     knockPole = p.knockLowPassHz > 0.0 ? static_cast<float> (std::exp (-2.0 * std::numbers::pi * p.knockLowPassHz / sampleRate)) : 0.0f;
+    knockHighPole = p.knockHighPassHz > 0.0 ? static_cast<float> (std::exp (-2.0 * std::numbers::pi * p.knockHighPassHz / sampleRate)) : 1.0f;
     maxContactSubsteps = static_cast<int> (maxContactSeconds * sampleRate) * hammerOversampling;
     liftStepPerTick = static_cast<float> (controlInterval * samplePeriod / damperRampSeconds);
     velocityCurve = VelocityCurve (p.hammerSpeeds, p.maxHammerSpeed);
@@ -96,7 +107,12 @@ void NoteModel::prepare (const NoteParameters& p, double unisonSpreadCents, doub
         ++numPartials;
 
     numStrings = stringsInUnison (p);
-    numModes = numPartials * numStrings;
+
+    // The tail modes come first, one per tail partial, padded to whole kernel groups; then each
+    // partial's string modes, as before, so the upper partials still rest first.
+    numTails = tailPartials (p, numPartials);
+    tailModes = (numTails + kernelModeAlignment - 1) / kernelModeAlignment * kernelModeAlignment;
+    numModes = tailModes + numPartials * numStrings;
 
     // Padded with modes that are zero throughout (no state, drive, weight or view), so the
     // kernels can take whole groups of modes.
@@ -141,9 +157,34 @@ void NoteModel::prepare (const NoteParameters& p, double unisonSpreadCents, doub
         for (int k = 0; k < numStrings; ++k)
             stringDrive[k] = 2.0 * strikeShape / (stringMass * 2.0 * std::numbers::pi * stringFrequency (partialFrequency (p, partial), offsets[k]));
 
+        if (partial <= numTails)
+        {
+            // The tail: the strings' horizontal motion as one mode. The hammer starts it at
+            // tailLevel × the vertical strings' bridge motion (all struck: their drives' sum; for
+            // the soft pedal's missed string, its own), and it doesn't push back on the hammer.
+            const auto i = static_cast<std::size_t> (partial - 1);
+            const double level = p.tailLevel[i];
+            const double frequency = partialFrequency (p, partial) * std::pow (2.0, p.tailOffsetCents / 1200.0);
+            const double omega = 2.0 * std::numbers::pi * frequency;
+            double driveSum = 0.0;
+            for (int k = 0; k < numStrings; ++k)
+                driveSum += stringDrive[k];
+
+            modeOmega[i] = omega;
+            cosStep[i] = static_cast<float> (std::cos (omega * samplePeriod));
+            sinStep[i] = static_cast<float> (std::sin (omega * samplePeriod));
+            cosSubstep[i] = static_cast<float> (std::cos (omega * substepPeriod));
+            sinSubstep[i] = static_cast<float> (std::sin (omega * substepPeriod));
+            stringDecay[i] = static_cast<float> (-tailDecayOfPartial (p, partial) * samplePeriod);
+            damperDecay[i] = static_cast<float> (-detail::damperDecay (p, frequency) * samplePeriod);
+            driveAllRe[i] = static_cast<float> (level * driveSum);
+            driveMissedRe[i] = static_cast<float> (level * stringDrive[0]);
+            outputWeight[i] = static_cast<float> (bridgeSlope * outputGain * radiation);
+        }
+
         for (int j = 0; j < numStrings; ++j)
         {
-            const auto i = static_cast<std::size_t> ((partial - 1) * numStrings + j);
+            const auto i = static_cast<std::size_t> (tailModes + (partial - 1) * numStrings + j);
             const double omega = modes.exponent[j].imag();
             const double sigma = -modes.exponent[j].real();
             const double frequency = omega / (2.0 * std::numbers::pi);
@@ -179,7 +220,7 @@ void NoteModel::prepare (const NoteParameters& p, double unisonSpreadCents, doub
             outputWeight[i] = static_cast<float> (bridgeSlope * modes.bridgeWeight[j] * outputGain * radiation);
 
             if (partial <= numDrivingPartials)
-                phantomWeight[i] = static_cast<float> (partial * modes.bridgeWeight[j]);
+                phantomWeight[i - static_cast<std::size_t> (tailModes)] = static_cast<float> (partial * modes.bridgeWeight[j]);
         }
     }
 
@@ -263,7 +304,7 @@ void NoteModel::silence() noexcept
     lmState1.fill (0.0f);
     lmState2.fill (0.0f);
     phantomHpInput = phantomHpOutput = 0.0f;
-    knockState = 0.0f;
+    clearKnock();
     sounding = false;
 }
 
@@ -400,7 +441,8 @@ void NoteModel::strike (double velocity, double touch, double softShift, double 
 
         for (int i = 0; i < numModes; ++i)
         {
-            const float ratio = strikeShapeRatio[static_cast<std::size_t> (i / numStrings)];
+            const int partialIndex = i < tailModes ? std::min (i, std::max (numTails - 1, 0)) : (i - tailModes) / numStrings;
+            const float ratio = strikeShapeRatio[static_cast<std::size_t> (partialIndex)];
             driveRe[i] = (driveAllRe[i] - missed * driveMissedRe[i]) * share * strikeGain * ratio;
             driveIm[i] = (driveAllIm[i] - missed * driveMissedIm[i]) * share * strikeGain * ratio;
             strikeWeightRe[i] = (viewAllRe[i] - missed * viewMissedRe[i]) * share / strikeGain * ratio;
@@ -475,16 +517,14 @@ void NoteModel::render (float* out, float* scratch, int numSamples) noexcept
     {
         float knock = 0.0f;
         scratch[t] = renderContactSample (knock);
-        knockState = knockPole * knockState + (1.0f - knockPole) * knock;
-        out[t] += knockState;
+        out[t] += knockFilter (knock);
     }
 
-    // The low-pass's tail after the contact.
-    for (int i = t; i < numSamples && knockState != 0.0f; ++i)
-    {
-        knockState = std::abs (knockState) < 1e-12f ? 0.0f : knockPole * knockState;
-        out[i] += knockState;
-    }
+    // The band-pass's tail after the contact.
+    for (int i = t; i < numSamples && ! knockQuiet(); ++i)
+        out[i] += knockFilter (0.0f);
+    if (t < numSamples && knockQuiet())
+        clearKnock();
 
     if (t < numSamples)
     {
@@ -512,6 +552,33 @@ void NoteModel::render (float* out, float* scratch, int numSamples) noexcept
 
     hpState1 = s1;
     hpState2 = s2;
+}
+
+float NoteModel::knockFilter (float x) noexcept
+{
+    knockLow1 = knockPole * knockLow1 + (1.0f - knockPole) * x;
+    knockLow2 = knockPole * knockLow2 + (1.0f - knockPole) * knockLow1;
+    if (knockHighPole >= 1.0f)
+        return knockLow2;
+
+    // One-pole high-pass y = a·(y + x − x_prev), twice.
+    knockHighOut1 = knockHighPole * (knockHighOut1 + knockLow2 - knockHighIn1);
+    knockHighIn1 = knockLow2;
+    knockHighOut2 = knockHighPole * (knockHighOut2 + knockHighOut1 - knockHighIn2);
+    knockHighIn2 = knockHighOut1;
+    return knockHighOut2;
+}
+
+bool NoteModel::knockQuiet() const noexcept
+{
+    constexpr float quiet = 1e-12f;
+    return std::abs (knockLow1) < quiet && std::abs (knockLow2) < quiet && std::abs (knockHighOut1) < quiet
+        && std::abs (knockHighOut2) < quiet && std::abs (knockHighIn1) < quiet && std::abs (knockHighIn2) < quiet;
+}
+
+void NoteModel::clearKnock() noexcept
+{
+    knockLow1 = knockLow2 = knockHighIn1 = knockHighOut1 = knockHighIn2 = knockHighOut2 = 0.0f;
 }
 
 void NoteModel::updateMultipliers() noexcept
@@ -616,7 +683,7 @@ void NoteModel::renderFree (float* out, int numSamples) noexcept
 
     // The phantom path reads the driving partials' modes at every sample, so they advance
     // sample by sample; the rest, mode by mode.
-    const int driving = std::min (end, roundUp (numDrivingPartials * numStrings));
+    const int driving = std::min (end, roundUp (tailModes + numDrivingPartials * numStrings));
 
     for (int t = 0; t < numSamples; ++t)
     {
@@ -631,8 +698,9 @@ void NoteModel::renderFree (float* out, int numSamples) noexcept
 float NoteModel::phantomSample() noexcept
 {
     // P_n (at [n − 1]): partial number × the bridge sum of partial n's displacement. Modes at
-    // rest are zero, and so is everything past the driving partials.
-    const float* im = stateIm.data();
+    // rest are zero, and so is everything past the driving partials. The tail modes, first, are
+    // the strings' horizontal motion and don't stretch them here.
+    const float* im = stateIm.data() + tailModes;
     const float* pw = phantomWeight.data();
     float* motion = partialMotion.data();
     const int partials = numDrivingPartials;
@@ -791,6 +859,15 @@ double noteTailSeconds (const NoteParameters& p, double unisonSpreadCents)
                     tail = std::max (tail, (std::log (share) - logResting) / sigma);
             }
         }
+
+        // The tail mode: tailLevel × the vertical motion, whichever strings were struck.
+        if (hasTail (p, partial))
+        {
+            const double share = radiation * p.tailLevel[static_cast<std::size_t> (partial - 1)];
+            const double sigma = tailDecayOfPartial (p, partial);
+            if (share > 0.0 && sigma > 0.0)
+                tail = std::max (tail, (std::log (share) - logResting) / sigma);
+        }
     }
 
     return tail;
@@ -808,6 +885,8 @@ double slowestStringDecay (const NoteParameters& p, double unisonSpreadCents)
         const UnisonModes modes = modesOfPartial (p, partial, offsets);
         for (int j = 0; j < modes.numModes; ++j)
             slowest = std::min (slowest, -modes.exponent[j].real());
+        if (hasTail (p, partial))
+            slowest = std::min (slowest, tailDecayOfPartial (p, partial));
     }
 
     return slowest;

@@ -7,7 +7,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import numpy as np
-from forte_audio import read_wav, partial_frequency
+from forte_audio import read_wav, partial_frequency, power_spectrum
 import sweep_align as sa
 
 A, B = 0.1, 1.0
@@ -18,7 +18,7 @@ NP = 16
 
 def per_note(path, vel):
     x, rate = read_wav(path)
-    mono = x.mean(axis=1)
+    mono = x   # stereo: spectra average the channels' powers (issue 0022 §1)
     out = {}
     for t, m, v, found, _ in sa.onsets(mono, rate):
         if v != vel:
@@ -27,7 +27,7 @@ def per_note(path, vel):
         seg = mono[int((t0 + A) * rate): int((t0 + B) * rate)]
         clipped = np.abs(mono[int(t0 * rate): int((t0 + 0.5) * rate)]).max() > 0.999
         size = 4 * len(seg)
-        s = np.abs(np.fft.rfft(seg * np.hanning(len(seg)), size)) ** 2
+        s = power_spectrum(seg, size)
         f = np.fft.rfftfreq(size, 1 / rate)
         tot = s[f > 50].sum()
         third = np.array([10 * np.log10(s[(f >= c / 2 ** (1 / 6)) & (f < c * 2 ** (1 / 6))].sum() / tot + 1e-30) for c in CENTRES])

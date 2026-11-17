@@ -10,8 +10,8 @@
 
 namespace forte::presets
 {
-/** A preset's contents (SPEC §7.1): the 8 character controls and the room's 6, as whole numbers.
-    Volume, A4 and the pedals are never in a preset. */
+/** A preset's contents (SPEC §7.1): the 8 character controls, the room's 6 and Detune, as whole
+    numbers. Volume, A4 and the pedals are never in a preset. */
 struct Values
 {
     int hardness = 50;
@@ -31,12 +31,16 @@ struct Values
     int roomPredelay = 4;   // ms
     int roomEarly = 60;
 
+    // A piano a few weeks after its tuning (SPEC §5): 0 = as tuned. Last, so the lists above keep
+    // their positions.
+    int detune = 0;
+
     friend bool operator== (const Values&, const Values&) = default;
 };
 
-/** One of the 14 controls: its plugin parameter id (SoundParameters::Ids), its range and where it
+/** One of the 15 controls: its plugin parameter id (SoundParameters::Ids), its range and where it
     lives in Values. The order is the file's and the tests'. A file without the room's values
-    (written before the room) loads them as defaults. */
+    (written before the room) loads them as defaults, and one without Detune loads it at 0. */
 struct Field
 {
     const char* id;
@@ -44,7 +48,7 @@ struct Field
     int Values::* member;
 };
 
-inline constexpr std::array<Field, 14> fields { {
+inline constexpr std::array<Field, 15> fields { {
     { "hardness", 0, 100, &Values::hardness },
     { "brightness", 0, 100, &Values::brightness },
     { "resonance", 0, 100, &Values::resonance },
@@ -59,10 +63,12 @@ inline constexpr std::array<Field, 14> fields { {
     { "roomDamping", 0, 100, &Values::roomDamping },
     { "roomPredelay", 0, 100, &Values::roomPredelay },
     { "roomEarly", 0, 100, &Values::roomEarly },
+    { "detune", 0, 100, &Values::detune },
 } };
 
-/** The room's 6 fields: the room presets set these and nothing else. */
+/** The room's 6 fields, from here: the room presets set these and nothing else. */
 inline constexpr std::size_t firstRoomField = 8;
+inline constexpr std::size_t numRoomFields = 6;
 
 /** Every value clamped into its range. */
 [[nodiscard]] Values clamped (Values values) noexcept;

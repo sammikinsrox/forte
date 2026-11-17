@@ -5,7 +5,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import numpy as np
 import shutil
-from forte_audio import read_wav, scale_float_wav
+from forte_audio import power_spectrum, read_wav, scale_float_wav
 
 src, dst, names = sys.argv[1], sys.argv[2], sys.argv[3:]
 os.makedirs(dst, exist_ok=True)
@@ -28,9 +28,8 @@ for n in names:
     out = os.path.join(dst, n + ".wav")
     shutil.copyfile(os.path.join(src, n + ".wav"), out)
     scale_float_wav(out, g * gains[n])
-    m = y.mean(axis=1)
-    s = np.abs(np.fft.rfft(m)) ** 2
-    f = np.fft.rfftfreq(len(m), 1 / rate)
+    s = power_spectrum(y, window=np.ones(len(y)))   # the channels' powers, not their sum's
+    f = np.fft.rfftfreq(len(y), 1 / rate)
     tot = s.sum()
     shares = [10 * np.log10(s[(f >= a) & (f < b)].sum() / tot) for a, b in zip(edges[:-1], edges[1:])]
     print(f"{n:32s} peak {20*np.log10(np.abs(y).max()):6.1f}  " + " ".join(f"{v:6.1f}" for v in shares))

@@ -15,10 +15,9 @@ HOP = 0.01
 
 
 def onset_env(x, rate):
-    m = x.mean(axis=1)
+    p = (x.astype(np.float64) ** 2).mean(axis=1)    # the channels' power, not their sum's
     h = int(HOP * rate)
-    frames = m[: len(m) // h * h].reshape(-1, h)
-    e = np.log10((frames ** 2).mean(axis=1) + 1e-10)
+    e = np.log10(p[: len(p) // h * h].reshape(-1, h).mean(axis=1) + 1e-10)
     d = np.maximum(np.diff(e, prepend=e[0]), 0)
     return d - d.mean()
 

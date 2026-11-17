@@ -128,3 +128,40 @@ TEST_CASE ("Stretch scales the distance from equal temperament, and A4 moves eve
     CHECK (std::abs (centsAt (440.0, 25.0) - 0.5 * cents (curve, note)) < 1e-9);
     CHECK (std::abs (tuningRatio (curve, i, 466.0, 50.0) / tuningRatio (curve, i, 440.0, 50.0) - 466.0 / 440.0) < 1e-12);
 }
+
+TEST_CASE ("Detune moves each note by its own fixed amount, 3 cents at 50, 39 at 100, and leaves A4", "[tuner]")
+{
+    // SPEC §5: a piano a few weeks after its tuning. Detune 0 is the tuner's pitch exactly.
+    const auto model = makeSeedPianoModel();
+    const auto curve = calculateStretchCurve (model);
+
+    double sumSquares = 0.0;
+    int sharp = 0, flat = 0;
+    for (int i = 0; i < numNotes; ++i)
+    {
+        INFO ("note index " << i);
+        CHECK (tuningRatio (curve, i, 440.0, 50.0, 0.0) == tuningRatio (curve, i, 440.0, 50.0));
+
+        const double moved = 1200.0 * std::log2 (tuningRatio (curve, i, 440.0, 50.0, 100.0) / tuningRatio (curve, i, 440.0, 50.0));
+        CHECK (std::abs (moved - detuneCents (i, 100.0)) < 1e-9);
+        CHECK (std::abs (moved) <= maxDetuneCents);
+        CHECK (std::abs (detuneCents (i, 50.0)) <= detuneHalfwayCents);
+        CHECK (std::abs (detuneCents (i, 25.0) - 0.5 * detuneCents (i, 50.0)) < 1e-12);  // linear up to 50
+        CHECK (detuneShape (i) == detuneShape (i));  // fixed
+
+        sumSquares += detuneShape (i) * detuneShape (i);
+        (detuneShape (i) > 0.0 ? sharp : flat) += 1;
+    }
+
+    CHECK (detuneShape (69 - lowestNote) == 0.0);
+    CHECK (std::abs (detuneRangeCents (50.0) - detuneHalfwayCents) < 1e-12);
+    CHECK (std::abs (detuneRangeCents (50.0 + detuneDoublingStep) - 2.0 * detuneHalfwayCents) < 1e-12);
+    CHECK (detuneRangeCents (100.0) > 35.0);
+    CHECK (detuneRangeCents (100.0) <= maxDetuneCents);
+    // Spread evenly over −1…1: rms about 1/√3, with notes both sharp and flat.
+    const double rms = std::sqrt (sumSquares / numNotes);
+    CHECK (rms > 0.45);
+    CHECK (rms < 0.7);
+    CHECK (sharp > 25);
+    CHECK (flat > 25);
+}

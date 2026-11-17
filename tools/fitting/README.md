@@ -14,6 +14,8 @@ another (several where it says `label=path`), such as a copy built with a change
 | `fit_hammer.py` | The hammer and felt (SPEC §3.3): `measure` → `data/reference-measurements/iowa-hammer.json`, `voice` (the felt set by ear) → `data/model/hammer.json`, `build` → `engine/src/HammerFit.inc`, or `all`. `fit` runs the Iowa fit into `build/fitting/` as a reference: it matched Iowa's attack spectra but sounded worse (issue 0021 §7). |
 | `hammer_measure.py` | The fit's measurements: attack partial levels, Iowa's noise floor, octave-band brightness and a board-independent loudness, for Iowa and for Forte's bare strings. Run alone to print one note. |
 | `fit_decay.py` | The strings' decay (SPEC §3.3, issue 0021 step 2): `measure` → `data/reference-measurements/iowa-decay.json`, `fit` → `data/model/decay.json` (prompt and aftersound rates per measured partial, the law above), `build` → `engine/src/DecayFit.inc`, or `all`. `check` measures Forte's bare strings (the Release probe) against the targets. The fit solves the engine's coupled unison in numpy (it matches the probe to 0.2 dB), with the engine's per-note spread. `measure-sweep <wav> --hold H --gap G` measures the user's Keyscape render of a note sweep → `data/reference-measurements/keyscape-decay.json`; once a sweep with holds of at least 6 s is measured, `fit` uses it instead of Iowa (issue 0021 §15). |
+| `fit_tail.py` | The strings' second polarisation (issue 0022 §6): `fit <measurements.json>` fits each note's partials 1-12 to a fast first stage and a slow tail (rates and level) → `data/model/tail.json`, `build` → `engine/src/TailFit.inc`. Fitted to `data/reference-measurements/keyscape-decay-tracked.json` (the stereo, tracked measurement of the long Keyscape sweep), the tail floored at b3·f² and 0.12/s. |
+| `fit_level.py` | Each note's level, voiced even against a reference sweep (issue 0022 §6): `fit <reference.wav> <forte.wav>` (3 s sweeps; strike peak and 0.1-0.5 s rms, v64/v96, level-neutral, added to the committed level so passes converge) → `data/model/level.json`, `build` → `engine/src/LevelFit.inc`. |
 | `fold_voicing.py` | The voicing lab's fold (SPEC §6.5): `fold [voicing.json]` asks the Release `forte-render --lab-values` what an export means on each note and region, and puts it on top of the committed voicing: hammer, strings and tape → `data/model/voicing-overrides.json` (on top of the fitted tables, so refits keep it), board → `data/model/board.json` and `board-colour.json`, then `build` → `engine/src/VoicingOverrides.inc` and `make_seed_irs.py`. Each fold bumps the voicing revision; it refuses an export made on another revision, and projects saved on one open with the lab at 50. Rebuild after. A fold of a 12-control voicing came out within ±0.12 dB per third-octave band of the lab's render. |
 | `decay_measure.py` | The decay fit's measurements: each partial's mean level in log-spaced windows from 0.05 to 16 s while it's over the noise floor, for Iowa and for Forte's bare strings. Run alone to print one note. |
 | `partial_attack_decay.py` | Per partial: attack level (dB re partial 1) and decay rate while held, Forte against Iowa mf. The twang and decay findings. |
@@ -54,3 +56,15 @@ Things learned the hard way (issue 0021 has the full findings):
   Keyscape render runs ~0.4% fast. Before comparing anything at note onsets, map the times
   (an offset every ~20 s, refined per note), never one global offset (issue 0021 §12).
 - Compare renders level-matched: louder sounds better.
+- Never sum left and right before a spectrum: the microphones hear each partial at its own phase,
+  and the mono sum cancelled single partials by up to ~20 dB, both ways, in both instruments
+  (issue 0022 §1). Keep recordings stereo; `forte_audio.power_spectrum` / `stft_power` average the
+  channels' powers.
+- Find partials where they are, not where a curve says (`forte_audio.track_partials`): the seed's
+  B put G1's partial 28 on partial 29 in Keyscape, and C4-C5's partials 13-32 between partials, on
+  hiss that read as an upper partial ringing for ten seconds (issue 0022 §2).
+- A render can slip: the long Keyscape sweep plays its first two notes on time, the third 0.2 s
+  late and the rest 2.31 s late. `forte_audio.find_strikes` follows it; `fit_decay.py measure-sweep`
+  uses it (`--out` writes elsewhere than the committed `keyscape-decay.json`).
+- Forte stops computing a mode at −100 dBFS (SPEC §2.2): its noiseless partials end in a cliff,
+  so bound any envelope measurement to a range under the partial's own peak, not only its noise.

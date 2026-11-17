@@ -1,10 +1,11 @@
-"""Find each scheduled note of the sweep in a render: per note, the strike's onset (the steepest
-rise above 250 Hz near where the schedule, corrected for the drift so far, expects it)."""
+"""Find each scheduled note of the sweep in a render: per note, the strike (forte_audio.find_strikes:
+the biggest level rise near where the schedule, corrected by the offset so far, expects it; it
+follows the long Keyscape sweep's 2.3 s jump after its first note)."""
 import os
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import numpy as np
-from forte_audio import read_wav
+from forte_audio import find_strikes, read_wav
 
 # The sweep's schedule (make_note_sweep.py writes it beside the MIDI). FORTE_SWEEP_CSV picks
 # another, e.g. the long sweep's.
@@ -17,28 +18,17 @@ def schedule():
     return [(float(t), int(m), int(v)) for t, m, v in rows]
 
 
-def onsets(mono, rate, search=0.25):
-    hop = int(0.002 * rate); n = 4 * hop
-    count = (len(mono) - n) // hop
-    idx = np.arange(n)[None, :] + hop * np.arange(count)[:, None]
-    e = 10 * np.log10((mono[idx] ** 2).sum(1) + 1e-20)
-    rise = np.zeros_like(e); rise[3:] = e[3:] - e[:-3]
-    out, drift = [], 0.0
-    for t, m, v in schedule():
-        guess = t + drift
-        lo, hi = int((guess - search) * rate / hop), int((guess + search) * rate / hop)
-        lo, hi = max(lo, 3), min(hi, len(rise) - 1)
-        i = lo + int(np.argmax(rise[lo:hi]))
-        found = i * hop / rate
-        out.append((t, m, v, found, float(rise[i])))
-        drift = found - t
-    return out
+def onsets(x, rate):
+    """[(scheduled s, midi, velocity, strike s, nan)] for the notes found in x (mono or stereo)."""
+    rows = schedule()
+    found = find_strikes(x, rate, [t for t, _, _ in rows])
+    return [(t, m, v, f, float("nan")) for (t, m, v), f in zip(rows, found) if f is not None]
 
 
 if __name__ == "__main__":
     for path in sys.argv[1:]:
         x, rate = read_wav(path)
-        mono = x.mean(axis=1)
+        mono = x
         print(f"{path}: {rate} Hz, {x.shape[1]} ch, {len(x) / rate / 60:.2f} min, peak {20 * np.log10(np.abs(x).max()):.1f} dBFS")
         found = onsets(mono, rate)
         d = np.array([f - t for t, _, _, f, _ in found])

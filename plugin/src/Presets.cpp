@@ -19,6 +19,7 @@ Controls applyTo (const Values& values, Controls controls) noexcept
     controls.touch = values.touch;
     controls.tuning.stretch = values.stretch;
     controls.tuning.spread = values.spread;
+    controls.tuning.detune = values.detune;
     controls.width = values.width;
     controls.room = roomOf (values);
     return controls;

@@ -52,6 +52,7 @@ std::unique_ptr<juce::AudioProcessorParameterGroup> SoundParameters::createGroup
     group->addChild (wholeNumber (Ids::a4, "A4", 415, 466, 440, "Hz"));
     group->addChild (wholeNumber (Ids::stretch, "Stretch", 0, 100, 50));
     group->addChild (wholeNumber (Ids::spread, "Spread", 0, 100, 50));
+    group->addChild (wholeNumber (Ids::detune, "Detune", 0, 100, 0));
     group->addChild (wholeNumber (Ids::width, "Width", 0, 100, 100));
     return group;
 }
@@ -93,6 +94,7 @@ void SoundParameters::attach (juce::AudioProcessorValueTreeState& apvts)
     a4 = find (Ids::a4);
     stretch = find (Ids::stretch);
     spread = find (Ids::spread);
+    detune = find (Ids::detune);
     width = find (Ids::width);
     roomAmount = find (Ids::roomAmount);
     roomSize = find (Ids::roomSize);
@@ -114,6 +116,7 @@ Controls SoundParameters::read() const noexcept
     c.tuning.a4Hz = get (a4);
     c.tuning.stretch = get (stretch);
     c.tuning.spread = get (spread);
+    c.tuning.detune = get (detune);
     c.width = get (width);
     c.volumeDb = get (volume);
     c.room.amount = get (roomAmount);

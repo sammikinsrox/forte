@@ -7,7 +7,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import numpy as np
-from forte_audio import read_wav, note_name, partial_frequency, inharmonicity
+from forte_audio import read_wav, note_name, partial_frequency, inharmonicity, power_spectrum, channels
 import sweep_align as sa
 
 MAX_PARTIALS = 16
@@ -17,7 +17,7 @@ WINDOWS = {"strike": (0.005, 0.1), "0.3-0.6": (0.3, 0.6), "1-2": (1.0, 2.0)}
 def spectrum(x, rate, a, b, pad=8):
     seg = x[int(a * rate): int(b * rate)]
     size = pad * len(seg)
-    s = np.abs(np.fft.rfft(seg * np.hanning(len(seg)), size)) / (len(seg) / 4)
+    s = np.sqrt(power_spectrum(seg, size)) / (len(seg) / 4)   # channels' powers averaged
     return s, np.fft.rfftfreq(size, 1 / rate)
 
 
@@ -88,7 +88,8 @@ def wavering(x, rate, t0, freq, a=0.3, b=2.5):
     t = np.arange(int((t0 + a) * rate), int((t0 + b) * rate) - n, hop)
     w = np.hanning(n); k = np.arange(n)
     phasor = np.exp(-2j * np.pi * freq * k / rate) * w
-    env = 20 * np.log10(np.array([np.abs(np.dot(x[i:i + n], phasor)) for i in t]) + 1e-12)
+    c = channels(x)
+    env = 10 * np.log10(np.array([np.mean(np.abs(phasor @ c[i:i + n]) ** 2) for i in t]) + 1e-24)
     tt = t / rate
     return float(np.std(env - np.polyval(np.polyfit(tt, env, 1), tt)))
 
@@ -98,7 +99,7 @@ velocity = int(sys.argv[3]) if len(sys.argv) > 3 else 64
 data = {}
 for label, path in (("keyscape", ref_path), ("forte", forte_path)):
     x, rate = read_wav(path)
-    mono = x.mean(axis=1)
+    mono = x   # stereo: spectra average the channels' powers (issue 0022 §1)
     for t, m, v, found, _ in sa.onsets(mono, rate):
         if v != velocity:
             continue

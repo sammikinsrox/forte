@@ -96,11 +96,13 @@ void TuningCurve::tick()
 {
     const double newA4 = processor.getState().getRawParameterValue (Ids::a4)->load();
     const double newStretch = processor.getState().getRawParameterValue (Ids::stretch)->load();
+    const double newDetune = processor.getState().getRawParameterValue (Ids::detune)->load();
 
-    if (newA4 != a4 || newStretch != stretch)
+    if (newA4 != a4 || newStretch != stretch || newDetune != detune)
     {
         a4 = newA4;
         stretch = newStretch;
+        detune = newDetune;
         repaint();
     }
 }
@@ -122,8 +124,8 @@ void TuningCurve::paint (juce::Graphics& g)
     paintPanel (g, getLocalBounds().toFloat(), t);
 
     const auto& engine = processor.getEngine();
-    const Tuning now { a4, stretch, 50.0 };
-    const Tuning calculated { a4, 50.0, 50.0 };
+    const Tuning now { a4, stretch, 50.0, detune };
+    const Tuning calculated { a4, 50.0, 50.0, 0.0 };
 
     std::array<double, 88> cents {}, calculatedCents {};
     double lo = -10.0, hi = 10.0;
@@ -144,7 +146,8 @@ void TuningCurve::paint (juce::Graphics& g)
     g.setColour (t.muted);
     g.setFont (ForteLookAndFeel::jost (12.0f));
     g.drawText ("Each note's pitch in cents from equal temperament, as the tuner sets it from the strings' stiffness. A4 = "
-                    + juce::String (juce::roundToInt (a4)) + " Hz, Stretch " + juce::String (juce::roundToInt (stretch)) + ".",
+                    + juce::String (juce::roundToInt (a4)) + " Hz, Stretch " + juce::String (juce::roundToInt (stretch))
+                    + (detune >= 0.5 ? ", Detune " + juce::String (juce::roundToInt (detune)) : juce::String()) + ".",
                 78, 11, getWidth() - 94, 20, juce::Justification::centredLeft);
 
     const auto plot = plotArea();
@@ -198,7 +201,7 @@ void TuningCurve::paint (juce::Graphics& g)
         return p;
     };
 
-    if (std::abs (stretch - 50.0) > 0.5)
+    if (std::abs (stretch - 50.0) > 0.5 || detune >= 0.5)
     {
         juce::Path dashed;
         const float pattern[] { 3.0f, 3.0f };
@@ -262,7 +265,7 @@ AdvancedView::AdvancedView (PluginProcessor& p)
     };
     const std::vector<Spec> specs {
         { "Hammer", { { Ids::hardness, "Hardness" }, { Ids::touch, "Touch" } } },
-        { "Tuning", { { Ids::a4, "A4" }, { Ids::stretch, "Stretch" } } },
+        { "Tuning", { { Ids::a4, "A4" }, { Ids::stretch, "Stretch" }, { Ids::detune, "Detune" } } },
         { "Strings", { { Ids::spread, "Spread" }, { Ids::resonance, "Resonance" } } },
         { "Output", { { Ids::brightness, "Brightness" }, { Ids::width, "Width" }, { Ids::volume, "Volume" } } },
     };

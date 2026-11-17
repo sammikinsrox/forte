@@ -61,7 +61,7 @@ private:
     [[nodiscard]] float xOf (int key) const;
 
     PluginProcessor& processor;
-    double a4 = 440.0, stretch = 50.0;
+    double a4 = 440.0, stretch = 50.0, detune = 0.0;
     int hoverKey = -1;
 };
 

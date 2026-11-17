@@ -22,10 +22,11 @@ BANDS = [(0, 250, "<250"), (250, 500, "250-500"), (500, 1000, "0.5-1k"), (1000, 
 def report(wav):
     """(peak dBFS, RMS dBFS, crest dB, [band shares, dB])."""
     x, rate = read_wav(wav)
-    mono = x.mean(axis=1)
     n = 8192
-    frames = mono[: len(mono) // n * n].reshape(-1, n) * np.hanning(n)
-    power = (np.abs(np.fft.rfft(frames, axis=1)) ** 2).sum(axis=0)
+    power = 0                  # each channel's power, summed: never the channels' sum (issue 0022 §1)
+    for c in range(x.shape[1]):
+        frames = x[: len(x) // n * n, c].astype(np.float64).reshape(-1, n) * np.hanning(n)
+        power = power + (np.abs(np.fft.rfft(frames, axis=1)) ** 2).sum(axis=0)
     freqs = np.fft.rfftfreq(n, 1 / rate)
     shares = [10 * np.log10(power[(freqs >= lo) & (freqs < (hi or np.inf))].sum() / power.sum() + 1e-30)
               for lo, hi, _ in BANDS]

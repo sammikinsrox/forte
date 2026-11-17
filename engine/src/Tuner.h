@@ -3,6 +3,7 @@
 #include "PianoModel.h"
 
 #include <array>
+#include <cmath>
 
 namespace forte::detail
 {
@@ -35,6 +36,33 @@ inline constexpr double highestA4 = 466.0;
 inline constexpr double calculatedStretch = 50.0;
 
 /** A note's first partial over its equal-tempered pitch at A4 = 440 (the model's own tuning),
-    for an A4 in Hz and a Stretch of 0–100. Exactly 1 at A4 = 440 and Stretch 0. Realtime-safe. */
-[[nodiscard]] double tuningRatio (const StretchCurve& curve, int noteIndex, double a4Hz, double stretch) noexcept;
+    for an A4 in Hz, a Stretch of 0–100 and a Detune of 0–100. Exactly 1 at A4 = 440, Stretch 0
+    and Detune 0. Realtime-safe. */
+[[nodiscard]] double tuningRatio (const StretchCurve& curve, int noteIndex, double a4Hz, double stretch,
+                                  double detune = 0.0) noexcept;
+
+/** Detune (SPEC §5): a piano a while after its tuning, up to one nobody has tuned in years.
+    Every note but A4 sits off its tuned pitch by its own fixed amount, the same every session:
+    detuneShape(note) × detuneRangeCents(Detune). */
+inline constexpr double detuneHalfwayCents = 3.0;   // Detune 50: a few weeks after the tuning
+inline constexpr double detuneDoublingStep = 13.5;  // above 50, the range doubles every this many
+inline constexpr double maxDetuneCents = 39.1;      // detuneRangeCents (100), rounded up
+
+/** How far Detune lets a note stray, in cents: linear up to detuneHalfwayCents at 50, then
+    doubling every detuneDoublingStep, ±39 cents at 100. */
+[[nodiscard]] inline double detuneRangeCents (double detune) noexcept
+{
+    return detune <= 50.0 ? detune / 50.0 * detuneHalfwayCents
+                          : detuneHalfwayCents * std::pow (2.0, (detune - 50.0) / detuneDoublingStep);
+}
+
+/** Note noteIndex's fixed share of the detuning, −1 to 1 (0 for A4): a hash of the note, spread
+    evenly. */
+[[nodiscard]] double detuneShape (int noteIndex) noexcept;
+
+/** The cents Detune moves a note by. */
+[[nodiscard]] inline double detuneCents (int noteIndex, double detune) noexcept
+{
+    return detuneShape (noteIndex) * detuneRangeCents (detune);
+}
 } // namespace forte::detail
