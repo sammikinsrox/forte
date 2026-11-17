@@ -38,7 +38,7 @@ def keyboard(render=None):
             continue
         if render is None:
             x, rate = read_aiff(reference)
-            mono = x.mean(axis=1)
+            mono = x
         else:
             mono, rate = render_note(render, midi, hold=2.5, tail=0.3)
         rows.append((midi, *note_figures(mono, rate, midi)))

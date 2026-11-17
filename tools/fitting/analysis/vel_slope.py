@@ -7,7 +7,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import numpy as np
-from forte_audio import read_wav
+from forte_audio import power_spectrum, read_wav
 import sweep_align as sa
 
 here = os.path.dirname(os.path.abspath(__file__))
@@ -19,11 +19,11 @@ def notes(path):
     if os.path.exists(cache):
         return pickle.load(open(cache, "rb"))
     x, rate = read_wav(path)
-    mono = x.mean(axis=1)
+    mono = x   # stereo: spectra average the channels' powers (issue 0022 §1)
     out = {}
     for t, m, v, found, _ in sa.onsets(mono, rate):
         seg = mono[int((found - 0.004) * rate): int((found + 2.5) * rate)]
-        p = np.abs(np.fft.rfft(seg * np.hanning(len(seg)))) ** 2
+        p = power_spectrum(seg)
         f = np.fft.rfftfreq(len(seg), 1 / rate)
         hi, lo = p[(f >= 1000) & (f < 8000)].sum(), p[(f >= 100) & (f < 1000)].sum()
         out[(m, v)] = (10 * np.log10(hi / lo), 10 * np.log10((hi + lo) / len(seg)), np.abs(seg).max() > 0.999)

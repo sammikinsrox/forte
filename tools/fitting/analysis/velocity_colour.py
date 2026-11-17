@@ -7,7 +7,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import numpy as np
-from forte_audio import read_wav
+from forte_audio import power_spectrum, read_wav
 import sweep_align as sa
 
 here = os.path.dirname(os.path.abspath(__file__))
@@ -16,7 +16,7 @@ REGISTERS = [(21, 35, "A0-B1"), (36, 47, "C2-B2"), (48, 59, "C3-B3"), (60, 71, "
 
 
 def measures(seg, rate):
-    s = np.abs(np.fft.rfft(seg * np.hanning(len(seg)))) ** 2
+    s = power_spectrum(seg)
     f = np.fft.rfftfreq(len(seg), 1 / rate)
     tot = s.sum() + 1e-30
     return (10 * np.log10(tot / len(seg)), 10 * np.log10(s[f > 2000].sum() / tot + 1e-30),
@@ -28,7 +28,7 @@ def measure_file(path):
     if os.path.exists(cache):
         return pickle.load(open(cache, "rb"))
     x, rate = read_wav(path)
-    mono = x.mean(axis=1)
+    mono = x   # stereo: spectra average the channels' powers (issue 0022 §1)
     out = {}
     for t, m, v, found, _ in sa.onsets(mono, rate):
         t0 = found - 0.004

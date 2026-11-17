@@ -16,7 +16,7 @@ import argparse
 
 import numpy as np
 
-from forte_audio import RENDER, iowa_file, onset, partial_frequency, read_aiff, render_note
+from forte_audio import RENDER, iowa_file, onset, partial_frequency, power_spectrum, read_aiff, render_note
 
 BANDS = [25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250,
          1600, 2000, 2500, 3150, 4000]
@@ -28,7 +28,7 @@ REGIONS = {"bass": (21, 47), "tenor": (48, 59), "middle": (60, 75), "treble": (7
 def shares_and_loudness(mono, rate, midi):
     start = onset(mono)
     x = mono[start: start + int(WINDOW * rate)]
-    power = np.abs(np.fft.rfft(x * np.hanning(len(x)))) ** 2
+    power = power_spectrum(x)
     freqs = np.fft.rfftfreq(len(x), 1 / rate)
     limit = SHARE_UP_TO * 2 ** (1 / 6)
     total = power[freqs < limit].sum()
@@ -58,7 +58,7 @@ def main():
             if reference is None:
                 continue
             x, rate = read_aiff(reference)
-            iowa_shares, iowa_level = shares_and_loudness(x.mean(axis=1), rate, midi)
+            iowa_shares, iowa_level = shares_and_loudness(x, rate, midi)
             mono, yrate = render_note(args.render, midi)
             forte_shares, forte_level = shares_and_loudness(mono, yrate, midi)
             rows.append(forte_shares - iowa_shares)

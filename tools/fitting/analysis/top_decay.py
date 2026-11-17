@@ -6,7 +6,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import numpy as np
-from forte_audio import read_wav
+from forte_audio import power_spectrum, read_wav
 import sweep_align as sa
 
 WINDOWS = [(0.0, 0.05), (0.05, 0.1), (0.1, 0.2), (0.2, 0.4), (0.4, 0.8), (0.8, 1.6), (1.6, 2.8)]
@@ -15,7 +15,7 @@ REGISTERS = [(36, 47, "C2-B2"), (48, 59, "C3-B3"), (60, 71, "C4-B4"), (72, 83, "
 
 
 def band_db(seg, rate, lo, hi):
-    s = np.abs(np.fft.rfft(seg * np.hanning(len(seg)))) ** 2
+    s = power_spectrum(seg)
     f = np.fft.rfftfreq(len(seg), 1 / rate)
     return 10 * np.log10(s[(f >= lo) & (f < hi)].sum() / len(seg) + 1e-30)
 
@@ -23,7 +23,7 @@ def band_db(seg, rate, lo, hi):
 vel = int(sys.argv[1])
 for path in sys.argv[2:]:
     x, rate = read_wav(path)
-    mono = x.mean(axis=1)
+    mono = x   # stereo: spectra average the channels' powers (issue 0022 §1)
     per = {}
     for t, m, v, found, _ in sa.onsets(mono, rate):
         if v != vel:

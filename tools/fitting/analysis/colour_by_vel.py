@@ -8,7 +8,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import numpy as np
-from forte_audio import read_wav
+from forte_audio import power_spectrum, read_wav
 import sweep_align as sa
 
 CENTRES = [40 * 2 ** (k / 3) for k in range(0, 29)]   # 40 Hz .. 16 kHz
@@ -22,11 +22,11 @@ def band_powers(path):
     """{(midi, velocity): band powers over the note, the file's noise (from its first 1.8 s, as a
     2.5 s note would see it) subtracted}, and that noise."""
     x, rate = read_wav(path)
-    mono = x.mean(axis=1)
+    mono = x   # stereo: spectra average the channels' powers (issue 0022 §1)
     lead = mono[: int(1.8 * rate)]
     size = int(2.5 * rate)
-    lead = np.resize(lead, size)            # tile the lead-in to the note's length
-    pn = np.abs(np.fft.rfft(lead * np.hanning(size))) ** 2
+    lead = np.resize(lead, (size, lead.shape[1]))   # tile the lead-in to the note's length
+    pn = power_spectrum(lead)
     fn = np.fft.rfftfreq(size, 1 / rate)
     noise = np.array([pn[(fn >= c / 2 ** (1 / 6)) & (fn < c * 2 ** (1 / 6))].sum() for c in CENTRES])
     out = {}
@@ -36,7 +36,7 @@ def band_powers(path):
         seg = mono[int((found - 0.004) * rate): int((found + 2.5) * rate)]
         if np.abs(seg).max() > 0.999:
             continue
-        p = np.abs(np.fft.rfft(seg * np.hanning(len(seg)))) ** 2
+        p = power_spectrum(seg)
         f = np.fft.rfftfreq(len(seg), 1 / rate)
         bands = np.array([p[(f >= c / 2 ** (1 / 6)) & (f < c * 2 ** (1 / 6))].sum() for c in CENTRES])
         out[(m, v)] = (np.maximum(bands - noise, 1e-30), bands > NOISE_MARGIN * noise)

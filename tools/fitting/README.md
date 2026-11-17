@@ -54,3 +54,15 @@ Things learned the hard way (issue 0021 has the full findings):
   Keyscape render runs ~0.4% fast. Before comparing anything at note onsets, map the times
   (an offset every ~20 s, refined per note), never one global offset (issue 0021 §12).
 - Compare renders level-matched: louder sounds better.
+- Never sum left and right before a spectrum: the microphones hear each partial at its own phase,
+  and the mono sum cancelled single partials by up to ~20 dB, both ways, in both instruments
+  (issue 0022 §1). Keep recordings stereo; `forte_audio.power_spectrum` / `stft_power` average the
+  channels' powers.
+- Find partials where they are, not where a curve says (`forte_audio.track_partials`): the seed's
+  B put G1's partial 28 on partial 29 in Keyscape, and C4-C5's partials 13-32 between partials, on
+  hiss that read as an upper partial ringing for ten seconds (issue 0022 §2).
+- A render can slip: the long Keyscape sweep plays its first two notes on time, the third 0.2 s
+  late and the rest 2.31 s late. `forte_audio.find_strikes` follows it; `fit_decay.py measure-sweep`
+  uses it (`--out` writes elsewhere than the committed `keyscape-decay.json`).
+- Forte stops computing a mode at −100 dBFS (SPEC §2.2): its noiseless partials end in a cliff,
+  so bound any envelope measurement to a range under the partial's own peak, not only its noise.

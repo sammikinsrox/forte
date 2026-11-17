@@ -22,7 +22,7 @@ def sigmas(path):
     if os.path.exists(cache):
         return pickle.load(open(cache, "rb"))
     x, rate = read_wav(path)
-    mono = x.mean(axis=1)
+    mono = x   # stereo: spectra average the channels' powers (issue 0022 §1)
     t_mid = dm.window_times()[:FIT_WINDOWS]
     out = {}
     for t, m, v, found, _ in sa.onsets(mono, rate):

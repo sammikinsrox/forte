@@ -10,7 +10,7 @@ import argparse
 
 import numpy as np
 
-from forte_audio import RENDER, iowa_file, midi_of, onset, partial_frequency, read_aiff, render_note
+from forte_audio import RENDER, iowa_file, midi_of, onset, partial_frequency, read_aiff, render_note, stft_power
 
 ATTACK_SECONDS = 0.25
 FRAME, HOP = 0.2, 0.05
@@ -21,9 +21,8 @@ def analyse(mono, rate, midi, partials):
     start = onset(mono)
     x = mono[start: start + int((FIT_TO + FRAME) * rate)]
     size, hop = int(FRAME * rate), int(HOP * rate)
-    window = np.hanning(size)
     freqs = np.fft.rfftfreq(size, 1 / rate)
-    frames = [np.abs(np.fft.rfft(x[i:i + size] * window)) for i in range(0, len(x) - size, hop)]
+    frames = np.sqrt(stft_power(x, size, range(0, len(x) - size, hop)))
     times = np.arange(len(frames)) * HOP + FRAME / 2
     fit = (times > FIT_FROM) & (times < FIT_TO)
     out = []
@@ -53,7 +52,7 @@ def main():
             print(f"{name}: no Iowa mf recording")
             continue
         x, rate = read_aiff(reference)
-        columns = [("iowa", analyse(x.mean(axis=1), rate, midi, args.partials))]
+        columns = [("iowa", analyse(x, rate, midi, args.partials))]
         for label, exe in renders:
             mono, yrate = render_note(exe, midi, args.velocity)
             columns.append((label, analyse(mono, yrate, midi, args.partials)))

@@ -544,7 +544,7 @@ def _write_json(path, data):
     text = re.sub(r"\[\s+([^\[\]{}]*?)\s+\]", lambda m: "[" + re.sub(r",\s+", ", ", m.group(1)) + "]", text)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes((text + "\n").encode("utf-8"))
-    print(f"wrote {path.relative_to(ROOT)}")
+    print(f"wrote {path.relative_to(ROOT) if path.is_relative_to(ROOT) else path}")
 
 
 def main():

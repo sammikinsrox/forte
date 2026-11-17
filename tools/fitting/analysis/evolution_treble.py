@@ -17,7 +17,7 @@ def per_note(path, vel):
     if os.path.exists(cache):
         return pickle.load(open(cache, "rb"))
     x, rate = read_wav(path)
-    mono = x.mean(axis=1)
+    mono = x   # stereo: spectra average the channels' powers (issue 0022 §1)
     out = {}
     for t, m, v, found, _ in sa.onsets(mono, rate):
         if v == vel:

@@ -10,7 +10,8 @@ import argparse
 
 import numpy as np
 
-from forte_audio import RENDER, iowa_file, midi_of, onset, partial_frequency, partial_levels, read_aiff, render_note
+from forte_audio import (RENDER, iowa_file, midi_of, onset, partial_frequency, partial_levels, power_spectrum,
+                         read_aiff, render_note)
 
 
 def brightness(mono, rate, midi):
@@ -18,7 +19,7 @@ def brightness(mono, rate, midi):
     seconds = max(0.25, 8 / partial_frequency(midi, 1))
     levels = partial_levels(mono, rate, midi, start, seconds, max_partial=12, max_hz=5000)
     x = mono[start: start + int(seconds * rate)]
-    spectrum = np.abs(np.fft.rfft(x * np.hanning(len(x)))) ** 2
+    spectrum = power_spectrum(x)
     freqs = np.fft.rfftfreq(len(x), 1 / rate)
     band = (freqs > 100) & (freqs < 10000)
     centroid = (freqs[band] * spectrum[band]).sum() / spectrum[band].sum()
@@ -40,7 +41,7 @@ def main():
         reference = iowa_file(midi, dynamic)
         if reference is not None:
             x, rate = read_aiff(reference)
-            mean, centroid = brightness(x.mean(axis=1), rate, midi)
+            mean, centroid = brightness(x, rate, midi)
             print(f"  Iowa {dynamic:3s}{'':22s}{mean:7.1f} dB  {centroid:6.0f} Hz")
     for label, exe in renders:
         for velocity in (int(v) for v in args.velocities.split(",")):

@@ -57,6 +57,7 @@ import json
 import math
 import re
 import sys
+from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
@@ -193,21 +194,19 @@ def measure_sweep(args):
     """The user's Keyscape render of the note sweep → keyscape-decay.json (derived numbers only)."""
     import make_note_sweep as ns
     from forte_audio import read_wav
-    x, rate = read_wav(args.path)
-    mono = x.mean(axis=1) if x.ndim == 2 else x
+    x, rate = read_wav(args.path)        # stereo: decay_measure averages the channels' powers
     schedule, t = [], ns.LEAD_IN
     for midi in range(21, 109):
         for velocity in ns.VELOCITIES:
-            if velocity in SWEEP_VELOCITIES:
-                schedule.append((t, midi, velocity))
+            schedule.append((t, midi, velocity))     # every note, so the strike finder follows the render
             t += args.hold + args.gap
-    measured = dm.measure_sweep(mono, int(rate), schedule, args.hold)
+    measured = dm.measure_sweep(x, int(rate), schedule, args.hold, velocities=SWEEP_VELOCITIES)
     notes = {}
     for (midi, velocity), m in sorted(measured.items()):
         entry = notes.setdefault(note_name(midi), {"midi": midi})
         entry[f"v{velocity}"] = {"measuredPartials": m.measured,
                                  "windowLevelsDb": [[_round(v) for v in row] for row in m.levels[: m.measured]]}
-    _write_json(SWEEP_MEASUREMENTS, {
+    _write_json(Path(args.out) if args.out else SWEEP_MEASUREMENTS, {
         "about": "Decay measurements of the user's Keyscape render of the note sweep "
                  "(tools/fitting/make_note_sweep.py; fit_decay.py measure-sweep). Per velocity and measured "
                  "partial: the mean level in each window after the strike, dB re the first window, null "
@@ -593,6 +592,7 @@ def main():
     parser.add_argument("notes", nargs="*", help="check: Iowa note names to print in full; measure-sweep: the sweep render (.wav)")
     parser.add_argument("--hold", type=float, default=3.0, help="measure-sweep: seconds each note was held")
     parser.add_argument("--gap", type=float, default=2.0, help="measure-sweep: seconds between notes")
+    parser.add_argument("--out", help="measure-sweep: write here instead of keyscape-decay.json")
     args = parser.parse_args()
     if args.step == "measure-sweep":
         args.path = args.notes[0]

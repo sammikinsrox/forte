@@ -9,8 +9,11 @@ Shared by fit_decay.py; run it directly to print one note's measurements:
 Definitions (the same for Iowa and Forte):
 
 - Partial envelopes: short-time spectra from the strike (hammer_measure.strike_onset), frames of
-  max(0.1 s, 6 periods) every 10 ms, Hann. A partial's envelope is the peak power within ±0.25 f0
-  of its frequency, found in the note's first second (Iowa's stretch differs from the seed's).
+  max(0.1 s, 6 periods) every 10 ms, Hann, each channel's power averaged (never the channels'
+  sum: it cancels some partials, issue 0022 §1). A partial's envelope is the peak power within
+  ±0.25 f0 of its frequency, found in the note's first second by forte_audio.track_partials,
+  which follows the note's own stretch (the seed's curve put G1's partial 28 on partial 29, issue
+  0022 §2).
 - Window levels: mean power over WINDOWS (log-spaced, 0.05-16 s after the strike), dB. A mean
   over a window, not a fitted line: real and modelled unisons both beat, and a line through a
   beating envelope follows the beat. Window levels are relative to the partial's first window.
@@ -26,7 +29,7 @@ import sys
 import numpy as np
 
 import hammer_measure as hm
-from forte_audio import iowa_file, midi_of, partial_frequency, read_aiff
+from forte_audio import iowa_file, midi_of, partial_frequency, power_spectrum, read_aiff, stft_power, track_partials
 
 WINDOWS = [(0.05, 0.12), (0.12, 0.25), (0.25, 0.45), (0.45, 0.8), (0.8, 1.4), (1.4, 2.4),
            (2.4, 4.0), (4.0, 6.5), (6.5, 10.0), (10.0, 16.0)]
@@ -47,32 +50,29 @@ def frame_seconds(midi):
     return max(0.1, 6.0 / partial_frequency(midi, 1))
 
 
-def envelopes(mono, rate, midi, partials=MAX_PARTIALS, tail_floor=True):
+def envelopes(x, rate, midi, partials=MAX_PARTIALS, tail_floor=True, start=None):
     """(frame centre times from the strike, [power envelope per partial], [noise floor power per
-    partial]). Frames cover the lead-in too, for the floor; with tail_floor, the last second too."""
-    start = hm.strike_onset(mono, rate)
+    partial]) of x, mono or stereo (frames × channels). Frames cover the lead-in too, for the
+    floor; with tail_floor, the last second too. start: the strike's sample, if already found."""
+    if start is None:
+        start = hm.strike_onset(x, rate)
     size, hop = int(frame_seconds(midi) * rate), int(HOP * rate)
-    window = np.hanning(size)
-    frames_at = np.arange(0, len(mono) - size, hop)
-    spectra = np.abs(np.fft.rfft(np.stack([mono[i:i + size] * window for i in frames_at]), axis=1)) ** 2
+    frames_at = np.arange(0, len(x) - size, hop)
+    spectra = stft_power(x, size, frames_at)
     freqs = np.fft.rfftfreq(size, 1 / rate)
     times = (frames_at - start) / rate        # frame start, from the strike: a frame starting
     times = times + 0.5 * size / rate          # at the strike is centred half a frame later
 
-    first = mono[start: start + int(rate)]
-    long_spectrum = np.abs(np.fft.rfft(first * np.hanning(len(first))))
+    first = x[start: start + int(rate)]
+    long_spectrum = power_spectrum(first)
     long_freqs = np.fft.rfftfreq(len(first), 1 / rate)
     f0 = partial_frequency(midi, 1)
     lead_in = frames_at + size < start - int(0.01 * rate)
-    tail = (frames_at > len(mono) - size - rate) & tail_floor
+    tail = (frames_at > len(x) - size - rate) & tail_floor
 
     out, floors = [], []
-    for n in range(1, partials + 1):
-        expected = partial_frequency(midi, n)
-        if expected > min(MAX_HZ, 0.45 * rate):
-            break
-        near = (long_freqs > expected - 0.3 * f0) & (long_freqs < expected + 0.3 * f0)
-        actual = long_freqs[near][np.argmax(long_spectrum[near])]
+    found = track_partials(long_spectrum, long_freqs, midi, partials, max_hz=min(MAX_HZ, 0.45 * rate))
+    for actual, _ in found:
         band = (freqs > actual - 0.25 * f0) & (freqs < actual + 0.25 * f0)
         envelope = spectra[:, band].max(axis=1)
         candidates = [np.median(envelope[sel]) for sel in (lead_in, tail) if sel.sum() >= 5]
@@ -116,8 +116,9 @@ class Measurement:
         return count
 
 
-def measure_mono(mono, rate, midi, partials=MAX_PARTIALS):
-    times, envs, floors = envelopes(mono, rate, midi, partials)
+def measure_mono(x, rate, midi, partials=MAX_PARTIALS):
+    """x: mono or stereo (frames × channels)."""
+    times, envs, floors = envelopes(x, rate, midi, partials)
     if not any(f > 0 for f in floors):
         # A render with no noise (the probe): spectral leakage from the loud partials is the floor.
         floors = [float(envs[0].max()) * 10 ** (-PROBE_FLOOR_DB / 10)] * len(envs)
@@ -134,7 +135,7 @@ def measure_iowa(midi):
     if path is None:
         return None
     x, rate = read_aiff(path)
-    return measure_mono(x.mean(axis=1), int(rate), midi)
+    return measure_mono(x, int(rate), midi)
 
 
 SWEEP_LEAD_IN = 1.0       # s before the strike for the floor: the previous note's dampers have had 1 s
@@ -145,21 +146,25 @@ def sweep_last_window(hold):
     return max(b for _, b in WINDOWS if b <= hold - 0.5)
 
 
-def measure_sweep(mono, rate, schedule, hold):
-    """A note-sweep render (make_note_sweep.py, notes held hold s): {(midi, velocity): Measurement}
-    over the windows that end before the release. schedule: [(seconds, midi, velocity)]. Each strike
-    is found within 0.5 s of its scheduled time (a render may start a little late); the floor is
-    the second before it."""
-    HOLD = hold
+def measure_sweep(x, rate, schedule, hold, strikes=None, velocities=None):
+    """A note-sweep render x (make_note_sweep.py, notes held hold s; mono or stereo): {(midi,
+    velocity): Measurement} over the windows that end before the release. schedule: [(seconds,
+    midi, velocity)], every note of the sweep in order. Each strike is found by
+    forte_audio.find_strikes (it follows a render that starts late or jumps), unless strikes gives
+    them; the floor is the second before it. velocities: only those layers are measured."""
+    from forte_audio import find_strikes
     last_window = sweep_last_window(hold)
+    if strikes is None:
+        strikes = find_strikes(x, rate, [s for s, _, _ in schedule])
     out = {}
-    for seconds, midi, velocity in schedule:
-        a, b = int((seconds - SWEEP_LEAD_IN) * rate), int((seconds + 0.5) * rate)
-        if a < 0 or b > len(mono):
+    for (seconds, midi, velocity), found in zip(schedule, strikes):
+        if found is None or (velocities and velocity not in velocities):
             continue
-        start = a + hm.strike_onset(mono[int((seconds - 0.2) * rate): b], rate) + int((SWEEP_LEAD_IN - 0.2) * rate)
-        segment = mono[start - int(SWEEP_LEAD_IN * rate): start + int((HOLD - 0.1) * rate)]
-        times, envs, floors = envelopes(segment, rate, midi, tail_floor=False)
+        start = int(round(found * rate))
+        if start - int(SWEEP_LEAD_IN * rate) < 0 or start + int((hold - 0.1) * rate) > len(x):
+            continue
+        segment = x[start - int(SWEEP_LEAD_IN * rate): start + int((hold - 0.1) * rate)]
+        times, envs, floors = envelopes(segment, rate, midi, tail_floor=False, start=int(SWEEP_LEAD_IN * rate))
         rows, firsts = [], []
         for envelope, floor in zip(envs, floors):
             levels, valid = window_levels(times, envelope, floor)

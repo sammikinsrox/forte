@@ -36,7 +36,8 @@ from pathlib import Path
 
 import numpy as np
 
-from forte_audio import ROOT, iowa_file, midi_of, partial_frequency, partial_levels, read_aiff
+from forte_audio import (ROOT, envelope_signal, iowa_file, midi_of, partial_frequency, partial_levels,
+                         power_spectrum, read_aiff)
 
 PROBE = ROOT / "build" / "tools" / "fitting" / "probes" / "Release" / "forte-string-probe.exe"
 MAX_HZ = 10000.0
@@ -46,10 +47,12 @@ LOWEST_DB = -120.0  # partial levels are clipped here (dB re the reference) befo
 BANDS = 5  # octaves above the reference band
 
 
-def strike_onset(mono, rate):
-    """3 ms before the first sample at 30 % of the peak. forte_audio.onset's 5 % fires on Iowa pp's
-    lead-in noise, a quarter of a second early; a strike reaches its peak within a few ms."""
-    return max(0, int(np.argmax(np.abs(mono) > 0.3 * np.abs(mono).max())) - int(0.003 * rate))
+def strike_onset(x, rate):
+    """3 ms before the first sample at 30 % of the peak (of the channels' rms, for stereo).
+    forte_audio.onset's 5 % fires on Iowa pp's lead-in noise, a quarter of a second early; a strike
+    reaches its peak within a few ms."""
+    e = envelope_signal(x)
+    return max(0, int(np.argmax(e > 0.3 * e.max())) - int(0.003 * rate))
 
 
 def window_seconds(midi):
@@ -77,21 +80,21 @@ def _noise_spectrum(segment, size, rate):
         return None
     window = np.hanning(frame)
     hop = max(frame // 2, 1)
-    power = np.mean([np.abs(np.fft.rfft(segment[i:i + frame] * window)) ** 2
+    power = np.mean([power_spectrum(segment[i:i + frame], window=window)
                      for i in range(0, len(segment) - frame + 1, hop)], axis=0)
     magnitude = np.sqrt(power * size / frame)
     return np.interp(np.fft.rfftfreq(size, 1 / rate), np.fft.rfftfreq(frame, 1 / rate), magnitude)
 
 
-def noise_floor(mono, rate, midi, seconds):
+def noise_floor(x, rate, midi, seconds):
     """Per partial: rms magnitude (dB) at its frequency in noise-only frames, as partial_levels
     measures. From the lead-in and the last second, whichever is quieter at that partial: the
     lead-in is often short, and the end can still hold the note's lowest partials."""
     size = int(seconds * rate)
     freqs = np.fft.rfftfreq(size, 1 / rate)
-    start = strike_onset(mono, rate)
-    spectra = [s for s in (_noise_spectrum(mono[: max(0, start - int(0.01 * rate))], size, rate),
-                           _noise_spectrum(mono[-int(max(1.0, 2 * seconds) * rate):], size, rate)) if s is not None]
+    start = strike_onset(x, rate)
+    spectra = [s for s in (_noise_spectrum(x[: max(0, start - int(0.01 * rate))], size, rate),
+                           _noise_spectrum(x[-int(max(1.0, 2 * seconds) * rate):], size, rate)) if s is not None]
     if not spectra:
         return None
     f0 = partial_frequency(midi, 1)
@@ -144,11 +147,11 @@ class Measurement:
         return np.where(self.valid, self.levels - self.reference, np.nan)
 
 
-def prominence(mono, rate, midi, start, seconds, levels):
+def prominence(x, rate, midi, start, seconds, levels):
     """Per partial: its level over the median level between it and its neighbours (dB). Broadband
     strike noise (the knock) has no peaks, so it scores near 0."""
-    x = mono[start: start + int(seconds * rate)]
-    magnitude = np.abs(np.fft.rfft(x * np.hanning(len(x))))
+    x = x[start: start + int(seconds * rate)]
+    magnitude = np.sqrt(power_spectrum(x))
     freqs = np.fft.rfftfreq(len(x), 1 / rate)
     out = []
     for n in range(1, len(levels) + 1):
@@ -161,17 +164,18 @@ def prominence(mono, rate, midi, start, seconds, levels):
     return np.array(out)
 
 
-def measure_mono(mono, rate, midi, floor=None):
-    """Partial levels in the attack window. With a noise floor (Iowa), a partial counts only if it
-    is FLOOR_MARGIN_DB over the floor and PROMINENCE_DB over the spectrum between partials."""
+def measure_mono(x, rate, midi, floor=None):
+    """Partial levels in the attack window of x (mono or stereo: channels' powers averaged). With a
+    noise floor (Iowa), a partial counts only if it is FLOOR_MARGIN_DB over the floor and
+    PROMINENCE_DB over the spectrum between partials."""
     seconds = window_seconds(midi)
-    start = strike_onset(mono, rate)
-    levels = partial_levels(mono, rate, midi, start, seconds, max_partial=10_000, max_hz=MAX_HZ)
+    start = strike_onset(x, rate)
+    levels = partial_levels(x, rate, midi, start, seconds, max_partial=10_000, max_hz=MAX_HZ)
     valid = np.ones(len(levels), bool)
     if floor is not None:
         count = min(len(levels), len(floor))
         levels = levels[:count]
-        valid = (levels >= floor[:count] + FLOOR_MARGIN_DB) & (prominence(mono, rate, midi, start, seconds, levels) >= PROMINENCE_DB)
+        valid = (levels >= floor[:count] + FLOOR_MARGIN_DB) & (prominence(x, rate, midi, start, seconds, levels) >= PROMINENCE_DB)
     return Measurement(midi, levels, valid)
 
 
@@ -187,9 +191,8 @@ def measure_iowa(midi, dynamic="mf"):
             _iowa_cache[key] = None
         else:
             x, rate = read_aiff(path)
-            mono = x.mean(axis=1)
-            floor = noise_floor(mono, rate, midi, window_seconds(midi))
-            _iowa_cache[key] = measure_mono(mono, rate, midi, floor)
+            floor = noise_floor(x, rate, midi, window_seconds(midi))
+            _iowa_cache[key] = measure_mono(x, rate, midi, floor)
     return _iowa_cache[key]
 
 
