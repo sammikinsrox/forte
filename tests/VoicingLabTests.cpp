@@ -249,7 +249,7 @@ TEST_CASE ("Voicing lab: the hammer is stable on every note at the controls' ext
         INFO ("note " << note << " at " << sampleRate << " Hz, mass " << massValue << ", strike " << strikeValue);
         REQUIRE (allFinite (out.left));
         REQUIRE (allFinite (out.right));
-        REQUIRE (std::max (peak (out.left), peak (out.right)) < 1.0f);
+        REQUIRE (std::max (peak (out.left), peak (out.right)) < stableStrikePeak);
         REQUIRE (std::max (peak (out.left), peak (out.right)) > 1e-3f);
     }
 }
@@ -262,19 +262,20 @@ TEST_CASE ("Voicing lab: tape drive glides to its new value in about 20 ms", "[l
     const std::int64_t glideEnd = split + second / 50 + 128;
     const std::int64_t length = second / 2;
 
+    // The committed voicing has the tape off (revision 3), so it glides to the hardest drive.
     const auto committed = renderFresh (chord, length);
 
-    Engine off;
-    off.prepare (48000.0, 128);
-    off.setVoicingLab (with (Control::tapeDrive, 0.0f));
-    off.reset();
-    const auto untaped = render (off, chord, length);
-    REQUIRE (untaped.left != committed.left);
+    Engine driven;
+    driven.prepare (48000.0, 128);
+    driven.setVoicingLab (with (Control::tapeDrive, 100.0f));
+    driven.reset();
+    const auto taped = render (driven, chord, length);
+    REQUIRE (taped.left != committed.left);
 
-    const auto changed = renderWithChange (chord, split, with (Control::tapeDrive, 0.0f), {}, length);
+    const auto changed = renderWithChange (chord, split, with (Control::tapeDrive, 100.0f), {}, length);
 
     CHECK (slice (changed.left, 0, split) == slice (committed.left, 0, split));
-    CHECK (slice (changed.left, glideEnd, length) == slice (untaped.left, glideEnd, length));
+    CHECK (slice (changed.left, glideEnd, length) == slice (taped.left, glideEnd, length));
 
     // No jump: no step in the glide is bigger than the largest around it.
     float largestStep = 0.0f, largestGlideStep = 0.0f;

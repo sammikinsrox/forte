@@ -1,7 +1,7 @@
 {
   "format": "forte-voicing-overrides",
   "version": 1,
-  "revision": 2,
+  "revision": 3,
   "folds": [
     {
       "revision": 1,
@@ -34,9 +34,18 @@
           "treble": 50
         }
       }
+    },
+    {
+      "revision": 3,
+      "folded": "2026-11-17T13:55:53-05:00",
+      "exported": null,
+      "builtFrom": null,
+      "controls": {
+        "tapeDrive": 0
+      }
     }
   ],
-  "tapeDrive": null,
+  "tapeDrive": 0.0,
   "notes": {
     "feltStiffnessScale": [
       0.5,

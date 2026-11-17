@@ -283,9 +283,10 @@ PianoModel makeSeedPianoModel()
     // saturator; issue 0021 §15): 0 = none, chosen by ear. The voicing lab may have replaced it.
     model.tapeDrive = overrides::tapeDrive >= 0.0 ? overrides::tapeDrive : 8.0;
 
-    // Placeholder level until the soundboard and the fitted levels exist: an ff C4 peaks around
-    // −15 dBFS, and a full 88-key sustain glissando at velocity 90 peaks just under 0 dBFS.
-    model.outputGain = 5.6e-3;
+    // Keyscape's level: the first placeholder (5.6e-3) left Forte ~13 dB under the user's Keyscape
+    // renders on every note and piece, dry, from A0 to B5 at every velocity. 12 dB up, with the
+    // tape off (voicing revision 3), Autumn Leaves peaks near −1 dBFS dry, as Keyscape's does.
+    model.outputGain = 5.6e-3 * std::pow (10.0, 12.0 / 20.0);
 
     // Placeholder until Piano in 162 calibrates it (SPEC §3.3). 0.1 put a held note's pedal-down
     // minus pedal-up difference about 12–28 dB under the note from E1 to C6, and the bank at

@@ -208,7 +208,7 @@ TEST_CASE ("Hammer is stable on every note at maximum velocity with the hardest 
         INFO ("note " << note << " at " << sampleRate << " Hz");
         REQUIRE (allFinite (out.left));
         REQUIRE (allFinite (out.right));
-        REQUIRE (std::max (peak (out.left), peak (out.right)) < 1.0f);
+        REQUIRE (std::max (peak (out.left), peak (out.right)) < stableStrikePeak);
     }
 }
 

@@ -243,6 +243,26 @@ Then wider extremes, asked for "whacky": Resonance above 50 doubles every 12.5 (
 the bank +10 dB rms over a pedalled piece); Detune is linear to ±3 cents at 50, then doubles
 every 13.5 (±39 cents at 100). No clipping at either extreme (My Funny Valentine peaks −17 dBFS).
 
+**Level and the tape (after the 0.9.0 release).** Played live in the studio, the user found the
+attack weak and the whole instrument too quiet. Dry, against Keyscape's renders of the same MIDI:
+Forte sat 12-13 dB under it on every note's body (A0-B5, every velocity) and 13-16 dB under on the
+strike peaks; Autumn Leaves peaked at −17.2 dBFS (Keyscape −1.4), rms −32.6 (−19.7). `outputGain`
+was still the first engine commit's placeholder. Strike over body (peak in 50 ms against the rms of
+0.1-0.5 s) was 2-4.6 dB short of Keyscape's at C3-B5. Not the board: the bare strings measure the
+same. Two causes:
+- The tape (drive 8) took 2.4-4.8 dB off every velocity-127 strike, and nothing at 96 or below. The
+  user always turned it off ("peaking / distorting").
+- Revision 2's Sustain halved every rate, the fast first stage too (C4 2.4 → 1.2/s).
+
+Built: the tape folded off (voicing revision 3) and `outputGain` up 12 dB. Up to velocity 96,
+single notes peak at −6 dBFS or below; at 127, 15 notes go over 0 dBFS (F6 +6.2), as 27 of
+Keyscape's go over −1. By the user's choice there's no limiter: the output is float. The stability
+tests' blow-up bound moves from 1.0 to +12 dBFS (`stableStrikePeak`).
+
+Next, for the attack: the fast first stage back with the long tail kept (lab Sustain 0 / 0 / 50,
+Second stage 100 / 100 / 50). With the tape off, that brings strike over body to within 0-1.6 dB
+of Keyscape's from C2 to B5 and leaves the first half-second 1-2 dB lower. The user is trying it.
+
 Rules that still hold: commit only when asked; `tools/lab-identity.ps1`-style identity checks and
 Release `ctest` (pluginval included) after each step; Reaper locks the Release VST3, so ask the user
 to close it before Release builds if a build fails to write it.
