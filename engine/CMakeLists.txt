@@ -9,15 +9,62 @@ configure_file(Version.h.in "${CMAKE_CURRENT_BINARY_DIR}/generated/forte/Version
 add_library(forte_engine STATIC
     include/forte/engine/Engine.h
     include/forte/engine/MidiEvent.h
+    include/forte/engine/VoicingLab.h
+    src/BoardBuilder.cpp
+    src/BoardBuilder.h
+    src/BoardSettings.h
+    src/BoardSettings.inc
+    src/EmbeddedFiles.h
     src/Engine.cpp
+    src/Fft.h
+    src/LabMapping.cpp
+    src/LabMapping.h
     src/NoteModel.cpp
     src/NoteModel.h
+    src/DecayFit.inc
+    src/HammerFit.inc
+    src/Kernels.cpp
+    src/Kernels.h
+    src/Kernels.inc
+    src/KernelsAvx2.cpp
+    src/KernelsSse2.cpp
     src/PianoModel.cpp
     src/PianoModel.h
+    src/Room.cpp
+    src/Room.h
     src/ScopedFlushDenormals.h
+    src/Soundboard.cpp
+    src/Soundboard.h
+    src/SoundboardIrs.cpp
+    src/SoundboardIrs.h
+    src/SympatheticBank.cpp
+    src/SympatheticBank.h
+    src/Tuner.cpp
+    src/Tuner.h
+    src/UnisonModes.cpp
+    src/UnisonModes.h
     src/VelocityCurve.cpp
-    src/VelocityCurve.h)
+    src/VelocityCurve.h
+    src/VoicingOverrides.h
+    src/VoicingOverrides.inc)
 add_library(forte::engine ALIAS forte_engine)
+
+# The hot loops' AVX2 build (SPEC §9.2). Only this file gets /arch:AVX2: see src/Kernels.h for
+# why the rest of the engine, and everything it shares with this file, must not.
+set_source_files_properties(src/KernelsAvx2.cpp PROPERTIES COMPILE_OPTIONS "/arch:AVX2")
+
+# The soundboard IRs (SPEC §3.5): data/ir/<perspective>-<region>.wav, built into the engine, and
+# the parts the voicing lab rebuilds them from (SPEC §6.5): data/ir/parts/<...>-modes.wav.
+set(ir_files "")
+foreach(perspective IN ITEMS microphones pianist)
+    foreach(region IN ITEMS bass tenor middle treble)
+        list(APPEND ir_files "${perspective}-${region}.wav=${PROJECT_SOURCE_DIR}/data/ir/${perspective}-${region}.wav")
+        list(APPEND ir_files "parts/${perspective}-${region}-modes.wav=${PROJECT_SOURCE_DIR}/data/ir/parts/${perspective}-${region}-modes.wav")
+    endforeach()
+endforeach()
+forte_embed_files(forte_engine
+    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/generated/EmbeddedFiles.cpp"
+    FILES ${ir_files})
 
 target_include_directories(forte_engine
     PUBLIC

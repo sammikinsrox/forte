@@ -1,0 +1,781 @@
+---
+id: 21
+title: Voicing the seed piano against Iowa (listening findings, 2026-11-14)
+labels: [voicing]
+status: open
+assignee:
+parent: 1
+blocked_by: []
+---
+
+## Question
+
+After the sympathetic bank landed, the user listened on headphones (Cry Me a River, Danny Boy,
+Funny Valentine, Yesterdays) and heard Forte as "fake", "twangy", "like an older electric grand or
+a very good upright", and "like a closed lid" once the twang was removed. What causes each, what
+fixes each, and in what order? The aim: **bright, full, with shimmer and rumble, and no twang.**
+
+## Findings
+
+All measured against the Iowa Steinway mf (and pp/ff where Iowa has them: C2, C4, C6), with
+forte-render, single notes at velocity 64 unless stated.
+
+### 1. The twang is the hammer: the middle of the keyboard is far too bright for its dynamic
+
+- C4's partials 2–14, relative to the fundamental, are 10–30 dB hotter than Iowa's in the attack.
+  Mean of partials 2–12 re partial 1: Iowa mf −33 dB, ff −21 dB; Forte at velocity 64 −17 dB
+  (seed felt), −13 dB (felt ×2), and −9 dB at velocity 127. Forte's mf is brighter than Iowa's ff.
+- A real piano at mf is fundamental-dominated: the overtones flash and fade, the "bell". Forte's
+  thick, lingering 0.5–3.5 kHz layer reads as nasal and twangy.
+- Felt ×0.25 removes most of the twang by ear (confirmed on Funny Valentine), but also dulls the
+  sound ("closed lid"): above 4 kHz drops from −53 to −80 dB of the piece's energy. Felt stiffness
+  alone moves the whole spectrum; it can't make the 1–3 kHz layer quieter and keep the top.
+- C6 is roughly right at felt ×1–2 (mf −56 to −58 vs Iowa −50; ff −37 to −40 vs −42). The felt must
+  vary along the keyboard (SPEC §3.3 fits it per note), not scale uniformly.
+- There is **no cliff above 4.5 kHz** at the current felt and gain: C4's raw string output reaches
+  −50 to −75 dB re partial 1 up to ~7 kHz, as strong as Iowa's (whose partials above that sit at its
+  noise floor). An earlier "cliff" measurement came from the soft seed felt, the old low gain and a
+  2 s window; it was wrong.
+
+### 2. Decay runs the wrong way round
+
+Over 0.3–2.3 s (key held): C4's fundamental decays at −16.5 dB/s (Iowa −8.6), A4's at −10.9
+(Iowa −3.9). C4's partials 4–7 decay at −1 to −3.5 dB/s (Iowa −7 to −13); E5's partials 2–3 at
+−3 (Iowa −11 to −14). The upper partials sit on the slow aftersound from the start: the unison's
+detuning is the same in cents, so more Hz at higher partials, and the seed aftersound law is a
+quarter of the prompt law, barely rising with frequency. A steeper aftersound law (aftersound c3 =
+prompt c3, both 3e-7) fixes 1–2 kHz but kills 2.5–4 kHz far too fast: Iowa's decay levels off
+above ~2 kHz, which an f² law can't follow. By ear the difference was subtle.
+
+### 3. "Electric grand" is partly the soundboard's direct path
+
+The seed IR is a flat direct path (weight 2.0) plus resonant modes normalised to unit energy, so
+the output is mostly the bridge force itself, like a pickup. Direct weight 0.5 audibly reduces the
+twang and was the user's favourite for clarity (board #9: original board + 12 dB direct-path low
+shelf, direct 0.5). Partial-level scatter barely changes with the weight (Iowa 5.1 dB; Forte 4.3–5.6
+dB), so the difference is in how the sound develops, not its spectrum. Costs: duller top (the board's
+modes roll off above 6 kHz), and the direct-path shelf's bass goes with the direct path.
+
+### 4. Body and bass
+
+- The seed generator's radiation curve cut its modes −21 dB at 100 Hz, with only nine modes below
+  300 Hz and none between 128 and 186 Hz. Radiation corner 250 Hz and statistical modes from 80 Hz
+  ("fuller board") give body, but strong low modes colour individual partials and sounded
+  synthetic; a few bass notes boom (D3, C2, G2, Gb2, Ab2 6–12 dB over their neighbours).
+- A direct-path low shelf (min-phase, at 250 Hz) adds even bass weight but also low-mid body; a
+  lower corner (80–120 Hz) would target rumble.
+- In Iowa, C2's overtones sit 17 dB above its fundamental (a real board radiates the lowest
+  fundamentals weakly): the bass's "growl" is in partials 2–8. Forte's C2 fundamental is as strong as
+  its overtones, and the shelf makes it stronger. Real rumble is the overtones plus the lowest board
+  modes, not a louder fundamental.
+- Board modes pick out single overtones: through board #9 at direct 0.5, C4's second partial is
+  17.6 dB above its fundamental (Iowa: 11 dB below). That's a likely source of "twang on certain
+  notes".
+
+### 5. Level
+
+Output gain is up 7.6 dB (5.6e-3 → 1.35e-2, uncommitted): a played piece averaged −33 dBFS, too
+quiet to judge the bass by. Above that, single velocity-127 notes clip (D3 reached +2.4 dBFS).
+
+### What didn't work
+
+- Fitting a per-region third-octave colour correction to Iowa: wouldn't converge (2–3 Iowa notes per
+  bass band, the felt's brightness skewing the shares); dropped.
+- Damping the fuller board's low modes 4×: less even and thinner.
+- A per-note felt fit through board #9: the board's modal colouring dominated, and Iowa's own
+  note-to-note brightness scatter is 10–20 dB. The fit must measure the strings without the board.
+- Raising the felt exponent without compensating stiffness: makes the felt ~50× softer.
+
+### 6. Step 1, first try: the hammer and felt fit against Iowa (2026-11-14, branch hammer-felt-fit)
+
+**By ear this fit was a step back** (§7): more twang, and a cheap, plasticky strike. It's kept as
+`fit_hammer.py fit` for reference, and the felt is now set by ear. The measurements below still
+hold; the conclusions drawn from attack windows don't.
+
+`tools/fitting/fit_hammer.py` (measure → fit → build; its docstring has the method), measuring the
+strings without the board through `forte-string-probe`.
+
+**Where the twang came from.** On the bare strings the seed's C4 contact lasted ~1 ms (real: 2–4
+ms), so the force spectrum was flat to ~1 kHz and partials 2–7 came out level with the fundamental
+at every speed and felt. A softer felt lengthens the pulse but filters out the strings' reflections,
+which takes the top away: the closed lid.
+
+**The felt model is now Stulov's hereditary felt** (SPEC §2.4), F = Q0·[cᵖ − ε·(cᵖ low-passed with
+τ)], replacing the α·d(cᵖ)/dt term (its τ → 0 limit). Fitted to C4's band changes between pp, mf
+and ff: no hysteresis 12.6 dB rms, α-law 4.1, Stulov 3.7 (C2: 6.1 for both hysteretic laws). An
+elastic felt can't brighten from pp to ff as steeply as Iowa does (15–36 dB per band). Stulov was
+chosen over the α-law for its bounded force and its time scale. The fitted hysteresis is large: ε
+0.75–0.97, τ 0.64 ms (C2) to 1.06 ms (C4 up).
+
+**Measurement lessons** (in `hammer_measure.py`):
+
+- `forte_audio.onset`'s 5 % threshold fires on Iowa pp's lead-in noise, 0.25 s early; that, not
+  the noise floor, made "pp brighter than mf". With a 30 % onset, a per-partial noise floor and a
+  peak-prominence test, C2 and C4 pp are usable (half weight); C6 pp is still brighter than its mf.
+- Iowa's C4 is not an outlier on the old metric (mean of partials 2–12 re 1): Iowa darkens steadily
+  up the keyboard, C3 +2.5, G3 −15, B3 −20, C4 −34, A4 −35, C5 −48 dB. But a single note's octave
+  bands scatter ±15 dB, so the targets are running medians over ±4 semitones.
+- Band brightness must be a median of partial levels, not a power mean: a power mean follows the
+  loudest partial, often one picked out by a board mode. The first fit, on power means, kept the
+  twang.
+- Iowa mf is at its noise floor above ~4 kHz from C4 up, and C6 has one usable band. So Iowa can't
+  say how bright the top should be: the felt's shape (p, ε, τ) comes from C2 and C4, and the top is
+  what the hysteresis gives.
+- Band changes between dynamics belong to the felt alone (the board, microphones and room are
+  linear and cancel). Fitting those is what made the fit work.
+
+**What changed, at velocity 64, in the attack (bare strings, octave bands re the fundamental):**
+1–2 kHz and 2–4 kHz down 3–16 dB from C3 to G4; partials 2–3 down 5–17 dB from E4 up. C5 and E5,
+which had nothing above 2 kHz (−120 dB), now have a top at −35 to −60 dB. Through board #9, the
+mean of C4's partials 2–12 is −25.8 dB (seed −16.3; Iowa mf −35, ff −27): no longer brighter than
+Iowa's ff, though still 9 dB brighter than Iowa's single (dark) C4. C6 −48.8 (seed −58.4; Iowa mf
+−49.5).
+
+**Pieces** (board #9, level-matched): energy above 4 kHz up 4–10 dB, above 8 kHz up 23–27 dB, peaks
+up to 6 dB higher at the same RMS (sharper strikes). But the share at 1–3.5 kHz is unchanged
+within ±2 dB. Over a piece that band is mostly the sustain, so the lingering layer is step 2's (the
+decay), as §2 suggested.
+
+**Where the fit stops matching Iowa:**
+
+- C5–Gb5: the best per-note felt there is nearly elastic (ε ≈ 0.02). Iowa's mf treble has its 2–5
+  kHz band ~60 dB under the fundamental, and the hysteresis's flash can't go that low. The smoothed
+  ε (0.73–0.86) keeps the flash, ~25 dB brighter than Iowa there. That's the brightness asked for,
+  at Iowa's expense; `fit-softer` leans the other way.
+- Treble brightness is U-shaped in velocity: from E5 up, pp is a little brighter than mf, then ff
+  brightest. Iowa's C6 pp is also brighter than its mf, but likely the treble's τ is wrong, held at
+  C4's because Iowa has no treble dynamics to fit.
+- C4's ff speed is 9.2 m/s (real ff ~5–6) to reach Iowa's +13 dB from mf. Forte's loudness rises
+  more slowly with speed than Iowa's gap asks for. The mf speed (2 m/s) is a seed; Iowa can't
+  identify it.
+
+**The top octave and velocity 127.** Above C6 the stiffest, fastest blows outran the 4×-oversampled
+contact: at 44.1 kHz a velocity-127 note peaked up to 9 dB hotter than at 96 kHz, and clipped (+6.7
+dBFS at A7). The hammer stability test missed it, because it checked the left channel only and the
+treble sits right. Now: Q0 rises 1.155× per semitone above C6 (capped so every note stays within
+1 dB of 96 kHz at ff), velocity 127 falls from 12.4 m/s at A6 to 7.8 at C8 (the fastest accurate
+speed), and the test checks both channels. Every note at 127 peaks ≤ −1.25 dBFS at 44.1 and 96 kHz
+with the committed board. C8 speaks: its fundamental at velocity 64 is 4 dB under C6's (seed: 31 dB
+under).
+
+### 7. Listening: the fit was worse; the felt is now set by ear (2026-11-14)
+
+**The fit sounded worse than the seed**: "the twang is so much worse", "cheap and plasticky". Best
+so far by ear was the seed felt ×0.25 ("D", from the earlier listening). On Yesterdays (board #9,
+level-matched), as shares of the whole piece's energy:
+
+| Render | 1–3.5 kHz | 3.5–8 kHz | >8 kHz | Crest factor |
+|---|---|---|---|---|
+| D (felt ×0.25) | −18.0 dB | −66.6 | −104 | 22.1 dB |
+| seed | −13.1 | −50.5 | −92 | 22.1 |
+| §6's fit | −11.1 | −44.9 | −66 | 27.9 |
+
+Why it went wrong:
+
+- It matched attack-window spectra (0.15 s). The twang is the whole note's 1–3.5 kHz layer, which
+  went up 2 dB over the seed and 7 over D.
+- Its relaxation time (~1 ms) is as long as the hammer's contact, so the relaxation reshaped the
+  whole pulse and put the mids back. Its large ε made a spike at every strike: crest factor +6 dB,
+  the plastic click.
+- Making the top octave speak raised C8 ~30 dB. Notes from C6 up have their fundamentals at
+  1–4 kHz, the twang band.
+
+**The fix: D plus a short relaxation time.** Keep D's softness for slow compression (relaxed
+stiffness = 0.25 × the seed felt) and let only the fastest compression meet a stiff felt: Q0 =
+relaxed / (1 − ε), τ 0.02–0.05 ms. On the bare strings this adds 25–80 dB at 4–12 kHz with the 1–3.5
+kHz share moving ≤ 2 dB. Yesterdays, board #9, level-matched:
+
+| Variant (ε, τ) | 1–3.5 kHz | 3.5–8 kHz | >8 kHz | Crest | By ear |
+|---|---|---|---|---|---|
+| D | −17.7 | −67.3 | −109 | 22.1 | |
+| 0.5, 0.05 ms | −17.9 | −60.5 | −91 | 22.1 | hardly different from D |
+| 0.8, 0.05 ms | −16.8 | −52.3 | −82 | 22.2 | some air back; "pretty decent", twang "almost non-existent" |
+| 0.9, 0.02 ms | −17.8 | −53.4 | −83 | 22.2 | **chosen** (differences "very subtle") |
+| 0.95, 0.02 ms | −16.1 | −47.6 | −76 | 22.3 | |
+| 0.9, 0.05 ms | −14.9 | −45.8 | −77 | 22.4 | |
+| 0.95, 0.05 ms | −12.9 | −40.7 | −70 | 22.5 | twang band back at the seed's |
+| D, felt eased to ×0.5 above C5 | −16.3 | −66.0 | −106 | 22.1 | (more twang, no air) |
+
+So from the hammer, air and twang trade against each other; a shorter τ buys a little air for
+free. The chosen felt is committed (`fit_hammer.py voice`). Its air shrinks slightly with velocity
+at C7 (a test notes it). Velocity 127 peaks ≤ −9 dBFS on board #9.
+
+**"Boxy", "like a speaker in a box".** Summed over Iowa's mf notes (first 2 s, third-octave shares),
+Forte follows Iowa within ±7 dB up to 5 kHz, then falls off a cliff: −80 dB at 6.3 kHz, −95 at 8
+kHz, −103 at 10 kHz, against Iowa's −50 to −56. But Iowa's top is its hiss: 6–16 kHz sits at the
+same level before the note as during it, and the strike lifts it only 1–4 dB. So a real piano at
+mf has little string energy above ~6 kHz either. What a recording has is a −50 dB floor of hiss and
+room; Forte has digital silence. Other candidates for "boxy": board #9's low end (+9–10 dB at 62
+and 125 Hz, +2.5–3 dB at 315–400 Hz against Iowa: the 12 dB shelf at 250 Hz lifts the low mids),
+and no room. **A reverb in Reaper "sounds a little better"**: the room is missing.
+
+**Against Pianoteq and Keyscape ("much clearer and richer")**, in the likely order of effect:
+
+1. Compare level-matched: Forte's renders sit around −31 dBFS RMS.
+2. The decay (step 2): the fundamental dies 2× too fast and the upper partials linger. Richness is
+   how the tone evolves; this is also where the remaining twang lives.
+3. The board and the room (step 3, plus new work): denser, better-placed board modes radiating
+   to ~10 kHz, less single-overtone pick-out, the low shelf at 80–120 Hz instead of 250 Hz, a room
+   (early reflections and a short tail) in the Listening perspectives (the spec has no room yet),
+   and stereo width checked against a real microphone pair.
+4. Quick tries for shimmer: unison spread 1.0–1.5 cents (now 0.7), the sympathetic level (a
+   placeholder 0.1), and the duplex scale (not modelled).
+5. Mechanical noises: the hammer's knock, dampers, release, pedal.
+6. Renders of the same MIDI from Pianoteq or Keyscape, kept locally, would let the tools measure
+   against the sound wanted, not only Iowa.
+
+### 8. Quick tries on board #9 (2026-11-15)
+
+Yesterdays, level-matched to the favourite (`build/ab/more-air/Yesterdays1/D-flash-0.9-short.wav`),
+whole-piece band shares (dB of the piece's energy) and crest factor, `piece_levels.py`. The base
+renderer rebuilt from HEAD reproduces the favourite to −58 dB residual. Renders in
+`build/ab/shimmer-board/Yesterdays1/`.
+
+| Variant | <250 | 250-500 | 0.5-1k | 1-3.5k | 3.5-8k | >8k | Crest |
+|---|---|---|---|---|---|---|---|
+| favourite (board #9) | −12.2 | −2.0 | −5.5 | −16.3 | −53.1 | −83.3 | 22.2 |
+| unison spread 1.0 cent | −12.0 | −2.0 | −5.5 | −16.3 | −53.2 | −83.7 | 22.7 |
+| unison spread 1.5 cent | −11.8 | −2.0 | −5.5 | −16.3 | −53.2 | −83.8 | 23.6 |
+| sympathetic ×0.5 (0.05) | −12.2 | −2.0 | −5.4 | −16.2 | −53.1 | −83.3 | 22.2 |
+| sympathetic ×2 (0.2) | −12.1 | −2.0 | −5.5 | −16.3 | −53.1 | −83.4 | 22.0 |
+| direct-path shelf at 100 Hz | −13.0 | −2.1 | −5.2 | −16.0 | −52.9 | −83.1 | 22.1 |
+| no direct-path shelf | −12.9 | −2.1 | −5.1 | −16.0 | −52.9 | −83.1 | 22.2 |
+| MODE_ROLLOFF_HZ 12000 | −12.1 | −2.0 | −5.5 | −16.1 | −51.8 | −82.8 | 22.2 |
+
+None of them moves the balance by more than ~1 dB. Why, from the board IRs themselves:
+
+- **The shelf hardly reaches the output at direct 0.5.** The board's low end is its fixed low modes
+  (50-127 Hz), not the direct path: removing the 12 dB shelf takes only 1.5 dB off at 60-100 Hz and
+  5 dB at 150 Hz. Board #9's "bass" is mostly the modes.
+- **The 12 kHz roll-off adds ~1 dB above 3 kHz**: up there the board is its direct path, and at
+  direct 0.5 board #9 sits 10 dB (3 kHz) to 17 dB (6-10 kHz) under its 1 kHz level. That tilt, not
+  the modes' roll-off, is the board's share of the dull top.
+- **The spread changes time, not spectrum**: more beating, so peaks rise (crest +1.4 dB at 1.5
+  cents). Listen for a slow shimmer or chorus in held notes, against sourness in the melody.
+- **The sympathetic level** is a halo under held chords and pedalled passages: listen to the
+  room-like ring after a chord, not the strike.
+
+### 9. Keyscape's Yesterdays: what "fuller and richer" is (2026-11-15)
+
+The user's Keyscape render (`C:\Users\sam\Downloads\yesterday-keyscape.wav`, kept locally; a
+level-matched copy is `build/ab/decay-fit/Yesterdays1/keyscape.wav`), against the favourite:
+
+| | <250 | 250-500 | 0.5-1k | 1-3.5k | 3.5-8k | >8k | Crest |
+|---|---|---|---|---|---|---|---|
+| favourite | −12.2 | −2.0 | −5.5 | −16.3 | −53.1 | −83.3 | 22.2 |
+| Keyscape | −6.8 | −5.1 | −3.7 | −12.6 | −37.5 | −57.1 | 24.1 |
+
+By third octave, Keyscape has 10-18 dB more at 60-160 Hz, 3-5 dB less at 315-400 Hz, 5-14 dB more
+at 0.8-3 kHz and 15-29 dB more at 4-12 kHz. Forte's energy is piled into 300-600 Hz: that's the
+box.
+
+**Correction (§12):** Keyscape's render runs ~0.4% faster than the MIDI (its offset slides from
+−0.04 s to ~−1.3 s over the piece), and the table below aligned it with one global offset. Its
+Keyscape row is therefore close to random-time averages and doesn't support the conclusion
+drawn from it. §12 measures with a time map. The band shares are unaffected.
+
+**The twang isn't the 1-3.5 kHz share.** Keyscape has 3.7 dB more there and isn't twangy. What
+differs is when it sounds. Energy in the first 0.12 s after each onset over the rest (dB):
+
+| | <250 | 250-500 | 0.5-1k | 1-3.5k | 3.5-8k | >8k |
+|---|---|---|---|---|---|---|
+| favourite | −8.2 | −5.9 | −5.2 | **−1.8** | **+1.2** | +2.0 |
+| Keyscape | −7.9 | −6.7 | −6.5 | **−5.7** | **−6.5** | −6.8 |
+
+Forte's top is nearly all in the strikes, over a dull, mid-heavy sustain: a bright flash that
+dies, which is what a plucked string does. Keyscape's highs carry on through the sustain as evenly
+as its lows. That's both "richer" (the tone keeps its colour as it rings) and the likely real
+twang. Making the 1-3.5 kHz layer quieter, as the felt did, treated the symptom and dulled the
+sound.
+
+Iowa agrees (§10): its fundamentals fall fast at first and its upper partials keep pace, so its
+sustain is no darker than its strike. Part of Keyscape's even sustain is surely its room (samples
+carry one, and a room tail sustains every band alike); "a reverb in Reaper helped a little" (§7)
+fits that.
+
+### 10. Step 2: the decay fit (2026-11-15)
+
+`tools/fitting/fit_decay.py` (measure → fit → build, byte-identical; its docstring has the method),
+measuring with `decay_measure.py`.
+
+**Measuring.** A line fitted to a partial's envelope follows its beats, so per-partial "decay
+rates" scatter wildly (§2's numbers among them). Mean levels over log-spaced windows (0.05-16 s)
+don't, and they show the shape. Iowa's C4 fundamental falls 32 dB in its first second, then
+~1.7 dB/s; its partials 2-7 fall only 12-18 dB in that second. Forte's (seed) fell 10 dB in its
+first second and then 15 dB/s: no knee. So "the fundamental dies 2× too fast" (§2, a line over
+0.3-2.3 s) was a line across a knee. The real fault is the shape: Iowa's prompt sound is fast and
+its aftersound slow, and Forte's was neither. Iowa mf rings to its noise floor (17-51 s), so
+both stages are measurable: 32 partials in the bass, 11 at C4, 4 at C6.
+
+**The engine change.** NoteParameters gains measured partials: a prompt-sound and an aftersound
+rate for each of partials 1 to `numMeasuredPartials` (up to 32, the coupled partials), with the
+laws σ = c1 + c3·f² above them (SPEC §3.3, §3.5's "measured partials"). Each partial's unison is
+coupled from its own two rates, so the fixed spread then gives the knee. The sympathetic bank's
+modes take each partial's prompt rate. The data comes from the generated
+`engine/src/DecayFit.inc`, like the hammer's.
+
+**Fitting.** Per partial, the two rates whose envelope, solved exactly as UnisonModes solves it
+(numpy, matching the probe to 0.2 dB) and measured through the same windows, best matches Iowa.
+Two lessons:
+
+- Single Iowa notes' fitted rates scatter 2-5× between neighbours: each real unison has its own
+  tuning, which sets its knee, and Forte has one spread. Fitting each note to the median of its
+  ±3 semitones' window levels cut the outliers from 293 to 55 of 754 partials.
+- Late tails near Iowa's floor gave aftersound rates near zero (minutes-long T60s) and an
+  engine tail of 909 s. Both rates are held at ≥ 0.12/s (T60 57 s).
+
+**What came out.** C4: partials 1-3 two-stage, prompt ≈2.1-2.5/s (−18 to −22 dB/s) into an
+aftersound ≈0.12-0.15/s; partials 4 and up single-stage at ≈0.8-1.2/s. C2: prompt 0.4-1.0/s. The
+law's f² term is small (Iowa levels off above ~2 kHz, §2), so the highs decay at ~1.2-2/s
+(−10 to −17 dB/s) instead of the seed's 4.7/s at 5 kHz. Outside C2-C6, notes borrow the rates at
+the same frequency from the nearest measured note. Through the engine (probe, `fit_decay.py
+check`), partials 1-4 match Iowa's medians within 1.6-4.4 dB rms on every note.
+
+**Pieces** (board #9, level-matched to the favourite; renders in `build/ab/decay-fit/<piece>/`).
+Yesterdays:
+
+| Render | <250 | 250-500 | 0.5-1k | 1-3.5k | 3.5-8k | >8k | Crest |
+|---|---|---|---|---|---|---|---|
+| favourite | −12.2 | −2.0 | −5.5 | −16.3 | −53.1 | −83.3 | 22.2 |
+| decay fit | −10.9 | −2.3 | −5.2 | −14.4 | −50.6 | −78.6 | 23.3 |
+| decay fit, partials 1-3 only (seed law above) | −10.9 | −2.3 | −5.2 | −14.4 | −51.1 | −81.5 | 23.4 |
+| Keyscape | −6.8 | −5.1 | −3.7 | −12.6 | −37.5 | −57.1 | 24.1 |
+
+The other three pieces move the same way: bass +1.2-1.3 dB, 1-3.5 kHz +1.7-2.0, 3.5-8 kHz
++2.4-2.7, >8 kHz +4.3-6.5, crest +0.6-1.2. The fundamentals' fast prompt sound makes the low mids
+flash and fade (attack/sustain at 250-500 Hz −5.9 → −4.2 dB on Yesterdays). The partials-1-3
+variant shows that's where the change comes from; the upper partials' fit adds the air above
+8 kHz. Every move is towards Keyscape, but a fraction of the way: the strings' decay isn't most
+of the gap. The rest is the board's tilt and low end (§8) and the room (§9).
+
+**By ear:** "the twangy-ness is a lot better", and "the characteristics of the sound seem
+fine", but the colour is wrong: no brightness, crispness, clarity, top end or shimmer, "emitted
+from inside a box", muffled. Through the same reverb, Keyscape "sounds a million times better":
+the room isn't the gap.
+
+### 11. Colour: the top end (2026-11-15)
+
+With the twang now coming from the decay rather than the felt, the levers that cut the top can
+come back. Against Keyscape (Yesterdays, decay fit on board #9), Forte was 5-12 dB short at
+1.2-3 kHz and 13-21 dB at 4-10 kHz. Three things cut it:
+
+1. **The felt** at ×0.25, chosen when the twang was really the decay.
+2. **Board #9's direct path** at 0.5: 10-17 dB under its 1 kHz level above 3 kHz (§8).
+3. **The board's modes:** each mode's gain goes as 1/√damping and damping rises with frequency,
+   so the generated modes' energy falls steeply through the treble. A new generator setting,
+   `MODE_TILT_DB_PER_OCTAVE` (off by default, so the committed IRs are unchanged), tilts the
+   modes' gains above 1 kHz. At +6 dB/octave with `MODE_ROLLOFF_HZ` 12000, board #9 is nearly
+   flat to 4 kHz: +8 to +11 dB at 2-10 kHz ("board-bright").
+
+All with the decay fit, level-matched (renders in `build/ab/colour/<piece>/`). Yesterdays:
+
+| Render | <250 | 250-500 | 0.5-1k | 1-3.5k | 3.5-8k | >8k | Crest |
+|---|---|---|---|---|---|---|---|
+| decay fit (board #9, felt ×0.25) | −10.9 | −2.3 | −5.2 | −14.4 | −50.6 | −78.6 | 23.3 |
+| felt ×0.5 | −11.7 | −2.7 | −4.7 | −12.5 | −45.1 | −71.9 | 23.3 |
+| felt ×1 | −12.3 | −3.0 | −4.4 | −10.9 | −40.1 | −64.9 | 23.5 |
+| board-bright | −8.4 | −2.5 | −6.1 | −13.4 | −40.1 | −69.5 | 22.9 |
+| felt ×0.5 + board-bright | −9.1 | −2.8 | −5.5 | −11.3 | −34.4 | −62.5 | 23.3 |
+| Keyscape | −6.8 | −5.1 | −3.7 | −12.6 | −37.5 | −57.1 | 24.1 |
+
+The other pieces move the same way. Felt ×0.5 + board-bright matches Keyscape within ±4 dB by
+third octave from 1.2 to 10 kHz, running ~4 dB hot at 3-4 kHz. Still missing: 6-8 dB at 80-125 Hz,
+4.6 dB too much at 400 Hz, and the top's timing (Forte's highs are still mostly in the strikes;
+Keyscape's carry through the sustain).
+
+**By ear:** felt ×0.5 + board-bright has the best colour, "but being extra bright like that, it
+begins to sound plasticy on the attack of the note, losing some bell quality."
+
+**The plastic is the impact flash.** The felt's stiffness at impact is Q0 = relaxed / (1 − ε),
+so ×0.5 at ε 0.9 hits twice as hard at the instant of contact as the old ×0.25. On the bare
+strings (probe, mf) that adds no level spike (peak over body moves ≤ 0.5 dB), but C4's 4-8 kHz
+partials come out 28 dB hotter at the strike (−52 against −80 dB re the reference) and die at
+once; board-bright lifts that region another ~10 dB. Lowering ε keeps the relaxed felt's body
+and drops the flash: at ε 0.8 (Q0 the same as the old felt's) the 2-4 kHz band stays within
+4 dB of ×0.5/ε 0.9 and the 4-8 kHz flash is gone. So the idea is: brightness from the felt's body
+and the board, which carry through the note, not from the strike. Renders in
+`build/ab/attack/<piece>/`, level-matched to felt ×0.5 + board-bright. Yesterdays:
+
+| Render | <250 | 250-500 | 0.5-1k | 1-3.5k | 3.5-8k | >8k | Crest |
+|---|---|---|---|---|---|---|---|
+| felt ×0.5, ε 0.9, board-bright (liked colour) | −9.1 | −2.8 | −5.5 | −11.3 | −34.4 | −62.5 | 23.3 |
+| felt ×0.5, ε 0.85, board-bright | −9.2 | −2.8 | −5.5 | −11.7 | −37.5 | −67.0 | 23.2 |
+| felt ×0.5, ε 0.8, board-bright | −9.3 | −2.8 | −5.4 | −11.8 | −39.4 | −71.0 | 23.1 |
+| felt ×0.7, ε 0.8, board-bright | −9.6 | −3.0 | −5.2 | −10.8 | −36.1 | −67.0 | 23.5 |
+| felt ×0.5, ε 0.8, tilt +8 dB/oct ("board-brighter") | −7.3 | −2.9 | −6.2 | −12.0 | −36.7 | −66.6 | 22.5 |
+
+The other three pieces move the same way. Board-brighter also gains ~2 dB of bass (the IRs are
+normalised over 100 Hz-1 kHz) and has the softest strikes (crest −0.6 to −0.8 dB).
+
+**By ear:** "the plasticy sound mostly went away. It's a lot more crisp. It sounds almost
+perfect." Taken to be felt ×0.5, ε 0.8, board-brighter (the suggested one). Left: "the high
+notes sound weak, not velocity wise, just thin and lacking fullness" next to Keyscape.
+
+### 12. The high notes (2026-11-15)
+
+**Measuring against Keyscape note by note.** Keyscape's render drifts ~0.4% against the MIDI, so
+onsets are mapped through an offset measured every 20 s (envelope cross-correlation near the
+running drift), then refined per note to the fundamental's steepest rise. Yesterdays has its
+pedal down 73% of the time, and its high notes' keys are released after a median 0.12 s, so
+notes are split by whether the pedal stays down through their first second.
+
+**What "thin" is.** At the strike the high notes match Keyscape's (within ~1 dB over the first
+0.35 s). After that Keyscape's hold and Forte's keep falling. Fundamental of G4-F#5 with the pedal
+down, dB re the strike: Keyscape −5.5 at 0.6-1 s, Forte −19.8; second partial −8.8 against
+−14.3. G5-D#6 second partial −6.7 against −12.7. Forte follows Iowa's anechoic Steinway (§10),
+whose treble prompt sound is fast (C5 −24 dB/s); Keyscape's (a close-miked Yamaha C7, pedal-down
+samples) sings on.
+
+**What doesn't do it.** A more uneven strike or a wider unison spread (numpy unison model on
+E5/C6's fitted rates) moves the knee only to ~−15 dB: the energy goes into the out-of-phase
+modes, which barely move the bridge. Moving the prompt rate towards the aftersound's (by 0.4 or
+0.2 from G5 up) closes about 6 of the 14 dB on fundamentals and nothing on the upper partials,
+which are mostly single-stage.
+
+**What does** (all on felt ×0.5, ε 0.8, board-brighter; voicing overrides on top of the fit, as
+SPEC §3.2's per-note decay offsets; renders in `build/ab/treble/<piece>/`, level-matched to
+`current.wav`). Level at 0.6-1 s re the strike, pedal down unless stated:
+
+| Render | G4-F#5 p1 | G4-F#5 p2 | G5-D#6 p1 | G5-D#6 p2 | E6+ p1, pedal change |
+|---|---|---|---|---|---|
+| Keyscape | −5.5 | −8.8 | −16.0 | −6.7 | −15.8 |
+| current | −19.8 | −14.3 | −20.3 | −12.7 | −23.9 |
+| sympathetic ×3 | −15.5 | −11.5 | −20.2 | | |
+| treble decay ×0.5 (every rate, blended in from C4 to G5) | −16.0 | −11.8 | −19.1 | −8.8 | −23.0 |
+| treble decay ×0.5 + sympathetic ×3 | −12.5 | −10.7 | −18.8 | −8.9 | −23.1 |
+| … + treble dampers ×0.3 | −12.5 | −10.7 | −18.9 | −8.9 | −14.2 |
+
+The pedal-down halo (the sympathetic bank, a placeholder level) is part of the fullness: ×3
+adds 3-4 dB to the high notes' tails. Forte's dampers stop high notes as hard as middle ones
+(160-250 dB/s); real treble dampers are small and weak, so a pedal change only partly stops
+them. Weaker treble dampers recover 9-13 dB from E6 up and 1-3 dB at G5-D#6. Whole-piece band
+shares move by under 1 dB in all of these.
+
+**By ear:** "a little better but it's subtle"; the Forte versions are hard to tell apart. The
+high notes now "sound a little too much like a bell and less like a piano … like a metal bell",
+"not a smooth sound like what Keyscape offers", "wirey". Sustain is long enough.
+
+### 13. Single-note references (2026-11-15)
+
+Pieces can't separate the candidates any more (pedalled overlap, the reference's drift), so the
+next comparison is note by note: `tools/fitting/make_note_sweep.py` writes every note at
+velocities 32/64/96/127, 3 s held, 2 s apart, no pedal (29 min;
+`build/ab/single-notes/note-sweep.mid`, with Forte's render `forte-current.wav` beside it). The
+user renders it through Keyscape. Candidates for "metal bell" and "wirey" in the high notes,
+each measurable per note against it:
+
+1. Inharmonicity: the seed's B curve (1.6e-3 at C6, 4e-3 at C7) is unmeasured; too much stretch
+   is what makes a bell sound metallic.
+2. Too clean: Forte's high notes are pure partials with smooth exponential envelopes, without the
+   knock, the board's thump and the slight wavering that a real treble note carries (the plan's
+   mechanical-noise step).
+3. Upper partials ringing on (board-brighter, the treble decay override) where the reference's
+   high notes settle to their first partials.
+4. The unison's ~1 Hz beating in the treble at the fixed spread.
+
+**Keyscape's render** (`C:\Users\sam\Downloads\note-sweep-keyscape.wav`, 48 kHz, kept locally):
+no drift against the MIDI. Ten notes at velocity 127 clip (the render peaks at 0 dBFS), so
+strikes are compared at 64 and 96. Note by note at velocity 64, against Forte's current voicing
+(felt ×0.5, ε 0.8, board-brighter):
+
+1. **Inharmonicity is not it.** Keyscape's B is *higher* than Forte's from C3 up (C4 3.3e-4
+   against 2.6e-4, C5 9.5e-4 against 6.3e-4, B5 2.6e-3 against 1.4e-3).
+2. **Upper partials ringing on is not it**: from A5 up Forte's die faster than Keyscape's.
+3. **Forte's high notes ring too long.** Keyscape's fundamental is 41 dB down after 1-2 s at
+   A5-F6, 35 at Gb6-D7, 54 at Eb7-C8; Forte's ~20 dB on every note above C5 (they borrow A5's
+   rates; Iowa stops at C6). A pure tone ringing on: the "metal bell".
+4. **Forte's strike has no knock.** The share of the strike's energy between the partials
+   (first 50 ms): Keyscape −15 to −16 dB from C4 to F6, −6.4 at Gb6-D7, −1.1 at Eb7-C8 (the top
+   octave's strike is mostly knock); Forte −17 to −21 everywhere. The likeliest "wirey".
+5. In the bass, Keyscape's partials 2-6 sit 15-37 dB *above* its fundamental at A0-Eb1 (Forte
+   3-8): the growl Iowa showed (§4), for later.
+
+**Two changes, tuned on sweep renders** (medians per register at velocity 64, dB):
+
+- **Knock:** a new note parameter, `knockLevel`: while the hammer touches the strings, its force
+  × knockLevel also goes straight to the bridge, so the board turns the impact into a thump.
+  Scales with velocity by itself; each note's f0/2 high-pass keeps the treble's knock bright.
+  Off by default (uncommitted).
+- **Faster treble decay:** every rate × k, k = 1 at D5, 2.5 at C6, 2.0 from C7 (a temporary A/B
+  override).
+
+| Register | p1 at 1-2 s: Keyscape / current / both | strike noise share: Keyscape / current / both |
+|---|---|---|
+| C4-B4 | −29.1 / −30.2 / −30.3 | −15.1 / −18.8 / −13.5 |
+| C5-Ab5 | −26.5 / −24.3 / −29.4 | −15.0 / −20.3 / −16.4 |
+| A5-F6 | −41.4 / −20.9 / −36.8 | −16.2 / −21.5 / −16.8 |
+| Gb6-D7 | −34.7 / −19.7 / −35.2 | −6.4 / −17.3 / −6.3 |
+| Eb7-C8 | −53.7 / −29.4 / −85.1 | −1.1 / −17.4 / −2.9 |
+
+("both" = decay ramp + knock 0.7. Knock 0.5 is closer at C4-B4, −14.8, but short in the treble,
+−9.1 at Gb6-D7; the knock may want to rise along the keyboard. The top octave now dies too fast
+after a second.) Listening excerpts from C5 up, level-matched to Keyscape, in
+`build/ab/single-notes/high-notes/`.
+
+**By ear:** the 12-minute excerpts were too long to compare; the user moved to pieces (§14).
+
+### 14. Keyscape as the target (2026-11-16)
+
+The user stopped listening to Iowa: Keyscape "is clear, smooth, rich, and deep. It's perfect",
+Forte "more like an old 80s electric grand, or some kind of general midi patch". Forte is for
+personal use, so numbers fitted from the user's Keyscape renders are committed (SPEC §3.1). Their
+renders are dry, with Keyscape's default tape saturator on. New pieces: Autumn Leaves (its MIDI
+plays every note twice on two channels, panned and ±2 cents bent, with CC7 = 127; a clean copy is
+`build/ab/autleave/autleave-clean.mid`) and a Chopin prelude. The comparison scripts are in
+`tools/fitting/analysis/` (README there). The findings, in the order they changed the sound:
+
+- **Plasticky at forte (Autumn Leaves, median velocity 82 against Yesterdays' 55):** not the
+  hammer at first sight. Keyscape's partials rise in decay rate with frequency (C4: 2.1/s at the
+  fundamental to 5.0/s at partial 10); Iowa's and Forte's didn't. A first Keyscape-fitted prompt
+  rate (the 3 s sweep, Iowa's aftersound kept) brought C3-C4's partial balance within a few dB.
+- **Honk is in the ringing, not the strike** (the user: "nasal/honky, like an amped electric
+  guitar", whole note, single notes, everywhere). The soundboard (`no-soundboard` was worse),
+  Keyscape's inharmonicity (no audible change), wider unisons ("wild") were ruled out by ear;
+  softer felt and a capped hammer speed both helped.
+- **The knock**, fitted first to the attack's low bands, was intrusive next to Keyscape. Refit to
+  the attack crest factor: none up to C4 (the strings alone match Keyscape's), 0.14 at F#5, 0.45
+  at F#6, 0.6 from D7, through a 150 Hz low-pass and past the note's high-pass (the high-pass had
+  been removing the thump).
+- **Felt per register** from a 3 × 3 grid (scale 0.5/0.25/0.12 × ε 0.9/0.6/0): the bass doesn't
+  care; the middle prefers small differences; from F#6 an elastic felt (ε 0) matches the strike's
+  partials 2-6 2-3× better (the stiff onset was a metallic zing).
+- **Inharmonicity** set to Keyscape's (half the seed's in the low bass, 1.2-1.8× above the tenor).
+- **Colour:** a per-region third-octave curve fitted from the single notes (two passes, noise-masked,
+  level-neutral, ±8 dB), `data/model/board-colour.json`.
+
+### 15. The long sweep, the velocity response, the glassy ring (2026-11-16)
+
+- **Long sweep** (`make_note_sweep.py --hold 11 --gap 2`, rendered by the user): both decay stages
+  of every partial now fit Keyscape to 10 s; Iowa is out of the decay. The lowest notes (A0-C1)
+  barely decay in it, so they sit at the fit's floor (0.12/s); the engine's tail is now ~127 s.
+- **Brightness per velocity** was far too steep: against Keyscape, 1-8 kHz over the whole note
+  was 9-14 dB too dark at velocity 32 and 2-7 dB too bright at 127. A felt that hardens less
+  (exponent −1) made everything darker. The contact speed exponent 0.5 (the felt meets
+  mf·(v/mf)^0.5, loudness from the real blow) flattened it to within ~7 dB at every velocity;
+  +4.5 dB above 1 kHz on the colour made up the rest. The user preferred the strong tape (drive 8).
+- **Glassy, metallic ring in the high notes, as they ring on, from the middle up** (the user, asked
+  to choose). Two causes, both in the decay. The fit chased Keyscape's fast first dip with prompt
+  rates whose aftersound the fixed 0.7-cent spread can't hold (C7's fundamental at −72 dB by
+  0.3-0.6 s, Keyscape −22), leaving partials 2-4 alone; and uncoupled detuned strings beat into a
+  plateau at 0.5-1.4 s (a ring) where Keyscape's partials fall smoothly. Fixed by weighting the
+  fit to 0.25-2.4 s, capping prompt/aftersound at 3, and narrowing the unison spread from C4 up
+  (× 0.35 at E5, × 0.15 from E6; the fit's rms on the worst treble partials dropped from 10-16 dB to
+  4-9 dB). C5-B6's fundamentals now track Keyscape's at 1-2 s within 1-6 dB.
+- **Still there, by ear:** "a little honky up high", "the string resonance sounds much closer to a
+  CP-70 than a proper grand", "a cheap tinny sound in the resonance of the string, mostly in the
+  higher notes; lacks depth". Turning the board's pickup-like direct path down (0.25, 0) changed
+  the overall quality but not that. Whole pieces are still 5-10 dB short of Keyscape at 1.3-3.2 kHz
+  though the single notes match: pedal resonance, the tape at Keyscape's much higher internal
+  level, or the board.
+- **Next:** the user voices the model by ear in the plugin: the voicing lab (SPEC §6.5). Then the
+  future tickets, biggest first: a calibrated soundboard (SPEC §3.4; the seed board is 0.42 s of
+  random modes plus a pickup-like path), per-note stereo, sustain-pedal resonance against
+  Keyscape, per-note unisons that vary like a real piano's, the bass growl (Keyscape's low bass
+  has partials 2-6 15-30 dB over the fundamental), Keyscape's velocity loudness, release sounds,
+  and C7+ notes reaching the −100 dBFS resting level after about a second.
+
+### 16. The voicing lab (2026-11-16)
+
+- **Built** (SPEC §6.5, commits 742fe4f to step 7): 18 Lab parameters in the host, the hammer on
+  the next strike, the strings on a note's next strike from rest, the board as a crossfade to
+  rebuilt IRs, tape at once; Export voicing; `tools/fitting/fold_voicing.py` folds an export into
+  the committed voicing (a rehearsal fold matched the lab's render within ±0.12 dB per
+  third-octave band). At every 50, renders are bit-identical to dabb951's in Debug and Release.
+- **Costs** (88-key sustain glissando, 128-sample blocks, Release, SSE2 build, net of startup):
+  dabb951 8.4-8.5% at 48 kHz, the lab at 50 8.6%, every control at 0 5.3%, at 100 9.4%, the
+  costliest mix (lowest inharmonicity, longest rings, softest and heaviest hammer) 9.2%; at
+  96 kHz 21.2%, 20.3% and 21.9%. The gate is 25% / 50%. Rebuilds run off the audio thread: all
+  88 notes' strings in ~7 ms, the board in ~160-215 ms.
+- **Found on the way:** the board's colour is a zero-phase EQ, and on the direct path (an impulse
+  at tap 0) its acausal half is cut off, so the direct path doesn't get the fitted curve: the
+  middle and treble regions' 3-6 kHz cuts (−3 to −3.5 dB asked) come out +3 to +4 dB, the
+  treble's 150-300 Hz −3.8 as +3.9. A/B'd on Autumn Leaves and the Chopin prelude against a
+  minimum-phase colour (the direct path then gets the curve exactly; whole pieces +2 dB at
+  1-3.5 kHz, closer to Keyscape's band shares, Chopin −2 dB below 250 Hz): the user found the
+  difference very subtle and kept the current one, so it isn't the "tinny" treble. The lab's colour shelves and
+  board tilt inherit the generator's normalisations: boosts reach about half their dB, the tilt
+  moves the top less than its slope, and a Mid cut is partly given back everywhere else.
+
+### 17. The tuner and the Lab view (2026-11-16)
+
+- **The default sound now has stretch tuning.** The tuner (SPEC §5) sets every note from the
+  Keyscape-fitted B. The calculated curve, Stretch 50, runs from −8.6 cents at A0 through −1.3 at
+  A3 and +4.6 at C6 to +30 at C8. Everything voiced before this was in plain equal temperament,
+  which is Stretch 0 exactly (`forte-render --control stretch=0`, or the Stretch knob in the
+  Advanced view). The bass is shallow next to a typical Railsback curve (often −15 to −30 at A0)
+  because the fitted bass B is about half the old seed's. Whether Keyscape's own tuning sits
+  closer is still to be measured from the sweep.
+- **The lab is the editor's third view** (SPEC §6.5): knobs per register, physical values, the
+  focused control across the keyboard with draggable anchors, and a Lab | Committed A/B.
+
+### 18. The twang that grows, the dull strike, the bass fundamentals (2026-11-16)
+
+The user: the tone is "5/10" to Keyscape's 10, "more like a harpsichord mixed with a piano",
+"string-y rather than bell-y"; a metallic twang comes in 1-2 s into a note, more at higher
+velocity (85-127), mostly around C4; high notes weak with no presence; the whole instrument
+wants more air. Measured on the long sweep (`build/ab/diagnose/`; Keyscape's long render starts
+2.25 s after the schedule):
+
+- **The upper partials barely decayed.** The decay fit read Keyscape's faint upper partials near
+  its hiss as ringing: C4's partials 25-32 at 0.15-0.37/s (slower than the fundamental's 1.2), b3
+  at its 1e-9 floor everywhere, several C5+ partials at the 0.12/s floor. So the note grew
+  brighter as it rang (C4-B4's 5-16 kHz share −50.7 dB at the strike, −39.3 at 1-2 s; Keyscape
+  −51.8, −56.2): the growing twang, and the harpsichord's even decay. Measured only while 25 dB
+  over its hiss, Keyscape's partials follow σ ≈ b1 + b3·f² with b3 ≈ 4e-8 at C3, 1e-7 at C4,
+  1.1-1.5e-7 at C5-C6. **Fix:** `fit_decay.py floor`, a physical floor on every partial's prompt
+  and aftersound rate with those b3s, never shortening a fundamental. C4's 5-16 kHz share at 1-2 s
+  is now −93 dB.
+- **The strike was dull where the felt had been softened** (felt scale 0.12-0.15 at C3 and C5-C6,
+  likely against the twang that was really the decay): partials 4-15 at the strike 7-65 dB under
+  Keyscape's, the high notes nearly sine waves. The user's lab tries agreed (harder felt, less
+  spike, heavier hammer, more pickup). **Fix:** `VOICING` in `fit_hammer.py` to 0.15 at C2-G#2,
+  0.5 C3, 0.6 G3, 0.7 C4, 0.6 F#4-C6, 1.0 from F#6. C5-E5's strikes now match Keyscape's within a
+  few dB; G5-C6 are closer but their partials 8-15 still fall short.
+- **The low bass's fundamentals were too strong:** Keyscape's A0-B1 partials 2-3 sit ~34 dB over
+  the fundamental, Forte's ~10 (the colour already sat at its −8 dB limit at 40-63 Hz). **Fix:**
+  `radiationCornerHz` = 65, a 4th-order high-pass weight on each partial's bridge output (A0's
+  fundamental −27 dB, F1's −14, C2's −3).
+- **Tape:** at drive 8, loud notes are compressed by ~2 dB at v96 and ~4 dB at v120 at the attack
+  (C4). A candidate for the "harpsichord shortly after the attack" that's left as the user's
+  choice (Tape drive in the lab).
+- **Still open:** C4-E4's partials 2-3 are ~12 dB under Keyscape's against the fundamental at the
+  strike and later (not the hammer: unchanged by the felt); Keyscape's treble fundamentals drop
+  fast while partials 2-3 ring on (the bell), Forte's hold the fundamental.
+
+Autumn Leaves, whole piece against the old build: same level, 1-3.5 kHz +2.3 dB (Keyscape's
+share, −13.5, now matched), above 4 kHz +3.3 dB, below 250 Hz −0.6 dB.
+
+### 19. The board without a pickup, and a room (2026-11-16)
+
+After §18 the user: "noticeably better", the twang gone, the high notes the best yet, but the whole
+instrument "sounds like an electric grand". Their lab moves all pointed away from a pickup (Pickup
+0.15, Board tilt −4, Colour mid −6.5, Tape 3.7, softer felt, heavier hammer), and they asked for a
+room.
+
+- **What makes it a pickup:** the seed board's direct path, the bridge force straight to both
+  channels, dominated at 0.5. Without it the prototype's modes sounded hollow and peaky (§3): their
+  density fell as f^-0.5 above 1.1 kHz, so the treble had few, isolated modes.
+- **A left/right coherence comparison** (Forte's channels far more alike than Keyscape's above
+  1 kHz) turned out not to measure the board: a partial through any two fixed filters stays fully
+  coherent, and Keyscape's low numbers there are mostly its two microphones' independent hiss.
+  Not used.
+- **The board now:** direct gain 0.1, a +30 dB minimum-phase shelf at 400 Hz on it (the bass came
+  through the direct path, the modes' radiation corner being 500 Hz), mode density constant above
+  1.1 kHz (`TREBLE_DENSITY_EXPONENT` 0), tilt 6 dB/octave. Autumn Leaves dry against Keyscape,
+  third-octave long-term spectrum: 100-400 Hz within ±2.3 dB (it was 5-13 dB short with the direct
+  path simply turned down), 5-8 kHz within ±3.5 dB, 1.3-2.5 kHz still 3-7 dB short and 1 kHz +7
+  (the committed colour's bumps, fitted to the old board).
+- **The colour refit didn't converge:** the single-note colour fit asked, pass after pass, for −6 dB
+  at 1-4 kHz in the tenor and +6 above 6.5 kHz everywhere, until the curve sat at its ±8 dB clamps.
+  Part of it was the tenor's decay floor (raised from 4e-8 to 7e-8 at C3, `fit_decay.py`); the rest
+  was the fit chasing high partials that decay away, which an EQ can't restore. The committed
+  colour is kept; single notes and whole pieces disagree, and §18's pieces matched Keyscape.
+- **The room** (SPEC §2.11): early reflections and an 8-line modulated FDN after the tape, with six
+  automatable controls, six room presets and the room in every preset; Room 0 is the dry piano bit
+  for bit. The engine alone is dry; the plugin defaults to Studio. Under a point of CPU.
+
+### 20. Thin at mid-to-high velocities (2026-11-16)
+
+The user, on §19: "pretty darn good at lower velocities", but from mid to mid-high velocity it goes
+"thin … more like a very pure guitar tone than a piano tone"; maybe the hammer, maybe not.
+
+Partial balance per velocity on the 3 s sweeps (`velspec`-style: partials 2-3, 4-7, 8-15 re
+partial 1, strike 5-80 ms, medians per octave). At C4-B4 before the fix:
+
+| C4-B4 | Keyscape | Forte (§19) |
+|---|---|---|
+| level v64 → v96 / → v127 | +7.2 / +17.3 dB | +4.7 / +11.5 |
+| partials 4-7 at v64 / v96 | −9.9 / −7.8 | −17.3 / −15.9 |
+| partials 8-15, v32 → v127 | −54 → −17 | −44 → −24 |
+
+pp matched; from mf up Forte didn't get louder or brighter enough, and partials 4-7 were ~7 dB
+short at every velocity from mf. What moved partials 4-7 at C4: felt ×2 (+2 dB), hammer ×0.76
+(+2), strike position 0.12 → 0.10 (+0.4), the tape off (nothing; the tape isn't what holds the
+loudness down either, +0.7 dB at v127). **The bare strings** (`forte-string-probe`, no board) give
+partials 4-7 at −9.2 dB at v64, Keyscape's −9.9: the hammer and strings were right, the board
+stage lost ~8 dB there. The whole-note colour fit (`colour_fit.py`) had hidden it: in the same
+1-2 kHz band the octaves of higher notes were louder than Keyscape's.
+
+- **Colour from partials:** `tools/fitting/analysis/partial_colour.py` fits the per-region colour
+  from each partial's level against Keyscape's (5-400 ms, v64/96, each note normalised), pooled
+  by frequency. Two passes, then residuals within ±2 dB.
+- **Loudness:** hammer speeds ff 4.5 → 6.5 m/s (velocity 112), the cap 8 → 11 (`fit_hammer.py`).
+- **Velocity brightness:** contact speed exponent 0.5 → 0.8.
+- **C5-C6 felt** softened (0.6 → 0.35 at C5, 0.45 at C6): they came out 5-6 dB too bright at v96.
+
+After, C4-B4: level +7.2 / +14.9 dB at v96 / v127 (Keyscape +7.2 / +17.3); partials 4-7 at v64,
+v96, v127 −14.9, −11.2, −8.7 (Keyscape −9.9, −7.8, −9.0); partials 8-15 at v96 / v127 −24.9 /
+−18.5 (−26.0 / −16.8); at v32 now darker than Keyscape above partial 8. C5-B5 within ~3 dB at v64
+and v96. Autumn Leaves (dry): 1.3-2.5 kHz 2-4 dB closer to Keyscape, but 3-8 kHz now 0-7 dB over
+it (loud notes brighter); Velocity brightness in the lab is the knob if loud passages sound edgy.
+
+## Plan
+
+How to get bright + full + shimmer + rumble without twang. Twang and brightness live in different
+places: twang is a loud, lingering 0.5–3.5 kHz layer over a weak fundamental; brightness and shimmer
+are high partials (4–12 kHz) that flash at the strike and fade, over a strong fundamental. So:
+
+1. **Felt set by ear (§7); the fit against Iowa didn't work by ear (§6).** **Hammer and felt fit (SPEC §3.3), with the felt's hysteresis.** Fit stiffness, exponent and
+   hysteresis per note, plus the velocity calibration, against Iowa pp/mf/ff (C2/C4/C6) and mf
+   (all notes), measuring the strings without the board. Felt hysteresis is the key extra freedom:
+   a felt that is stiffer the faster it's compressed (Stulov) has a steep spectrum through the mids,
+   with the high tail of a short, hard contact: the brightness without the twang. The seed's
+   hysteresis (1e-5 s) is effectively off. Smooth across keys; check C8 still speaks. Brings the
+   fundamental forward (bell) at every dynamic.
+2. **Decay fit, done pending the ear (§10).** **Decay fit (SPEC §3.3).** Per-partial decays from Iowa mf, the law only above the measured
+   partials. Needs the engine to take measured per-partial decays (the model file plan already lists
+   "measured partials"). Fixes the fundamental decaying 2× too fast and the upper partials
+   lingering, and makes the high partials flash rather than ring: the shimmer.
+3. **Board calibration (SPEC §3.4).** The direct/modal mix (around 0.5, the user's choice for
+   clarity), weaker radiation of the lowest fundamentals (growl from the overtones), board modes up
+   to ~10 kHz so the board can carry the new high partials, and less single-overtone pick-out
+   (denser modes or smaller modal swings). Rumble from a low-corner (80–120 Hz) lift and the
+   lowest modes, not the low mids.
+4. **Then taste.** Re-listen with all three in place before any further voicing. Candidates:
+   Brightness's default, rumble amount, the sympathetic bank (a detuned version, 12 partials × the
+   unison's strings, was tried once and is an option for shimmer), output gain.
+
+Order matters: the board and taste steps are only judgeable once the strings are right.
+
+After §9, step 3 grows: against Keyscape the biggest gaps are the board's (its low modes, its
+10-17 dB tilt above 3 kHz at direct 0.5) and the missing room, which sustains every band alike.
+A first room (early reflections, a ~1 s tail) in the Listening perspectives is worth trying
+before more string work; the spec has no room yet.
+
+## Where things stand
+
+Since §15 the committed voicing is the user's "glass-fix" (2026-11-16), fitted to Keyscape:
+
+- **Felt:** `fit_hammer.py voice` with `VOICING` (per-register scale and ε), through
+  `data/model/hammer.json` and `engine/src/HammerFit.inc`. Speeds: the seed's. Contact speed
+  exponent 0.5 (`PianoModel.cpp`).
+- **Decay:** `fit_decay.py measure-sweep <long sweep wav> --hold 11 --gap 2` →
+  `data/reference-measurements/keyscape-decay.json`; `fit_decay.py fit` and `build` →
+  `data/model/decay.json`, `engine/src/DecayFit.inc`. The fit's `SPREAD_KEYS`/`SPREAD_SCALES`
+  must match `PianoModel.cpp`'s per-note spread.
+- **Inharmonicity, knock, spread, tape:** in `PianoModel.cpp` (`seedNote`, `makeSeedPianoModel`).
+- **Board:** `make_seed_irs.py` with board-bright's settings, the direct gain (per region) and
+  tilt in `data/model/board.json` (0.5, 8), and `COLOUR_FILE` = `data/model/board-colour.json`.
+- **Voicing lab folds** (§16): `data/model/voicing-overrides.json` on top of all of the above,
+  through `engine/src/VoicingOverrides.inc`; its revision counts the folds (0: none yet).
+
+Before §14, the values to reproduce what was heard:
+
+- **Felt:** before step 1, a uniform multiplier on `feltStiffness` in `seedNote()`. ×2 was "harder
+  felt"; ×0.25 removed the twang but sounded like a closed lid. Step 1's A/B variants were Q0 ×2
+  (`fit-harder`) and ×0.5 (`fit-softer`) on every row of `HammerFit.inc`. §7's variants changed
+  `FELT_SCALE`, `RELAXATION` and `RELAXATION_TIME` in `fit_hammer.py`.
+- **Decay:** before step 2, the seed laws in `seedNote()` (prompt T60 20 s at A0 to 2 s at C8,
+  c3 1.5e-7, aftersound 4× slower, no measured partials). §10's partials-1-3 variant capped
+  `numMeasuredPartials` at 3 with those laws above.
+- **Output gain:** `model.outputGain` 1.35e-2 instead of 5.6e-3 (+7.6 dB). Check that single
+  velocity-127 notes stay below 0 dBFS (the hammer stability test checks it).
+- **Board** (`tools/seed-irs/make_seed_irs.py`, all at prototype values now):
+  - "fuller board": `RADIATION_CORNER_HZ` 250, `STATISTICAL_MODES_FROM_HZ` 80;
+  - "board #9": `DIRECT_LOW_SHELF_DB` 12, with `DIRECT_GAIN` 0.5 (now `board.json`) the user's favourite for clarity;
+  - "board-bright" (§11): board #9 plus `MODE_TILT_DB_PER_OCTAVE` 6, `MODE_ROLLOFF_HZ` 12000.
+
+  Regenerate with `python tools/seed-irs/make_seed_irs.py`, then rebuild (the IRs are embedded).
+
+The measuring tools are in `tools/fitting/` (see its README), including a string probe that renders
+note models without the soundboard.

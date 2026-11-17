@@ -23,10 +23,13 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(ForteCompileOptions)
 include(ForteRealtimeRules)
 
+add_subdirectory(tools/embed)
 add_subdirectory(engine)
 add_subdirectory(bridge)
 add_subdirectory(plugin)
 add_subdirectory(tools/forte-render)
+add_subdirectory(tools/editor-snapshot)
+add_subdirectory(tools/fitting/probes)
 
 if(FORTE_BUILD_TESTS)
     enable_testing()

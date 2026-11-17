@@ -1,9 +1,9 @@
 // Tier 1 engine checks (SPEC §8.1) that run inside the unit-test executable. They're never
 // waivable. The determinism check also runs end to end through forte-render (tests/CMakeLists.txt).
+// Live changes are checked here under automation, and in PresetTests.cpp on a preset change.
 //
 // Still to come, as the parts they check arrive:
 // - Velocity calibration: needs each note's fitted pp/mf/ff loudness (SPEC §3.3).
-// - Live changes: needs the parameters (SPEC §2.9).
 // - State compatibility: needs the saved state and the previous release's fixtures (SPEC §7.3).
 
 #include "support/EngineRender.h"
@@ -92,6 +92,44 @@ TEST_CASE ("Renders are bit-identical whatever the block size", "[tier1][determi
         INFO ("block size " << blockSize);
         CHECK (renderFresh (events, length, blockSize).left == reference);
     }
+}
+
+TEST_CASE ("Automation while notes ring causes no level drop and no click", "[tier1][controls]")
+{
+    // SPEC §2.9, §8.1: every sound control but Volume moves at once, mid-chord, with the pedal
+    // down. Ringing notes keep sounding and nothing steps.
+    const std::vector<TimedMidi> chord { controller (0, 64, 127), noteOn (0, 33, 100), noteOn (0, 52, 90),
+                                         noteOn (0, 60, 80), noteOn (0, 76, 80), noteOn (0, 91, 70) };
+    constexpr std::int64_t at = second / 4, length = second;
+
+    forte::Controls moved;
+    moved.hardness = 80.0;
+    moved.touch = 30.0;
+    moved.brightness = 60.0;
+    moved.resonance = 70.0;
+    moved.width = 70.0;
+    moved.tuning = { 442.0, 70.0, 60.0 };
+
+    forte::Engine engine;
+    engine.prepare (48000.0, 128);
+    auto changed = render (engine, chord, at);
+    engine.setControls (moved);
+    const auto rest = render (engine, {}, length - at);
+    changed.left.insert (changed.left.end(), rest.left.begin(), rest.left.end());
+
+    const auto steady = renderFresh (chord, length).left;
+
+    float changedStep = 0.0f, steadyStep = 0.0f;
+    for (auto i = at - 1000; i < at + 6000; ++i)
+    {
+        const auto n = static_cast<std::size_t> (i);
+        changedStep = std::max (changedStep, std::abs (changed.left[n] - changed.left[n - 1]));
+        steadyStep = std::max (steadyStep, std::abs (steady[n] - steady[n - 1]));
+    }
+
+    REQUIRE (allFinite (changed.left));
+    CHECK (changedStep <= 1.5f * steadyStep);
+    CHECK (rms (changed.left, at, length) > 0.7 * rms (steady, at, length));
 }
 
 TEST_CASE ("Two renders of the same events are bit-identical", "[tier1][determinism]")

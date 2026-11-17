@@ -154,9 +154,11 @@ TEST_CASE ("CC120 (All Sound Off) silences everything at once", "[midi]")
     CHECK_FALSE (allZero (slice (out, 0, at)));
     CHECK (allZero (slice (out, at, second)));
 
-    // Nothing is left behind to colour the next note.
-    CHECK (slice (play ({ noteOn (0, 60, 110), controller (at, 120, 0), noteOn (at + 100, 64, 90) }), at + 100, second)
-           == slice (play ({ noteOn (at + 100, 64, 90) }), at + 100, second));
+    // Nothing is left behind to colour the next note. The first key is let go and its damper
+    // has come down, or its sympathetic bank would rightly ring with the next note.
+    const std::int64_t next = at + second / 20;
+    CHECK (slice (play ({ noteOn (0, 60, 110), controller (at, 120, 0), noteOff (at, 60), noteOn (next, 64, 90) }), next, second)
+           == slice (play ({ noteOn (next, 64, 90) }), next, second));
 }
 
 TEST_CASE ("CC121 (Reset All Controllers) sets the sustain pedal up", "[midi][pedal]")

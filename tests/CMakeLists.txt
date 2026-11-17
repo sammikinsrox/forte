@@ -31,16 +31,32 @@ target_sources(forte_tests PRIVATE
     support/EngineRender.h
     AudioThreadGuardTests.cpp
     BridgeTests.cpp
+    ControlsTests.cpp
     EngineTests.cpp
+    InstructionSetTests.cpp
     MidiTests.cpp
+    NoteModelTests.cpp
+    PresetTests.cpp
+    RoomTests.cpp
+    SoundboardTests.cpp
+    SympatheticBankTests.cpp
     Tier1Tests.cpp
-    VelocityCurveTests.cpp)
+    TunerTests.cpp
+    UnisonModesTests.cpp
+    VelocityCurveTests.cpp
+    VoicingLabTests.cpp
+    # The plugin's voicing export and presets, which are plain JUCE core and the engine.
+    ${PROJECT_SOURCE_DIR}/plugin/src/Presets.cpp
+    ${PROJECT_SOURCE_DIR}/plugin/src/VoicingExport.cpp)
+add_dependencies(forte_tests ForteBuildCommit)
 
 # The engine's own headers too, so DSP parts (the velocity curve, the piano model) can be
 # tested directly.
 target_include_directories(forte_tests PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
-    "${PROJECT_SOURCE_DIR}/engine/src")
+    "${PROJECT_SOURCE_DIR}/engine/src"
+    "${PROJECT_SOURCE_DIR}/plugin/src"
+    "${PROJECT_BINARY_DIR}/plugin/generated")
 
 target_compile_definitions(forte_tests PRIVATE
     JUCE_USE_CURL=0
@@ -162,6 +178,9 @@ if(FORTE_PLUGINVAL_EXE)
     set_tests_properties("pluginval: VST3 at strictness 10" PROPERTIES
         LABELS "pluginval"
         TIMEOUT 900
+        # pluginval flips every parameter, Export voicing too: don't overwrite the user's
+        # Documents/Forte/voicing.json (SPEC §6.5).
+        ENVIRONMENT "FORTE_NO_VOICING_EXPORT=1"
         # Belt and braces: pluginval reports a skipped validator as success.
         FAIL_REGULAR_EXPRESSION "Skipping vst3 validator")
 endif()

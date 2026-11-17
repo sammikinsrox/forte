@@ -1,0 +1,414 @@
+{
+ "about": "Iowa Steinway attack measurements for the hammer fit (tools/fitting/fit_hammer.py, hammer_measure.py has the definitions). Derived numbers only: no reference audio.",
+ "window": "max(0.15 s, 8 periods) from the strike, Hann",
+ "noise_floor_margin_db": 10.0,
+ "prominence_db": 6.0,
+ "notes": {
+  "C2": {
+   "midi": 36,
+   "pp": {
+    "reference_db": 10.91,
+    "bands_db": [-16.58, -38.44, -60.71, null, null],
+    "partials_db": [-21.45, -9.21, 3.87, -1.67, 0.16, 1.08, -0.32, -16.54, -22.06, -21.4, -13.87, -16.63, -13.11, -25.22, -24.72, -31.04, -46.6, -37.45, -43.82, -51.84, -38.47, -43.33, -38.44, -42.62, -55.0, -47.65, -55.78, -53.26, -46.38, -42.37, -44.36, -64.49, -65.3, -63.35, -68.43, null, null, -60.62, -60.79, -60.56, null, null, null, -55.89, null, null, null, null, null, null, null, null, null, null, null, -68.16, -64.6, null, null, null, null, -69.16, null, null, null, null, null, null, null, -58.02, null, null, null, null, null, null, -68.38, null, null, -70.26, null, null, null, -69.41, null, null, -61.67, -66.88, null, null, null, null, -68.74, null, null, null, null, null, null]
+   },
+   "mf": {
+    "reference_db": 25.09,
+    "bands_db": [-12.89, -17.37, -42.66, null, null],
+    "partials_db": [null, -10.9, 1.61, -2.78, -1.08, 2.29, 1.6, -13.79, -14.86, -13.8, -7.19, -12.0, -4.08, -16.33, -12.49, -17.37, -27.0, -26.39, -26.43, -24.27, -16.75, -17.36, -19.9, -18.85, -27.69, -26.91, -19.99, -26.86, -26.08, -24.89, -27.95, -40.41, -35.37, -58.08, -48.18, -48.07, -50.7, -44.9, -49.51, -45.54, -51.81, -54.62, null, -62.16, -63.39, null, null, null, null, null, null, null, -73.0, -74.28, null, -69.51, -59.5, null, -70.99, -76.27, -78.44, null, null, -73.47, null, null, null, null, null, null, null, null, null, null, -80.57, null, null, null, null, null, -81.04, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
+   },
+   "ff": {
+    "reference_db": 29.64,
+    "bands_db": [-11.1, -13.43, -30.38, null, null],
+    "partials_db": [-21.4, -13.38, 0.9, -2.47, -1.08, 2.18, 2.44, -10.99, -13.84, -13.84, -5.67, -11.21, -2.46, -13.43, -11.0, -14.07, -23.14, -21.08, -29.91, -18.76, -12.64, -11.79, -8.94, -12.07, -23.99, -21.06, -14.69, -22.68, -20.6, -16.57, -19.31, -30.31, -30.29, -51.25, -39.48, -37.28, -38.04, -30.44, -36.67, -35.5, -42.14, -37.25, null, -44.1, null, null, null, null, null, null, null, -59.84, -59.2, null, null, null, null, null, -58.67, -65.71, null, -71.57, -75.41, -71.26, null, -57.54, -75.94, -81.43, null, null, null, -72.24, null, -58.41, -71.81, -76.71, null, null, -80.98, null, null, null, -84.68, null, null, null, -76.52, -85.38, null, -85.48, null, null, null, -86.38, null, null, null, null, null]
+   }
+  },
+  "Db2": {
+   "midi": 37,
+   "mf": {
+    "reference_db": 19.01,
+    "bands_db": [-4.92, -15.83, -39.74, null, null],
+    "partials_db": [-12.89, 2.56, 4.33, -7.63, -9.42, 5.88, 0.23, -13.52, -2.75, -7.14, -7.1, -15.83, 2.24, -3.76, -7.84, -18.43, -25.97, -32.11, -28.86, -15.14, -13.07, -19.12, -29.84, -34.08, -13.83, -41.23, -28.36, -30.66, -21.28, -27.01, -38.74, -35.83, -49.55, -56.69, null, -43.11, -39.74, null, null, null, null, -57.53, null, null, null, -59.05, -60.24, null, -66.99, null, null, -69.63, -72.66, -70.68, -57.92, -63.5, -65.36, null, null, null, null, null, -71.19, -73.2, null, null, null, null, null, null, null, -74.5, null, null, null, null, null, null, null, null, null, null, null, -68.15, null, null, null, null, -75.34, null, null, null, null, null, null, null]
+   }
+  },
+  "D2": {
+   "midi": 38,
+   "mf": {
+    "reference_db": 20.48,
+    "bands_db": [-1.28, -13.66, -39.78, null, null],
+    "partials_db": [-7.35, 4.81, 1.34, -1.3, -0.47, 7.6, 4.29, -8.47, -8.31, -1.28, -6.54, -12.8, -1.48, -3.7, -11.74, -17.33, -34.15, -28.3, -19.37, -13.66, -17.46, -22.18, -21.79, -22.68, -32.71, -35.76, -27.94, -27.95, -33.17, -34.04, -51.56, -49.34, -49.65, -59.43, -64.56, -60.08, -43.8, -47.25, -58.62, -58.59, -59.9, -65.69, -65.55, null, -67.82, -68.78, null, -65.67, null, null, null, null, null, null, null, -76.7, null, null, -68.89, null, null, -73.82, -76.54, -71.79, null, -75.08, -71.52, null, null, null, null, null, null, null, null, null, null, null, null, -77.29, null, null, null, null, null, null, null, -75.97, null, null, -76.62, null, null]
+   }
+  },
+  "Eb2": {
+   "midi": 39,
+   "mf": {
+    "reference_db": 21.1,
+    "bands_db": [-3.93, -12.17, -38.86, -78.11, null],
+    "partials_db": [0.59, -0.68, -0.69, 0.2, 0.41, 7.34, 4.98, -11.96, -5.83, -3.93, -11.14, -5.19, -11.08, -2.32, -3.02, -23.13, -30.94, -13.21, -15.23, -13.44, -18.82, -11.9, -16.77, -17.67, -40.06, -42.72, -26.72, -32.97, -30.2, -38.86, -39.22, -45.54, -54.55, -64.32, null, -58.59, -37.23, -55.54, null, null, null, -62.4, -69.0, null, null, -59.3, null, null, null, -77.51, -78.82, -75.33, -77.29, -73.34, -63.34, -67.03, -71.53, -72.3, -76.07, -78.11, null, null, -70.58, null, null, null, null, null, null, null, null, null, -77.0, null, null, null, null, null, null, -80.42, null, null, null, null, null, null, null, null, null, null]
+   }
+  },
+  "E2": {
+   "midi": 40,
+   "mf": {
+    "reference_db": 16.35,
+    "bands_db": [-4.12, -6.8, -40.91, null, null],
+    "partials_db": [6.91, 2.61, 1.36, -1.99, 11.38, -6.54, 9.04, -12.54, -4.12, 1.57, -3.14, -7.57, 2.2, 1.53, -6.03, -18.35, -18.01, -9.44, -18.39, -19.44, -11.26, -24.74, -17.45, -35.62, -42.82, -39.68, -34.44, -40.91, -54.27, -45.12, -40.68, -42.85, -45.07, -56.13, -45.93, -48.21, -48.15, -64.47, -61.41, -51.51, null, null, null, -70.35, null, null, null, null, null, null, null, null, null, -66.69, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
+   }
+  },
+  "F2": {
+   "midi": 41,
+   "mf": {
+    "reference_db": 30.74,
+    "bands_db": [-17.73, -17.54, -56.77, null, null],
+    "partials_db": [-12.71, 5.95, 2.86, -11.6, -16.04, -17.73, -13.25, -23.76, -22.52, -9.22, -8.47, -20.06, -16.96, -18.13, -12.08, -21.44, -42.78, -22.23, -32.39, -36.79, -37.63, -25.17, -35.71, -35.93, -64.43, -56.35, -57.79, -62.25, -69.15, -56.77, -68.09, null, null, null, null, -71.36, null, null, null, null, null, null, null, -79.06, -72.53, -79.75, -76.66, -71.52, -73.39, -83.22, -75.82, -85.51, -79.02, null, null, null, null, null, null, null, null, null, null, null, -76.91, null, -85.57, -88.72, null, null, -86.64, null, null, null, null, null, null, null, null, null, null, null, null, null]
+   }
+  },
+  "Gb2": {
+   "midi": 42,
+   "mf": {
+    "reference_db": 18.66,
+    "bands_db": [-5.93, -16.36, -51.76, null, null],
+    "partials_db": [-5.66, 7.28, 2.6, -7.46, -16.62, -1.41, -2.4, -9.47, -13.48, -3.2, -6.24, -16.16, -16.36, -18.24, -26.19, -17.99, -32.79, -29.66, -33.57, -38.58, -38.04, -25.53, -44.84, -50.83, -64.8, -68.65, -59.51, -51.76, -68.69, null, null, null, null, null, -56.82, null, null, null, null, null, null, null, null, null, null, -74.07, null, -66.47, -69.05, null, null, null, null, null, null, null, -74.51, null, null, null, null, null, null, null, null, null, null, null, null, null, -75.44, null, null, null, null, null, null, null, null, null, null]
+   }
+  },
+  "G2": {
+   "midi": 43,
+   "mf": {
+    "reference_db": 17.18,
+    "bands_db": [-8.3, -7.54, -40.15, null, null],
+    "partials_db": [-4.6, 10.79, 1.74, -2.96, -14.58, -5.15, -2.09, -11.44, -2.0, 4.28, -5.06, -11.47, -24.92, -7.65, -7.43, -18.71, -29.01, -20.55, -27.63, -27.57, -25.27, -24.56, -34.21, -40.15, -62.04, -40.45, -45.53, -48.32, -57.01, -44.62, -53.29, -48.73, -63.04, -67.05, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, -73.63, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
+   }
+  },
+  "Ab2": {
+   "midi": 44,
+   "mf": {
+    "reference_db": 24.25,
+    "bands_db": [-12.15, -21.2, -46.74, null, null],
+    "partials_db": [-10.55, 1.14, -1.55, -17.78, -10.31, -13.93, -10.36, -24.41, -4.83, -5.03, -28.12, -39.74, -17.29, -17.98, -29.99, -32.56, -29.88, -31.93, -34.78, -33.72, -47.53, -37.19, -45.95, -51.2, -68.46, -51.04, -60.51, -63.03, -59.2, -75.08, -68.56, null, -68.64, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, -79.67, null, null, -77.26, null, -79.19, -78.24, null, null, null, null, null, null, null, null, null, null]
+   }
+  },
+  "A2": {
+   "midi": 45,
+   "mf": {
+    "reference_db": 25.52,
+    "bands_db": [-4.3, -14.29, -47.08, null, null],
+    "partials_db": [-11.48, -0.92, 0.76, -2.68, -12.36, -1.19, -5.92, -14.29, -8.23, -12.83, -22.91, -23.24, -19.24, -13.81, -18.54, -24.65, -32.57, -36.54, -47.08, -52.15, -59.94, -42.9, -39.91, -61.1, -65.37, -47.12, -68.07, -60.47, -79.36, -77.89, -77.29, -68.54, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, -81.97, null, null, null, null, null, null, null, null]
+   }
+  },
+  "Bb2": {
+   "midi": 46,
+   "mf": {
+    "reference_db": 28.24,
+    "bands_db": [-8.3, -13.35, -37.75, null, null],
+    "partials_db": [-16.69, 1.46, -2.21, -7.38, -10.95, -8.3, -9.45, -12.9, -13.37, -13.35, -12.94, -15.38, -22.24, -22.04, -15.31, -23.8, -31.92, -39.13, -37.75, -44.83, -49.16, -31.55, -32.81, -50.32, -63.76, -43.64, -64.24, -64.39, -74.49, null, -58.71, null, -77.89, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, -83.81, null, -84.95, null, -83.65, -84.36, -82.38, null, -83.44, null, null, null, null, null, null]
+   }
+  },
+  "B2": {
+   "midi": 47,
+   "mf": {
+    "reference_db": 28.89,
+    "bands_db": [-11.28, -20.09, -45.33, null, null],
+    "partials_db": [-25.86, 2.6, -7.47, 1.58, -25.69, -11.28, -7.21, -20.48, -32.02, -13.75, -21.09, -19.69, -21.29, -23.64, -35.64, -38.71, -45.33, -53.72, -54.23, -46.59, -46.92, -41.11, -43.91, -77.66, null, -63.28, -60.84, -67.44, -79.85, null, -74.32, null, null, null, null, null, null, null, null, null, null, null, null, -82.01, null, null, null, null, null, null, null, null, null, null, null, -81.65, null, -81.54, null, null, null, null, null, null, null, null, null]
+   }
+  },
+  "C3": {
+   "midi": 48,
+   "mf": {
+    "reference_db": 28.41,
+    "bands_db": [-9.69, -19.86, -42.44, -79.91, null],
+    "partials_db": [-14.61, 2.22, -4.76, -17.88, -8.0, -9.69, 0.18, -21.83, -21.15, -12.39, -19.78, -19.95, -26.02, -15.46, -22.52, -39.94, -47.05, -42.44, -33.68, -43.69, -56.26, -46.79, -51.79, -59.86, -63.83, -54.08, -56.07, -50.24, -59.73, -58.21, -62.94, -70.88, null, -75.47, null, null, -79.91, null, null, null, null, null, -82.69, null, -81.46, null, null, null, null, null, -84.65, null, null, null, null, null, null, null, null, null, null, null, null]
+   }
+  },
+  "Db3": {
+   "midi": 49,
+   "mf": {
+    "reference_db": 28.32,
+    "bands_db": [-10.91, -12.83, -34.92, -85.23, null],
+    "partials_db": [-11.82, 0.0, -4.53, -10.91, -24.19, -2.55, -7.62, -26.02, -6.71, -18.03, -26.74, -25.19, -27.52, -18.24, -23.32, -36.43, -34.92, -44.53, -30.67, -39.52, -53.73, -52.1, -66.17, -71.54, -63.93, -68.48, -72.51, -65.86, -73.64, -71.61, -81.72, -85.51, null, null, null, null, -84.95, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
+   }
+  },
+  "D3": {
+   "midi": 50,
+   "mf": {
+    "reference_db": 28.6,
+    "bands_db": [-10.84, -16.69, -42.24, -75.73, null],
+    "partials_db": [-9.22, 0.0, -12.94, -10.84, -6.75, -4.01, -16.69, -28.34, -14.57, -21.68, -20.75, -23.63, -29.51, -29.13, -33.83, -46.41, -53.64, -42.24, -48.95, -50.61, -49.62, -56.57, -60.67, -67.8, -75.59, -65.4, -66.91, -68.07, -71.9, -69.41, -75.86, -81.29, -84.32, null, -77.17, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
+   }
+  },
+  "Eb3": {
+   "midi": 51,
+   "mf": {
+    "reference_db": 30.56,
+    "bands_db": [-5.17, -16.76, -39.78, -75.37, null],
+    "partials_db": [-6.9, 0.0, -5.17, -4.83, -13.53, -10.42, -16.76, -23.86, -10.58, -21.47, -32.96, -19.95, -29.15, -28.88, -26.34, -47.96, -55.83, -46.59, -49.66, -51.37, -63.66, -53.81, -75.37, -73.56, -67.34, -59.78, -79.07, -72.45, -69.69, -55.93, -79.91, -81.32, null, null, -88.97, null, null, null, null, null, -84.59, null, null, null, null, null, null, null, null, null, -86.1, null, null, null]
+   }
+  },
+  "E3": {
+   "midi": 52,
+   "mf": {
+    "reference_db": 33.68,
+    "bands_db": [-4.84, -17.1, -31.9, -81.68, null],
+    "partials_db": [-5.7, 0.0, -3.87, -5.81, -17.1, -13.71, -10.05, -27.83, -17.97, -28.59, -22.7, -27.21, -27.76, -31.9, -37.07, -46.31, -54.53, -49.86, -54.4, -54.84, -59.54, -61.11, null, -70.84, -72.75, -75.24, -74.39, -81.68, -85.59, null, null, null, null, null, null, -88.84, null, null, null, null, null, null, null, null, null, null, null, null, -94.04, null, null]
+   }
+  },
+  "F3": {
+   "midi": 53,
+   "mf": {
+    "reference_db": 27.39,
+    "bands_db": [-14.44, -13.42, -37.31, null, null],
+    "partials_db": [4.62, 0.0, -19.05, -9.84, -8.31, -13.42, -10.69, -35.14, -36.59, -30.69, -36.5, -36.01, -35.95, -43.88, -38.12, -67.46, -62.5, -62.33, -63.92, -80.69, -62.15, -74.76, -76.9, null, null, null, null, -83.25, null, null, null, -85.78, null, null, -84.89, null, null, -85.65, null, null, -77.31, null, null, null, null, null, null, null]
+   }
+  },
+  "Gb3": {
+   "midi": 54,
+   "mf": {
+    "reference_db": 25.23,
+    "bands_db": [-5.8, -7.49, -41.77, null, null],
+    "partials_db": [0.59, 0.0, -4.09, -7.51, -5.51, -6.25, -8.72, -25.7, -13.53, -50.47, -37.54, -31.87, -49.89, -32.85, -45.99, -67.7, -54.73, -53.23, -56.82, -80.01, -72.26, -78.83, null, null, null, null, null, null, null, -81.2, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, -82.34]
+   }
+  },
+  "G3": {
+   "midi": 55,
+   "mf": {
+    "reference_db": 28.77,
+    "bands_db": [-14.66, -13.64, -34.23, null, null],
+    "partials_db": [-5.93, 0.0, -11.52, -17.79, -15.23, -12.05, -6.04, -34.48, -30.17, -31.45, -37.53, -34.23, -33.66, -47.39, -44.8, -67.99, -66.58, -72.43, -77.77, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
+   }
+  },
+  "Ab3": {
+   "midi": 56,
+   "mf": {
+    "reference_db": 17.09,
+    "bands_db": [0.76, 0.45, -25.59, -70.79, null],
+    "partials_db": [0.0, 2.7, -1.18, -3.81, -8.44, 7.71, 4.72, -18.69, -22.74, -21.79, -22.12, -28.45, -29.93, -36.56, -37.61, -49.38, -58.31, -61.29, -54.42, -65.72, -66.86, -72.35, -69.96, null, -72.84, null, -71.62, null, null, null, null, null, null, -75.43, null, null, null, null, null, null, null]
+   }
+  },
+  "A3": {
+   "midi": 57,
+   "mf": {
+    "reference_db": 8.37,
+    "bands_db": [11.99, 6.97, -21.78, null, null],
+    "partials_db": [0.0, 9.65, 14.33, 8.33, -10.12, 11.81, 5.6, -12.17, -12.96, -21.94, -20.42, -21.62, -26.51, -39.7, -48.03, -52.04, null, -47.21, null, -54.91, -51.64, -57.21, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
+   }
+  },
+  "Bb3": {
+   "midi": 58,
+   "mf": {
+    "reference_db": 25.49,
+    "bands_db": [-5.25, -12.82, -39.94, null, null],
+    "partials_db": [0.0, -1.93, -8.58, -14.06, -12.39, -13.25, -10.74, -34.22, -35.21, -46.3, -29.78, -29.91, -44.68, -62.91, -66.93, -80.35, -81.59, -82.29, null, null, null, null, null, null, null, null, -77.39, null, null, null, -82.69, null, null, null, -83.21, null, null]
+   }
+  },
+  "B3": {
+   "midi": 59,
+   "mf": {
+    "reference_db": 25.9,
+    "bands_db": [-4.75, -11.49, -37.44, null, null],
+    "partials_db": [0.0, -0.86, -8.64, -12.5, -8.98, -10.49, -16.65, -24.45, -34.03, -39.63, -35.26, -32.5, -46.8, -66.22, -60.38, -79.11, null, null, null, null, -82.81, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
+   }
+  },
+  "C4": {
+   "midi": 60,
+   "pp": {
+    "reference_db": 19.98,
+    "bands_db": [-26.62, -42.57, -68.97, null, null],
+    "partials_db": [0.0, -20.78, -32.45, -31.9, -43.32, -41.82, -57.59, -63.68, -62.41, -65.34, -70.3, -70.37, -67.64, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
+   },
+   "mf": {
+    "reference_db": 31.15,
+    "bands_db": [-14.57, -23.14, -55.7, null, null],
+    "partials_db": [0.0, -10.96, -18.19, -21.54, -29.35, -21.78, -24.5, -39.73, -48.31, -53.8, -58.02, -53.46, -57.6, -77.95, null, null, null, null, null, null, null, null, null, null, -88.46, null, null, null, null, null, null, null, null]
+   },
+   "ff": {
+    "reference_db": 44.46,
+    "bands_db": [-12.61, -18.03, -35.8, null, null],
+    "partials_db": [0.0, -6.14, -19.07, -16.87, -20.41, -19.18, -15.58, -23.2, -32.32, -25.89, -36.01, -36.63, -35.58, -53.33, -61.81, -74.04, -73.22, -80.43, -79.08, null, null, null, -60.4, -83.67, null, null, null, null, null, null, null, null, null]
+   }
+  },
+  "Db4": {
+   "midi": 61,
+   "mf": {
+    "reference_db": 28.02,
+    "bands_db": [-4.99, -21.99, -73.14, null, null],
+    "partials_db": [0.0, -0.02, -9.97, -19.47, -15.13, -33.11, -24.51, -43.19, -54.89, -56.23, -66.76, null, null, -79.52, null, null, null, null, null, null, null, null, null, null, null, -83.12, null, null, null, null, null]
+   }
+  },
+  "D4": {
+   "midi": 62,
+   "mf": {
+    "reference_db": 22.18,
+    "bands_db": [2.45, -9.56, -59.99, null, null],
+    "partials_db": [0.0, 5.01, -0.12, -0.4, -4.91, -17.72, -14.21, -29.35, -44.73, -49.1, -45.54, -70.88, -72.6, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
+   }
+  },
+  "Eb4": {
+   "midi": 63,
+   "mf": {
+    "reference_db": 15.82,
+    "bands_db": [7.32, -6.25, null, null, null],
+    "partials_db": [0.0, 13.49, 1.15, 1.84, 0.41, -12.91, -22.71, -13.75, -38.79, -48.89, -56.4, null, null, null, null, null, null, null, null, null, null, null, null, null, -71.15, null, null, null]
+   }
+  },
+  "E4": {
+   "midi": 64,
+   "mf": {
+    "reference_db": 27.64,
+    "bands_db": [-12.83, -24.73, null, null, null],
+    "partials_db": [0.0, -22.51, -3.15, -6.85, -24.5, -24.95, -27.73, -47.61, -78.89, null, -80.99, null, null, null, null, null, null, null, null, -82.97, null, null, null, null, null, null]
+   }
+  },
+  "F4": {
+   "midi": 65,
+   "mf": {
+    "reference_db": 34.76,
+    "bands_db": [-18.36, -27.81, null, null, null],
+    "partials_db": [0.0, -21.73, -14.99, -17.62, -27.88, -27.75, -29.29, -47.61, -82.99, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
+   }
+  },
+  "Gb4": {
+   "midi": 66,
+   "mf": {
+    "reference_db": 28.88,
+    "bands_db": [-11.69, -22.38, null, null, null],
+    "partials_db": [0.0, 0.39, -23.76, -18.2, -13.92, -26.57, -35.31, -37.58, -73.86, -77.25, -84.28, null, null, null, null, null, null, null, null, null, null, null, null, null]
+   }
+  },
+  "G4": {
+   "midi": 67,
+   "mf": {
+    "reference_db": 37.22,
+    "bands_db": [-15.93, -24.1, null, null, null],
+    "partials_db": [0.0, -11.89, -19.96, -19.49, -18.38, -28.71, -35.78, -59.06, -79.04, -84.79, null, null, -80.16, null, null, null, null, null, null, null, null, null]
+   }
+  },
+  "Ab4": {
+   "midi": 68,
+   "mf": {
+    "reference_db": 35.61,
+    "bands_db": [-10.6, -29.86, null, null, null],
+    "partials_db": [0.0, -5.19, -16.0, -27.18, -32.54, -23.46, -49.02, -66.18, -83.57, null, null, null, -88.97, null, null, null, null, null, null, null, null]
+   }
+  },
+  "A4": {
+   "midi": 69,
+   "mf": {
+    "reference_db": 32.17,
+    "bands_db": [-13.09, -35.54, null, null, null],
+    "partials_db": [0.0, -7.05, -19.12, -18.74, -32.54, -38.55, -45.03, -84.18, null, null, null, null, null, null, -82.81, null, null, null, null, null]
+   }
+  },
+  "Bb4": {
+   "midi": 70,
+   "mf": {
+    "reference_db": 25.19,
+    "bands_db": [-5.91, -14.23, null, null, null],
+    "partials_db": [0.0, -1.04, -10.78, -11.73, -15.79, -12.68, -56.41, -67.88, null, null, null, null, -82.68, null, null, null, null, null, null]
+   }
+  },
+  "B4": {
+   "midi": 71,
+   "mf": {
+    "reference_db": 45.72,
+    "bands_db": [-25.84, -38.55, null, null, null],
+    "partials_db": [0.0, -25.56, -26.13, -36.37, -35.29, -40.74, -71.94, -81.56, null, null, -101.77, null, null, null, null, null, null, null]
+   }
+  },
+  "C5": {
+   "midi": 72,
+   "mf": {
+    "reference_db": 35.5,
+    "bands_db": [-21.94, -60.47, null, null, null],
+    "partials_db": [0.0, -21.79, -22.08, -34.89, -45.0, -75.94, -90.32, null, null, null, null, null, null, null, null, null, null]
+   }
+  },
+  "Db5": {
+   "midi": 73,
+   "mf": {
+    "reference_db": 30.87,
+    "bands_db": [-27.53, -64.09, null, null, null],
+    "partials_db": [0.0, -21.6, -33.47, -55.93, -45.11, -72.25, -84.88, null, null, null, -87.58, null, -87.07, null, null, null]
+   }
+  },
+  "D5": {
+   "midi": 74,
+   "mf": {
+    "reference_db": 28.53,
+    "bands_db": [-22.55, -59.35, null, null, null],
+    "partials_db": [0.0, -13.79, -31.31, -37.94, -51.74, -66.97, -83.5, null, null, null, null, -86.04, null, null, null]
+   }
+  },
+  "Eb5": {
+   "midi": 75,
+   "mf": {
+    "reference_db": 33.62,
+    "bands_db": [-31.9, -62.89, null, null, null],
+    "partials_db": [0.0, -23.38, -40.42, -44.85, -51.56, -74.22, null, null, null, null, null, null, null, -89.15]
+   }
+  },
+  "E5": {
+   "midi": 76,
+   "mf": {
+    "reference_db": 41.03,
+    "bands_db": [-31.19, -68.44, null, null, null],
+    "partials_db": [0.0, -17.03, -45.36, -42.03, -58.78, -78.11, null, null, null, null, null, null, null]
+   }
+  },
+  "F5": {
+   "midi": 77,
+   "mf": {
+    "reference_db": 36.09,
+    "bands_db": [-30.37, -74.39, null, null, null],
+    "partials_db": [0.0, -24.56, -36.18, -49.6, -69.91, -78.87, null, -92.94, null, null, null, null, null]
+   }
+  },
+  "Gb5": {
+   "midi": 78,
+   "mf": {
+    "reference_db": 37.29,
+    "bands_db": [-27.22, null, null, null, null],
+    "partials_db": [0.0, -21.86, -32.58, -52.83, -62.42, null, null, null, null, null, null, null]
+   }
+  },
+  "G5": {
+   "midi": 79,
+   "mf": {
+    "reference_db": 18.46,
+    "bands_db": [-23.35, -70.08, null, null, null],
+    "partials_db": [0.0, -15.19, -31.5, -29.06, -67.69, -72.48, null, null, null, null, null]
+   }
+  },
+  "Ab5": {
+   "midi": 80,
+   "mf": {
+    "reference_db": 27.77,
+    "bands_db": [-43.78, null, null, null, null],
+    "partials_db": [0.0, -34.63, -52.93, -56.47, null, null, null, null, null, null, null]
+   }
+  },
+  "A5": {
+   "midi": 81,
+   "mf": {
+    "reference_db": 29.38,
+    "bands_db": [-37.58, null, null, null, null],
+    "partials_db": [0.0, -25.9, -49.25, -63.33, null, null, null, null, null, null]
+   }
+  },
+  "C6": {
+   "midi": 84,
+   "pp": {
+    "reference_db": 2.95,
+    "bands_db": [-20.27, null, null, null, null],
+    "partials_db": [0.0, -8.47, -32.07, -59.95, null, null, null, null]
+   },
+   "mf": {
+    "reference_db": 25.96,
+    "bands_db": [-32.0, null, null, null, null],
+    "partials_db": [0.0, -26.77, -37.23, -81.98, null, null, null, null]
+   },
+   "ff": {
+    "reference_db": 39.57,
+    "bands_db": [-31.28, null, null, null, null],
+    "partials_db": [0.0, -23.5, -39.05, -58.35, null, null, null, null]
+   }
+  }
+ }
+}

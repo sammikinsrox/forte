@@ -1,9 +1,18 @@
 #include "support/AudioThreadGuard.h"
 #include "support/EngineRender.h"
 
+#include "NoteModel.h"
+#include "PianoModel.h"
+#include "Soundboard.h"
+#include "SoundboardIrs.h"
+#include "SympatheticBank.h"
+#include "Tuner.h"
+
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 
+#include <algorithm>
+#include <cmath>
 #include <vector>
 #include <xmmintrin.h>
 
@@ -42,17 +51,77 @@ TEST_CASE ("Engine is silent until a key is struck", "[engine]")
     CHECK (allZero (right));
 }
 
-TEST_CASE ("A struck note sounds, the same on both channels", "[engine]")
+TEST_CASE ("A struck note sounds on both channels, bass to the left and treble to the right", "[engine]")
 {
+    // SPEC §2.8: placement comes from the bridge regions' IRs, with bass on the left.
     const auto sampleRate = GENERATE (44100.0, 48000.0, 88200.0, 96000.0);
     const auto note = GENERATE (21, 60, 108);
 
-    const auto out = renderFresh ({ noteOn (0, note, 100) }, static_cast<std::int64_t> (sampleRate / 4), 256, sampleRate);
+    const auto length = static_cast<std::int64_t> (sampleRate / 4);
+    const auto out = renderFresh ({ noteOn (0, note, 100) }, length, 256, sampleRate);
 
-    CHECK (out.left == out.right);
-    CHECK (allFinite (out.left));
-    CHECK (peak (out.left) > 1e-3f);
-    CHECK (peak (out.left) < 1.0f);
+    INFO ("note " << note << " at " << sampleRate << " Hz");
+    for (const auto* channel : { &out.left, &out.right })
+    {
+        CHECK (allFinite (*channel));
+        CHECK (peak (*channel) > 1e-3f);
+        CHECK (peak (*channel) < 1.0f);
+    }
+
+    // Single notes scatter around their region's place, by up to ~10 dB with the seed IRs: each
+    // channel's modes are independent, so a partial can sit on a strong mode in one only.
+    const double balanceDb = 20.0 * std::log10 (rms (out.left, 0, length) / rms (out.right, 0, length));
+    if (note == 21)
+        CHECK (balanceDb > 3.0);
+    if (note == 108)
+        CHECK (balanceDb < -3.0);
+}
+
+TEST_CASE ("The Listening perspective selects the IR set, from the next partition, without a jump", "[engine][soundboard]")
+{
+    const std::vector<TimedMidi> chord { controller (0, 64, 127), noteOn (0, 36, 100), noteOn (0, 60, 90), noteOn (0, 84, 80) };
+    const std::int64_t length = second / 2;
+
+    const auto microphones = renderFresh (chord, length);
+
+    Engine engine;
+    engine.prepare (48000.0, 128);
+    engine.setListeningPerspective (forte::ListeningPerspective::pianist);
+    engine.reset();  // a switch with nothing playing applies at once
+    const auto pianist = render (engine, chord, length);
+
+    CHECK (slice (microphones.left, 0, length) != slice (pianist.left, 0, length));
+    CHECK (rms (pianist.left, 0, length) > 0.5 * rms (microphones.left, 0, length));
+    CHECK (rms (pianist.left, 0, length) < 2.0 * rms (microphones.left, 0, length));
+
+    // A switch mid-render: nothing changes until the next 128-sample boundary, then a crossfade
+    // with no step larger than the signal's own.
+    engine.setListeningPerspective (forte::ListeningPerspective::microphones);
+    engine.reset();
+    const std::int64_t switchAt = 10000;  // not on a boundary: the fade starts at 10112
+    auto first = render (engine, chord, switchAt);
+    engine.setListeningPerspective (forte::ListeningPerspective::pianist);
+
+    std::vector<float> left (static_cast<std::size_t> (length - switchAt)), right (left.size());
+    engine.render (left.data(), right.data(), static_cast<int> (left.size()));
+    first.left.insert (first.left.end(), left.begin(), left.end());
+
+    // The fade starts at gain 0, so 10112 itself is still all Microphones; it lasts 19
+    // partitions (~50 ms), after which the output is exactly Pianist's.
+    const std::int64_t fadeEnd = 10112 + 19 * 128;
+    CHECK (slice (first.left, 0, 10113) == slice (microphones.left, 0, 10113));
+    CHECK (slice (first.left, 10113, 10200) != slice (microphones.left, 10113, 10200));
+    CHECK (slice (first.left, fadeEnd - 128, fadeEnd) != slice (pianist.left, fadeEnd - 128, fadeEnd));
+    CHECK (slice (first.left, fadeEnd, length) == slice (pianist.left, fadeEnd, length));
+
+    float largestStep = 0.0f, largestNaturalStep = 0.0f;
+    for (std::size_t i = 9000; i < 14000; ++i)
+    {
+        largestStep = std::max (largestStep, std::abs (first.left[i] - first.left[i - 1]));
+        largestNaturalStep = std::max ({ largestNaturalStep, std::abs (microphones.left[i] - microphones.left[i - 1]),
+                                         std::abs (pianist.left[i] - pianist.left[i - 1]) });
+    }
+    CHECK (largestStep <= 1.05f * largestNaturalStep);
 }
 
 TEST_CASE ("Engine render of zero samples writes nothing", "[engine]")
@@ -84,11 +153,16 @@ TEST_CASE ("Engine audio-thread calls never touch the heap", "[engine][audio-thr
 
         for (std::uint8_t note = 21; note <= 108; ++note)
         {
+            if (note % 9 == 0)  // perspective crossfades, some reversed mid-fade
+                engine.setListeningPerspective (note % 2 == 0 ? forte::ListeningPerspective::pianist
+                                                              : forte::ListeningPerspective::microphones);
+
             engine.handleMidi (shortMessage (0x90, note, static_cast<std::uint8_t> (1 + note % 127)));
             engine.handleMidi (shortMessage (0x91, note, 127));
             engine.render (left.data(), right.data(), 1 + (note * 37) % 1024);
             engine.handleMidi (shortMessage (0x80, note, 0));
             engine.handleMidi (shortMessage (0xb0, 64, note));
+            engine.handleMidi (shortMessage (0xb0, 67, static_cast<std::uint8_t> (127 - note)));
         }
 
         engine.handleMidi (shortMessage (0x90, 10, 100));   // off the keyboard
@@ -133,10 +207,12 @@ TEST_CASE ("Hammer is stable on every note at maximum velocity at every sample r
         engine.reset();
         const auto out = render (engine, { noteOn (0, note, 127) }, static_cast<std::int64_t> (sampleRate * 0.05), 512);
 
+        // Both channels: the treble sits to the right.
         INFO ("note " << note << " at " << sampleRate << " Hz");
         REQUIRE (allFinite (out.left));
-        REQUIRE (peak (out.left) < 1.0f);
-        REQUIRE (peak (out.left) > 1e-3f);
+        REQUIRE (allFinite (out.right));
+        REQUIRE (std::max (peak (out.left), peak (out.right)) < 1.0f);
+        REQUIRE (std::max (peak (out.left), peak (out.right)) > 1e-3f);
     }
 }
 
@@ -151,21 +227,69 @@ TEST_CASE ("A released note goes idle and renders exact silence", "[engine]")
 
 TEST_CASE ("The reported tail covers the longest-ringing note", "[engine]")
 {
-    // A0 has the slowest decay. With the pedal down, struck as hard as possible and released at
-    // once, it must still sound halfway through the tail and be silent by its end.
+    // The longest-ringing note is the one whose slowest coupled mode takes longest to rest.
+    // With the pedal down, struck as hard as possible and released at once, with or without the
+    // soft pedal, it must be silent by the tail's end. And the tail isn't padded: the note still
+    // sounds a third of the way through.
     constexpr double sampleRate = 44100.0;
+
+    // The notes as the engine tunes them by default (SPEC §5).
+    auto model = forte::detail::makeSeedPianoModel();
+    const auto curve = forte::detail::calculateStretchCurve (model);
+    for (std::size_t i = 0; i < model.notes.size(); ++i)
+        model.notes[i].fundamental *= forte::detail::tuningRatio (curve, static_cast<int> (i), 440.0, 50.0);
+
+    int longest = forte::detail::lowestNote;
+    double longestTail = 0.0;
+
+    for (int note = forte::detail::lowestNote; note <= forte::detail::highestNote; ++note)
+    {
+        const double noteTail = forte::detail::noteTailSeconds (model.note (note), model.unisonSpreadCents);
+        if (noteTail > longestTail)
+        {
+            longestTail = noteTail;
+            longest = note;
+        }
+    }
+
+    // The sympathetic bank can ring on past the strings: with the fitted decays, a bank mode as
+    // slow as the slowest string answers it for longer. Keyscape's lowest notes (A0-C1) barely
+    // decay over its 10 s sweep, so their partials sit at the fit's slowest rate (0.12/s, a 57 s
+    // T60) and the bank's modes there as well (issue 0021 §15): bounded, not small.
+    double slowestDecay = 1e9;
+    for (const auto& p : model.notes)
+        slowestDecay = std::min (slowestDecay, forte::detail::slowestStringDecay (p, model.unisonSpreadCents));
+    const double stringsTail = forte::detail::sympatheticTailSeconds (model, longestTail, slowestDecay);
+    INFO ("strings " << longestTail << " s, with the bank " << stringsTail << " s");
+    CHECK (stringsTail >= longestTail);
+    CHECK (stringsTail < 2.0 * longestTail);
+
+    // Then the soundboard rings on for its IR, plus two partitions of rounding at 44.1 kHz.
+    const auto irs = forte::detail::loadEmbeddedIrs();
+    const double irSeconds = static_cast<double> (irs.length()) / irs.sampleRate;
 
     Engine engine;
     engine.prepare (sampleRate, 4096);
     const double tail = engine.getTailSeconds();
+    REQUIRE (tail == stringsTail + irSeconds + 2.0 * forte::detail::Soundboard::partitionSize / 44100.0);
     REQUIRE (tail > 10.0);
-    REQUIRE (tail < 60.0);
+    REQUIRE (tail < 180.0);
 
     const auto length = static_cast<std::int64_t> (tail * sampleRate);
-    const auto out = render (engine, { controller (0, 64, 127), noteOn (0, 21, 127), noteOff (1, 21) }, length, 4096);
+    bool soundsAtAThird = false;
 
-    CHECK_FALSE (allZero (slice (out.left, length / 2, length / 2 + 4096)));
-    CHECK (allZero (slice (out.left, length - 4096, length)));
+    for (int soft : { 0, 127 })
+    {
+        engine.reset();
+        const auto out = render (engine, { controller (0, 64, 127), controller (0, 67, soft), noteOn (0, longest, 127), noteOff (1, longest) },
+                                 length, 4096);
+
+        INFO ("note " << longest << ", soft pedal " << soft << ", tail " << tail << " s");
+        CHECK (allZero (slice (out.left, length - 4096, length)));
+        soundsAtAThird = soundsAtAThird || ! allZero (slice (out.left, length / 3, length / 3 + 4096));
+    }
+
+    CHECK (soundsAtAThird);
 }
 
 TEST_CASE ("A restrike strikes the strings that are still ringing", "[engine]")
