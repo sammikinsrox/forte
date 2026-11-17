@@ -29,6 +29,7 @@ struct Tuning
     double a4Hz = 440.0;    // 415–466, whole Hz
     double stretch = 50.0;  // 0 = exact 2:1 octaves, 50 = the calculated curve, 100 = double
     double spread = 50.0;   // the unison spread: 0 = perfect unison, 50 = 0.7 cent, 100 = 1.4 cent
+    double detune = 0.0;    // 0 = as tuned; 100 = every note but A4 off by its own fixed amount, up to ±3 cents
 
     friend bool operator== (const Tuning&, const Tuning&) = default;
 };

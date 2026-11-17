@@ -47,6 +47,7 @@ bool setControl (forte::Controls& c, const juce::String& assignment, juce::Strin
     else if (name == "a4")         c.tuning.a4Hz = v;
     else if (name == "stretch")    c.tuning.stretch = v;
     else if (name == "spread")     c.tuning.spread = v;
+    else if (name == "detune")     c.tuning.detune = v;
     else if (name == "width")      c.width = v;
     else if (name == "volume")     c.volumeDb = v;
     else if (name == "roomAmount")   c.room.amount = v;
@@ -73,7 +74,7 @@ constexpr const char* usage =
     "  --tail   seconds rendered after the last MIDI event (default 3)\n"
     "  --voicing a voicing lab file (SPEC 6.5), as Export voicing writes it (default: all 50)\n"
     "  --control a sound control (SPEC 6.3) by its parameter id: hardness, brightness, resonance,\n"
-    "           touch, a4, stretch, spread, width (0-100, a4 in Hz) or volume (dB); the room's\n"
+    "           touch, a4, stretch, spread, detune, width (0-100, a4 in Hz) or volume (dB); the room's\n"
     "           roomAmount, roomSize, roomDamping, roomEarly (0-100), roomDecay (s), roomPredelay\n"
     "           (ms). Repeatable. stretch=0 is plain equal temperament; roomAmount=0 is the dry piano.\n"
     "  --isa    sse2 or avx2: the engine's hot loops (default: the best this CPU has; SPEC 9.2)\n"

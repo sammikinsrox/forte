@@ -35,6 +35,23 @@ inline constexpr double highestA4 = 466.0;
 inline constexpr double calculatedStretch = 50.0;
 
 /** A note's first partial over its equal-tempered pitch at A4 = 440 (the model's own tuning),
-    for an A4 in Hz and a Stretch of 0–100. Exactly 1 at A4 = 440 and Stretch 0. Realtime-safe. */
-[[nodiscard]] double tuningRatio (const StretchCurve& curve, int noteIndex, double a4Hz, double stretch) noexcept;
+    for an A4 in Hz, a Stretch of 0–100 and a Detune of 0–100. Exactly 1 at A4 = 440, Stretch 0
+    and Detune 0. Realtime-safe. */
+[[nodiscard]] double tuningRatio (const StretchCurve& curve, int noteIndex, double a4Hz, double stretch,
+                                  double detune = 0.0) noexcept;
+
+/** Detune (SPEC §5): a piano a few weeks after its tuning. Every note but A4 sits off its tuned
+    pitch by its own fixed amount, the same every session: detuneShape(note) × Detune / 100 ×
+    maxDetuneCents. */
+inline constexpr double maxDetuneCents = 3.0;
+
+/** Note noteIndex's fixed share of the detuning, −1 to 1 (0 for A4): a hash of the note, spread
+    evenly. */
+[[nodiscard]] double detuneShape (int noteIndex) noexcept;
+
+/** The cents Detune moves a note by. */
+[[nodiscard]] inline double detuneCents (int noteIndex, double detune) noexcept
+{
+    return detuneShape (noteIndex) * detune / 100.0 * maxDetuneCents;
+}
 } // namespace forte::detail

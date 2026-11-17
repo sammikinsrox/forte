@@ -213,6 +213,9 @@ NoteParameters applyStringVoicing (const NoteParameters& p, const StringVoicing&
         q.measuredPromptDecay[static_cast<std::size_t> (n)] *= prompt;
         q.measuredAftersoundDecay[static_cast<std::size_t> (n)] *= aftersound;
     }
+    // The tail is the aftersound, wherever a partial has one.
+    for (int n = 0; n < q.numTailPartials && n < NoteParameters::maxTailPartials; ++n)
+        q.tailDecay[static_cast<std::size_t> (n)] *= aftersound;
 
     q.decayTiltExponent = p.decayTiltExponent + v.overtoneDecayExponent;
     q.phantomLevel = p.phantomLevel * v.phantomLevelScale;

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 
 namespace forte::detail
 {
@@ -69,10 +70,23 @@ StretchCurve calculateStretchCurve (const PianoModel& model) noexcept
     return curve;
 }
 
-double tuningRatio (const StretchCurve& curve, int noteIndex, double a4Hz, double stretch) noexcept
+double tuningRatio (const StretchCurve& curve, int noteIndex, double a4Hz, double stretch, double detune) noexcept
 {
     const double cents = curve.cents[static_cast<std::size_t> (noteIndex)];
     const double scale = stretch / calculatedStretch;
-    return a4Hz / referenceA4 * std::pow (2.0, scale * cents / 1200.0);
+    return a4Hz / referenceA4 * std::pow (2.0, (scale * cents + detuneCents (noteIndex, detune)) / 1200.0);
+}
+
+double detuneShape (int noteIndex) noexcept
+{
+    if (noteIndex == 69 - lowestNote)
+        return 0.0;  // A4: the pitch the tuner set first, and the one everyone tunes to
+
+    // SplitMix64's finaliser on the note: fixed, and uncorrelated from note to note.
+    auto z = static_cast<std::uint64_t> (noteIndex + 1) * 0x9E3779B97F4A7C15ull;
+    z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
+    z = (z ^ (z >> 27)) * 0x94D049BB133111EBull;
+    z ^= z >> 31;
+    return static_cast<double> (z >> 11) / static_cast<double> (1ull << 53) * 2.0 - 1.0;
 }
 } // namespace forte::detail

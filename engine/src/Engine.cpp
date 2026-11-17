@@ -221,7 +221,7 @@ struct Engine::State
     [[nodiscard]] double tuningOf (std::size_t i, const Tuning& tuning) const noexcept
     {
         return detail::tuningRatio (stretchCurve, static_cast<int> (i), std::clamp (tuning.a4Hz, detail::lowestA4, detail::highestA4),
-                                    std::clamp (tuning.stretch, 0.0, 100.0));
+                                    std::clamp (tuning.stretch, 0.0, 100.0), std::clamp (tuning.detune, 0.0, 100.0));
     }
 
     [[nodiscard]] BuiltStrings stringsFor (std::size_t i, const lab::Settings& labSettings, const Tuning& tuning) const noexcept
@@ -292,13 +292,14 @@ struct Engine::State
     double hardnessScale = 1.0;
 
     /** The tuning as setControls() last published it, for rebuildStrings() on another thread. */
-    std::atomic<double> latestA4 { 440.0 }, latestStretch { 50.0 }, latestSpread { 50.0 };
+    std::atomic<double> latestA4 { 440.0 }, latestStretch { 50.0 }, latestSpread { 50.0 }, latestDetune { 0.0 };
 
     void publishTuning() noexcept
     {
         latestA4.store (controls.tuning.a4Hz, std::memory_order_relaxed);
         latestStretch.store (controls.tuning.stretch, std::memory_order_relaxed);
         latestSpread.store (controls.tuning.spread, std::memory_order_relaxed);
+        latestDetune.store (controls.tuning.detune, std::memory_order_relaxed);
     }
 
     /** The tuning glide (SPEC §5): each note's tuner ratio as it sounds now, and where it's going.
@@ -834,7 +835,8 @@ void Engine::setControls (const Controls& controls) noexcept
     if (! prepared)
         s.finishGlides();  // prepare() starts from the settled values
 
-    if (controls.tuning.a4Hz != previous.tuning.a4Hz || controls.tuning.stretch != previous.tuning.stretch)
+    if (controls.tuning.a4Hz != previous.tuning.a4Hz || controls.tuning.stretch != previous.tuning.stretch
+        || controls.tuning.detune != previous.tuning.detune)
         s.retune (prepared);
 
     s.publishTuning();
@@ -849,13 +851,14 @@ Tuning Engine::getLatestTuning() const noexcept
 {
     const auto& s = *state;
     return { s.latestA4.load (std::memory_order_relaxed), s.latestStretch.load (std::memory_order_relaxed),
-             s.latestSpread.load (std::memory_order_relaxed) };
+             s.latestSpread.load (std::memory_order_relaxed), s.latestDetune.load (std::memory_order_relaxed) };
 }
 
 double Engine::getTuningCents (const Tuning& tuning, int midiNote) const noexcept
 {
     const auto index = static_cast<std::size_t> (std::clamp (midiNote, detail::lowestNote, detail::highestNote) - detail::lowestNote);
-    return std::clamp (tuning.stretch, 0.0, 100.0) / detail::calculatedStretch * state->stretchCurve.cents[index];
+    return std::clamp (tuning.stretch, 0.0, 100.0) / detail::calculatedStretch * state->stretchCurve.cents[index]
+         + detail::detuneCents (static_cast<int> (index), std::clamp (tuning.detune, 0.0, 100.0));
 }
 
 void Engine::setVoicingLab (const lab::Settings& settings) noexcept

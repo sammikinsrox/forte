@@ -173,6 +173,8 @@ private:
     int numModes = 0;
     int paddedModes = 0;  // numModes rounded up to kernelModeAlignment; the per-mode arrays' size
     int numStrings = 1;
+    int numTails = 0;     // partials with a tail mode (the second polarisation), 1 to numTails
+    int tailModes = 0;    // the tail block at the front of the modes: numTails, padded to a group
     bool hasDamper = true;
     double samplePeriod = 1.0 / 48000.0;
     float liftStepPerTick = 1.0f;
@@ -185,7 +187,8 @@ private:
     StrikeVoicing strikeVoicing;
     double softPedalFeltScale = 1.0;
     float knockGain = 0.0f;                       // knockLevel × output gain
-    float knockPole = 0.0f;                       // the knock low-pass's e^{−2π·fc·T}, 0 = none
+    float knockPole = 0.0f;                       // the knock low-passes' e^{−2π·fc·T}, 0 = none
+    float knockHighPole = 1.0f;                   // the knock high-passes' e^{−2π·fc·T}, 1 = none
     double mfHammerSpeed = 2.0;                   // velocity 64's hammer speed, m/s
     int maxContactSubsteps = 0;
     VelocityCurve velocityCurve;
@@ -264,7 +267,12 @@ private:
     double strikeHammerMass = 3e-3;
     float strikeKnockGain = 0.0f;
     double feltMemory = 0.0;      // c^p low-passed with the felt's relaxation time
-    float knockState = 0.0f;      // the knock low-pass's output
+    // The knock's band-pass: two one-pole low-passes, then two one-pole high-passes.
+    float knockLow1 = 0.0f, knockLow2 = 0.0f;
+    float knockHighIn1 = 0.0f, knockHighOut1 = 0.0f, knockHighIn2 = 0.0f, knockHighOut2 = 0.0f;
+    [[nodiscard]] float knockFilter (float x) noexcept;
+    [[nodiscard]] bool knockQuiet() const noexcept;
+    void clearKnock() noexcept;
     float strikeGain = 1.0f;      // the real blow's speed over the contact's
     int contactSubsteps = 0;
     int separatedSubsteps = 0;

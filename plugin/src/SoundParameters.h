@@ -9,11 +9,11 @@
 
 namespace forte
 {
-/** The 10 sound controls' plugin parameters (SPEC §6.3, §7.2): every one is automatable, and
+/** The 11 sound controls' plugin parameters (SPEC §6.3, §7.2): every one is automatable, and
     their ids are permanent.
 
-    Hardness, Brightness, Resonance, Touch, Stretch, Spread and Width run 0–100 in whole numbers
-    (50 = the real piano; Width's default is 100). A4 is whole Hz, 415–466. Volume is −60 to
+    Hardness, Brightness, Resonance, Touch, Stretch, Spread, Detune and Width run 0–100 in whole
+    numbers (50 = the real piano; Width's default is 100, Detune's 0 = as tuned). A4 is whole Hz, 415–466. Volume is −60 to
     +6 dB in 0.1 dB steps, −60 showing as "Off". The Listening perspective is a two-state choice.
 
     The Room group's 6 controls (SPEC §2.11) are whole numbers too, their defaults the Studio
@@ -33,6 +33,7 @@ public:
         static constexpr const char* a4 = "a4";
         static constexpr const char* stretch = "stretch";
         static constexpr const char* spread = "spread";
+        static constexpr const char* detune = "detune";
         static constexpr const char* width = "width";
 
         // The room (SPEC §2.11). Whole numbers; Decay in tenths of a second, shown as seconds.
@@ -70,6 +71,7 @@ private:
     std::atomic<float>* a4 = nullptr;
     std::atomic<float>* stretch = nullptr;
     std::atomic<float>* spread = nullptr;
+    std::atomic<float>* detune = nullptr;
     std::atomic<float>* width = nullptr;
     std::atomic<float>* roomAmount = nullptr;
     std::atomic<float>* roomSize = nullptr;

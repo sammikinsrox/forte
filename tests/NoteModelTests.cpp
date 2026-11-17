@@ -62,10 +62,14 @@ TEST_CASE ("Coupled unisons ring on in a long aftersound", "[note][unison]")
 {
     // Same note with the coupling taken out (aftersound = prompt sound): the early sound is about
     // the same, and the coupled one rings far longer. The mechanism, not the fitted data: both
-    // follow the laws (the seed's, aftersound 4× slower), with no measured partials.
+    // follow the laws (the seed's, aftersound 4× slower), with no measured partials, and the
+    // model's full unison spread: the voicing narrows it per note (issue 0022), and the aftersound
+    // a coupled unison holds grows with its detuning.
     const int midiNote = GENERATE (40, 60, 72);
     auto coupled = seedModel().note (midiNote);
     coupled.numMeasuredPartials = 0;
+    coupled.numTailPartials = 0;
+    coupled.unisonSpreadScale = 1.0;
     coupled.decayConstant = std::log (1000.0) / (20.0 * std::pow (0.1, (midiNote - 21) / 87.0));
     coupled.decayPerHertzSquared = 1.5e-7;
     coupled.aftersoundDecayConstant = 0.25 * coupled.decayConstant;
@@ -82,6 +86,37 @@ TEST_CASE ("Coupled unisons ring on in a long aftersound", "[note][unison]")
     CHECK (earlyRatio > 0.8);
     CHECK (earlyRatio < 1.25);
     CHECK (rms (withCoupling, 5 * second, 6 * second) > 2.0 * rms (without, 5 * second, 6 * second));
+}
+
+TEST_CASE ("The second polarisation's tail holds the aftersound", "[note][unison]")
+{
+    // Issue 0022 §6. Partials 1-6 strike fast (3 /s) on uncoupled strings; with a tail at -20 dB
+    // decaying at 0.3 /s, the early sound is the same and the late sound is the tail's.
+    const int midiNote = GENERATE (25, 60);
+    auto withTail = seedModel().note (midiNote);
+    withTail.numMeasuredPartials = 6;
+    withTail.numTailPartials = 6;
+    withTail.decayTiltExponent = 0.0;
+    withTail.decayConstant = withTail.aftersoundDecayConstant = 3.0;  // everything else dies fast too
+    withTail.decayPerHertzSquared = withTail.aftersoundDecayPerHertzSquared = 0.0;
+    for (std::size_t n = 0; n < 6; ++n)
+    {
+        withTail.measuredPromptDecay[n] = withTail.measuredAftersoundDecay[n] = 3.0;
+        withTail.tailDecay[n] = 0.3;
+        withTail.tailLevel[n] = 0.1;
+    }
+    auto without = withTail;
+    without.numTailPartials = 0;
+
+    const auto a = strikeNote (withTail, 90, 6 * second);
+    const auto b = strikeNote (without, 90, 6 * second);
+
+    INFO ("note " << midiNote);
+    const double earlyRatio = rms (a, 0, second / 10) / rms (b, 0, second / 10);
+    CHECK (earlyRatio > 0.85);
+    CHECK (earlyRatio < 1.2);
+    CHECK (rms (a, 5 * second, 6 * second) > 3.0 * rms (b, 5 * second, 6 * second));
+    CHECK (forte::detail::slowestStringDecay (withTail, 0.7) <= 0.3 + 1e-9);
 }
 
 TEST_CASE ("Single-string notes are not coupled", "[note][unison]")
@@ -273,9 +308,11 @@ TEST_CASE ("The hammer table is calibrated and smooth across the keyboard", "[no
 TEST_CASE ("Measured partials keep their own decay rates; the laws take over above them", "[note][decay]")
 {
     // SPEC §3.3. A single string: each mode decays at its partial's prompt rate. Measured
-    // partials at 2 and 3 /s under a law of 10 /s: the slowest mode is the measured 2 /s.
+    // partials at 2 and 3 /s under a law of 10 /s: the slowest mode is the measured 2 /s. Without
+    // the second polarisation's tails, which have their own test.
     auto single = seedModel().note (25);
     REQUIRE (single.numStrings == 1);
+    single.numTailPartials = 0;
     single.decayConstant = 10.0;
     single.decayPerHertzSquared = 0.0;
     single.numMeasuredPartials = 2;
@@ -289,6 +326,7 @@ TEST_CASE ("Measured partials keep their own decay rates; the laws take over abo
     // A triple unison: a measured partial's slow aftersound outlasts everything the law sets.
     auto triple = seedModel().note (60);
     REQUIRE (triple.numStrings == 3);
+    triple.numTailPartials = 0;
     for (auto* law : { &triple.decayConstant, &triple.aftersoundDecayConstant })
         *law = 10.0;
     triple.decayPerHertzSquared = triple.aftersoundDecayPerHertzSquared = 0.0;

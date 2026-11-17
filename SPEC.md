@@ -78,7 +78,7 @@ Energy flows **one way**: strings → bridge regions and the sympathetic bank, w
 
 - **Model:** a lumped mass with a nonlinear, hysteretic felt: Stulov's hereditary model, F = Q0·[c^p − (ε/τ)·∫ c^p(ξ)·e^{−(t−ξ)/τ} dξ]. Compression changes faster than τ meet the instantaneous stiffness Q0, slower ones the relaxed Q0·(1 − ε). With a short τ (0.02 ms) only the fastest compression meets the stiff felt. A soft relaxed felt then keeps the 1–3.5 kHz layer down (no twang), while the stiff onset adds air above 4 kHz. A τ comparable to the contact (~1 ms) reshapes the whole pulse instead and brings the twang back. τ is 0.02 ms everywhere; the relaxed stiffness and ε are voiced per register against Keyscape (§3.3): ε 0.8–0.9 up to C6, falling to 0 (an elastic felt) from F#6, where the stiff onset made a metallic zing ([Voicing against Iowa](issues/0021-voicing-against-iowa.md) §7, §14).
 - **Contact speed:** the felt meets the strings at mf × (v / mf)^0.5 rather than at the blow's own speed v, and the strike's drive is scaled by v over that, so a note keeps the real blow's loudness while its brightness changes half as much with velocity. A physical felt went from 9–14 dB too dark at velocity 32 to 2–7 dB too bright at 127 against Keyscape (§15). Per note, `contactSpeedExponent` (1 = physical).
-- **Knock:** while the hammer touches the strings, a share of its force goes straight to the bridge bus through a one-pole 150 Hz low-pass, never through the note's high-pass (§2.3): the thump of the impact, under the fundamental. Its level per register is fitted to Keyscape's attack crest factor: none up to C4, rising to 0.14 at F#5, 0.45 at F#6 and 0.6 from D7.
+- **Knock:** while the hammer touches the strings, a share of its force goes straight to the bridge bus through a band-pass (two one-pole high-passes at 300 Hz, two one-pole low-passes at 2 kHz), never through the note's high-pass (§2.3): the impact's woody mid-band, not a thump. Keyscape's treble strike noise sits at 0.25-2 kHz; a 150 Hz low-pass put 8-24 dB too much below 250 Hz (issue 0022 §6). Its level per register: none up to C4, rising to 0.14 at F#5 and 0.45 at F#6 (from Keyscape's attack crest factor), then 0.17 at D7 (its 0.5-2 kHz strike noise).
 - **Contact:** computed sample by sample at **4× oversampling** during the contact window only.
 - **Strike position:** ~1/8 of the string length. It shapes which partials are excited.
 - **Per-note values:** mass, stiffness Q0, exponent p, relaxation ε and relaxation time τ come from the model file.
@@ -114,7 +114,7 @@ A continuous 0–1 hammer shift that changes which strings are struck and the fe
 | Kind | Controls | Behaviour |
 |---|---|---|
 | Strike-time | Hardness, Touch, soft-pedal felt | Next strike only |
-| Tuning | A4, Stretch | Ringing modes and sympathetic strings glide over ~50 ms; each note takes its exact new modes the next time it starts from rest |
+| Tuning | A4, Stretch, Detune | Ringing modes and sympathetic strings glide over ~50 ms; each note takes its exact new modes the next time it starts from rest |
 | Unison | Spread | A note's next start from rest (it changes the unison's coupled modes, which can't glide) |
 | Output | Volume, Width, Brightness, Resonance | Immediate, smoothed over ~20 ms |
 | Perspective | Listening perspective | Crossfade between IR sets |
@@ -257,12 +257,13 @@ Source: [Tuning system](issues/0016-tuning-system.md).
   - **Above about C6:** 2:1.
   - Across an octave centred on C3 and on C6 it moves gradually from one pair of partials to the next. A switch at one note left a 2.5-cent step at C6.
   - With the Keyscape-fitted B, the calculated curve runs from −8.6 cents at A0 through −1.3 at A3 and +4.6 at C6 to +30 at C8.
-- **When it runs:** whenever A4 or Stretch changes. It's 88 notes of arithmetic with no allocation, so it runs on the audio thread at the change's render position, which keeps offline bounces deterministic. Ringing modes glide to the new pitches over ~50 ms; each note is re-prepared at its exact new pitch the next time it starts from rest.
+- **When it runs:** whenever A4, Stretch or Detune changes. It's 88 notes of arithmetic with no allocation, so it runs on the audio thread at the change's render position, which keeps offline bounces deterministic. Ringing modes glide to the new pitches over ~50 ms; each note is re-prepared at its exact new pitch the next time it starts from rest.
 - **Stretch 0 at A4 = 440** is the model's own equal temperament exactly, as Forte was tuned before the tuner existed.
 - **Stretch:** 0–100, default 50. 0 = exact 2:1 octaves, 50 = the calculated curve, 100 = double. It is a smooth multiplier on each note's distance from equal temperament and doesn't switch which partials the tuner matches.
 - **A4:** 415–466 Hz, in whole Hz, default 440.
 - **Unison spread:** a per-note curve (flat 0.7 cent by default) × one overall amount (the Spread control). Individual notes can be adjusted in the voicing overrides.
-- **Stretched equal temperament only.** There is no random tuner imperfection.
+- **Stretched equal temperament only.** No other temperaments.
+- **Detune:** 0–100, default 0 (as tuned). A piano a few weeks after its tuning: every note but A4 sits off its tuned pitch by its own fixed amount, spread evenly over ±3 cents at 100 (`detuneShape`, a hash of the note), the same in every session. It moves the whole note, so its unison spread is untouched. Added on the user's ear (issue 0022 §6): the tuning "so perfect that it's uncanny".
 
 ## 6. Editor
 
@@ -310,6 +311,7 @@ Sources: [Editor look & feel direction](issues/0006-editor-look-and-feel.md), [E
 | A4 | 415–466 Hz | 440 | §5 | advanced |
 | Stretch | 0–100 | 50 | §5 | advanced |
 | Spread | 0–100 | 50 = 0.7 cent | 0 = perfect unison, 100 = 1.4 cent | advanced |
+| Detune | 0–100 | 0 = as tuned | each note off by its own fixed amount, up to ±3 cents at 100 (§5) | advanced |
 | Width | 0–100 | 100 | 0 = mono | advanced |
 | Room | 0–100 | 22 (Studio) | How much room (§2.11). 0 = the dry piano. | advanced |
 | Room size | 0–100 | 30 | The reflections' spacing and the tail's density | advanced |
@@ -331,7 +333,7 @@ Sources: [Editor look & feel direction](issues/0006-editor-look-and-feel.md), [E
   - the keyboard.
 - **Advanced view groups:**
   - **Hammer:** Hardness · Touch
-  - **Tuning:** A4 · Stretch
+  - **Tuning:** A4 · Stretch · Detune
   - **Strings:** Spread · Resonance
   - **Output:** Brightness · Width · Volume
   - **Pedals:** Sustain · Soft
@@ -388,7 +390,7 @@ Source: [Presets, saved state and automation](issues/0018-presets-state-automati
 
 | Control | Preset | Automatable | Project state |
 |---|---|---|---|
-| Hardness, Brightness, Resonance, Touch, Stretch, Spread, Width | ✓ | ✓ | ✓ |
+| Hardness, Brightness, Resonance, Touch, Stretch, Spread, Detune, Width | ✓ | ✓ | ✓ |
 | Listening perspective | ✓ | ✓ (two-state) | ✓ |
 | Room, Room size, Room decay, Room damping, Room pre-delay, Room early | ✓ | ✓ | ✓ |
 | Volume, A4 | — | ✓ | ✓ |
@@ -397,7 +399,7 @@ Source: [Presets, saved state and automation](issues/0018-presets-state-automati
 
 ### 7.1 Presets
 
-- **Contents:** the 8 character controls and the room's 6 (§2.11).
+- **Contents:** the 8 character controls, the room's 6 (§2.11) and Detune (§5). A file without the room loads the Studio room; one without Detune loads it at 0.
 - **Factory presets:** about 5–8, built in and read-only. **"Concert Grand"** (all defaults, the Studio room) comes first. Then Pianist's Seat (Chamber), Mellow (Recital Hall), Bright, Intimate (Dry), Honest Equal and Concert Hall (Concert Hall). The final list is set by ear.
 - **Room presets:** Dry, Studio, Chamber, Recital Hall, Concert Hall, Cathedral: the room's 6 values only, from the Room panel's menu (§6.4). First-build values, set by ear.
 - **User preset files:** `Documents\Forte\Presets\<name>.fortepreset`, as JSON. Each holds a format version, the model id, the name and the 14 whole-number values (Room decay in tenths of a second). A file without the room's values (written before the room) loads them as the defaults.

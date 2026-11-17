@@ -68,6 +68,35 @@ constexpr DecayEntry decayTable[] {
 static_assert (std::size (decayTable) == numNotes);
 static_assert (decayTable[0].midiNote == lowestNote && decayTable[numNotes - 1].midiNote == highestNote);
 
+/** One note's second polarisation (tools/fitting/fit_tail.py): per tail partial, the fast first
+    stage's rate, the tail's rate (1/s) and the tail's level (dB re the partial's strike). */
+struct TailEntry
+{
+    int midiNote;
+    int partials;
+    double fast[NoteParameters::maxTailPartials];
+    double slow[NoteParameters::maxTailPartials];
+    double levelDb[NoteParameters::maxTailPartials];
+};
+
+constexpr TailEntry tailTable[] {
+#include "TailFit.inc"
+};
+
+/** Each note's level, dB, A0 to C8 (tools/fitting/fit_level.py). */
+constexpr double levelTable[] {
+#include "LevelFit.inc"
+};
+static_assert (std::size (levelTable) == numNotes);
+
+const TailEntry* findTail (int midiNote) noexcept
+{
+    for (const auto& e : tailTable)
+        if (e.midiNote == midiNote)
+            return &e;
+    return nullptr;
+}
+
 NoteParameters seedNote (int midiNote)
 {
     const double key = midiNote;
@@ -117,13 +146,38 @@ NoteParameters seedNote (int midiNote)
         p.measuredAftersoundDecay[static_cast<std::size_t> (n)] = decay.aftersound[n];
     }
 
+    // Voiced even: each note's strike and early ring as loud against its neighbours as Keyscape's
+    // (issue 0022 §6).
+    p.levelDb = levelTable[static_cast<std::size_t> (index)];
+
+    // The second polarisation (issue 0022 §6), fitted to the same sweep: a fast first stage on
+    // the vertical strings, and a slow tail. Each tail partial's vertical rates are the fast
+    // stage's (prompt and aftersound alike: uncoupled), so the tail is the only aftersound.
+    if (const auto* tail = findTail (midiNote))
+    {
+        p.numTailPartials = std::min ({ tail->partials, NoteParameters::maxTailPartials, p.numMeasuredPartials });
+        for (int n = 0; n < p.numTailPartials; ++n)
+        {
+            const auto i = static_cast<std::size_t> (n);
+            p.measuredPromptDecay[i] = tail->fast[n];
+            p.measuredAftersoundDecay[i] = tail->fast[n];
+            p.tailDecay[i] = tail->slow[n];
+            p.tailLevel[i] = std::pow (10.0, tail->levelDb[n] / 20.0);
+        }
+
+        // A fixed few tenths of a cent, different on every note: the horizontal motion meets a
+        // slightly different bridge, so the tail beats slowly against what's left of the strike.
+        p.tailOffsetCents = 0.3 * std::sin (2.3 * midiNote);
+    }
+
     // The knock per register, fitted to the Keyscape sweep's attack crest factor (peak in 50 ms
     // over the rms of 0.5 s, velocities 64 and 96): the strings alone already match Keyscape's up
     // to C4, and Keyscape's attacks get sharper from C5 up (issue 0021 §14).
     constexpr double knockKeys[] { 64.0, 78.0, 90.0, 102.0 };
-    constexpr double knockLevels[] { 0.0, 0.14, 0.45, 0.6 };
+    constexpr double knockLevels[] { 0.0, 0.14, 0.45, 0.17 };
     p.knockLevel = interpolate (key, knockKeys, knockLevels);
-    p.knockLowPassHz = 150.0;
+    p.knockLowPassHz = 2000.0;
+    p.knockHighPassHz = 300.0;
 
     // The board's weak radiation of the lowest fundamentals (issue 0021 §18): A0's -27 dB, F1's
     // -14, C2's -3; the overtones, the bass's growl, are untouched.

@@ -228,6 +228,22 @@ TEST_CASE ("A preset file written before the room loads the default room", "[pre
     CHECK (juce::String (matchingRoom (*read)->name) == "Studio");
 }
 
+TEST_CASE ("Detune is in a preset; a file written before it loads it at 0", "[presets]")
+{
+    Values v;
+    v.detune = 35;
+    const auto read = fromJson (toJson ("Weeks Later", v));
+    REQUIRE (read.has_value());
+    CHECK (read->detune == 35);
+    CHECK (applyTo (*read, Controls {}).tuning.detune == 35.0);
+
+    const auto old = fromJson (R"({ "format": "forte-preset", "version": 1,
+                                    "values": { "hardness": 60, "brightness": 50, "resonance": 50, "touch": 50,
+                                                "stretch": 50, "spread": 50, "width": 100, "perspective": 0 } })");
+    REQUIRE (old.has_value());
+    CHECK (old->detune == 0);
+}
+
 TEST_CASE ("Typed preset names are made safe as file names", "[presets]")
 {
     CHECK (Library::cleanName ("  Late Night  ") == "Late Night");

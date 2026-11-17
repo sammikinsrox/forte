@@ -58,6 +58,17 @@ struct NoteParameters
     // 0 = as given, > 0 makes the upper partials die faster (the lab's Overtone decay, SPEC §6.5).
     double decayTiltExponent = 0.0;
 
+    // The strings' second polarisation (issue 0022 §6): partials 1 to numTailPartials get one more
+    // mode, the strings' horizontal motion, which the hammer starts at tailLevel × the partial's
+    // vertical amplitude (and doesn't feel) and which decays at tailDecay. Their vertical strings
+    // then decay at the prompt rate alone, uncoupled: the tail carries the aftersound, however
+    // closely the unison is tuned. The tail rings tailOffsetCents from the partial.
+    static constexpr int maxTailPartials = 16;
+    int numTailPartials = 0;
+    std::array<double, maxTailPartials> tailDecay {};   // σ, 1/s, partial n at [n − 1]
+    std::array<double, maxTailPartials> tailLevel {};   // amplitude re the partial's vertical
+    double tailOffsetCents = 0.0;
+
     // Phantom partials (SPEC §2.3): longitudinal modes driven by the strings' stretching
     double phantomLevel = 0.0;              // 0 = none
     double longitudinalFrequency = 1100.0;  // Hz, the first longitudinal mode; mode k is at k times this
@@ -79,10 +90,13 @@ struct NoteParameters
 
     // Knock: the hammer's impact reaching the bridge directly, not through the strings. While the
     // hammer touches them, knockLevel × its force is added to the note's bridge output (0 = none),
-    // through a one-pole low-pass at knockLowPassHz (0 = none), and never through the note's
-    // high-pass: the knock's thump lies under the fundamental.
+    // through two one-pole low-passes at knockLowPassHz and two one-pole high-passes at
+    // knockHighPassHz (0 = none), and never through the note's high-pass. A band, not a thump:
+    // Keyscape's treble strike noise sits at 0.25-2 kHz, with 8-24 dB less below 250 Hz than a
+    // 150 Hz low-pass gave (issue 0022 §6).
     double knockLevel = 0.0;
     double knockLowPassHz = 0.0;
+    double knockHighPassHz = 0.0;
 
     // The board radiates the lowest fundamentals weakly: each partial's bridge output is weighted
     // by a 4th-order Butterworth high-pass's magnitude at radiationCornerHz (0 = none). In
@@ -93,6 +107,9 @@ struct NoteParameters
     // mf × (v / mf)^contactSpeedExponent, and the strike's drive is scaled by v over that, so
     // the note keeps the real blow's loudness while its brightness changes less with velocity.
     double contactSpeedExponent = 1.0;
+
+    // The note's level on its whole output, dB: voiced even against the reference (issue 0022 §6).
+    double levelDb = 0.0;
 
     // This note's share of the model's unison spread.
     double unisonSpreadScale = 1.0;
@@ -198,6 +215,18 @@ struct NoteOverride;
         return aftersoundDecay (p, partialFrequency (p, partial));
 
     const double rate = p.measuredAftersoundDecay[static_cast<std::size_t> (partial - 1)];
+    return p.decayTiltExponent == 0.0 ? rate : rate * decayTilt (p, partialFrequency (p, partial));
+}
+
+[[nodiscard]] inline bool hasTail (const NoteParameters& p, int partial) noexcept
+{
+    return partial >= 1 && partial <= p.numTailPartials && partial <= NoteParameters::maxTailPartials;
+}
+
+/** Partial n's tail (second polarisation) decay rate, 1/s. Only for hasTail(). */
+[[nodiscard]] inline double tailDecayOfPartial (const NoteParameters& p, int partial) noexcept
+{
+    const double rate = p.tailDecay[static_cast<std::size_t> (partial - 1)];
     return p.decayTiltExponent == 0.0 ? rate : rate * decayTilt (p, partialFrequency (p, partial));
 }
 
