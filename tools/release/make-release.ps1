@@ -41,9 +41,18 @@ $cmake = Get-Content CMakeLists.txt -Raw
 if ($cmake -notmatch 'project\(Forte VERSION (\d+\.\d+\.\d+)') { throw "No version in CMakeLists.txt" }
 $version = $Matches[1]
 $tag = "v$version"
-gh release view $tag 2>$null | Out-Null
-if ($LASTEXITCODE -eq 0) { throw "Release $tag already exists: bump the version in CMakeLists.txt" }
-$global:LASTEXITCODE = 0
+
+# Native commands whose failure is an answer, not an error (Windows PowerShell turns their
+# stderr into a terminating error under "Stop").
+function Quietly([scriptblock]$block) {
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try { $out = & $block 2>$null; $ok = ($LASTEXITCODE -eq 0) } finally { $ErrorActionPreference = $saved }
+    $global:LASTEXITCODE = 0
+    return @{ ok = $ok; out = $out }
+}
+
+if ((Quietly { gh release view $tag }).ok) { throw "Release $tag already exists: bump the version in CMakeLists.txt" }
 Write-Host "Releasing Forte $version from $sha"
 
 # 2. Build and test
@@ -57,8 +66,8 @@ $name = "Forte-$version-windows-x64"
 $assets = @("dist\$name-setup.exe", "dist\$name.zip")
 
 # 4. Draft release
-$previous = (git describe --tags --abbrev=0 2>$null)
-$global:LASTEXITCODE = 0
+$described = Quietly { git describe --tags --abbrev=0 }
+$previous = if ($described.ok) { "$($described.out)".Trim() } else { $null }
 $range = if ($previous) { "$previous..$sha" } else { "-15 $sha" }
 $log = (git log --format="- %s" $range.Split(" ")) -join "`n"
 $notes = @"
