@@ -1,7 +1,8 @@
-# Release (issue 0020, SPEC §9.4): a pushed tag vX.Y.Z builds Release, runs every test with
-# pluginval, packages the installer and the portable zip, and makes a DRAFT GitHub Release with
-# both attached. Nothing is public until the user publishes the draft. tools/release/
-# make-release.ps1 does the same from the user's PC. The Tier 2 sound-match report isn't built yet.
+# Release (issue 0020, SPEC §9.4): a pushed tag vX.Y.Z builds Release on Windows and Linux, runs
+# every test with pluginval, packages the installer, the portable zip and the Linux tarball, and
+# makes a DRAFT GitHub Release with all three attached. Nothing is public until the user
+# publishes the draft. tools/release/make-release.ps1 does the same from the user's PC (Linux
+# through WSL). The Tier 2 sound-match report isn't built yet.
 name: Release
 
 on:
@@ -74,3 +75,47 @@ jobs:
             gh release create $env:TAG @flags @assets
           }
           exit $LASTEXITCODE
+
+  # After the Windows job made the draft: the Linux build, attached to it.
+  linux:
+    needs: release
+    runs-on: ubuntu-24.04
+    env:
+      TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out (with JUCE submodule)
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Get build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake ninja-build pkg-config \
+            libasound2-dev libjack-jackd2-dev libfreetype-dev libfontconfig1-dev libx11-dev \
+            libxrandr-dev libxinerama-dev libxcursor-dev libxcomposite-dev libxext-dev \
+            libxi-dev libxrender-dev libgl1-mesa-dev lv2-dev xvfb
+
+      - name: Get pluginval and the VST3 validator
+        run: |
+          bash tools/get-pluginval.sh
+          bash tools/get-vst3-validator.sh
+
+      - name: Configure
+        run: cmake --preset linux -DFORTE_REQUIRE_CHECK_TOOLS=ON
+
+      - name: Build
+        run: cmake --build --preset linux-release
+
+      - name: Tests (pluginval included, on a virtual display)
+        run: xvfb-run -a ctest --preset linux-release
+
+      - name: Package
+        run: bash tools/release/package.sh
+
+      - name: Attach to the draft
+        run: |
+          version="${TAG#v}"
+          gh release upload "${TAG}" "dist/Forte-${version}-linux-x64.tar.gz" --clobber

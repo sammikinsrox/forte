@@ -1,5 +1,8 @@
 * text=auto
 
+# Linux shell scripts run as checked out, on Windows checkouts too (WSL).
+*.sh   text eol=lf
+
 *.mid  binary
 *.wav  binary
 *.ttf  binary

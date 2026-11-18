@@ -51,7 +51,7 @@ TEST_CASE ("Audio-thread guard counts aligned allocations", "[audio-thread]")
     CHECK (use.deallocations >= 1);
 }
 
-#ifdef _DEBUG
+#if defined(_MSC_VER) && defined(_DEBUG)
 TEST_CASE ("Audio-thread guard counts malloc and free in Debug", "[audio-thread]")
 {
     // Called through a volatile pointer so the calls can't be optimised out.

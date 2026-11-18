@@ -7,12 +7,22 @@
       "displayName": "Visual Studio 2026 (x64)",
       "generator": "Visual Studio 18 2026",
       "architecture": "x64",
-      "binaryDir": "${sourceDir}/build"
+      "binaryDir": "${sourceDir}/build",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+    },
+    {
+      "name": "linux",
+      "displayName": "Linux (Ninja Multi-Config, GCC or Clang)",
+      "generator": "Ninja Multi-Config",
+      "binaryDir": "${sourceDir}/build-linux",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" }
     }
   ],
   "buildPresets": [
     { "name": "debug", "configurePreset": "vs2026", "configuration": "Debug" },
-    { "name": "release", "configurePreset": "vs2026", "configuration": "Release" }
+    { "name": "release", "configurePreset": "vs2026", "configuration": "Release" },
+    { "name": "linux-debug", "configurePreset": "linux", "configuration": "Debug" },
+    { "name": "linux-release", "configurePreset": "linux", "configuration": "Release" }
   ],
   "testPresets": [
     {
@@ -24,6 +34,18 @@
     {
       "name": "release",
       "configurePreset": "vs2026",
+      "configuration": "Release",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "linux-debug",
+      "configurePreset": "linux",
+      "configuration": "Debug",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "linux-release",
+      "configurePreset": "linux",
       "configuration": "Release",
       "output": { "outputOnFailure": true }
     }

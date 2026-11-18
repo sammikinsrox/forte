@@ -1,7 +1,13 @@
-# Forte VST3 and Standalone (SPEC §1, §9.1).
+# Forte VST3 and Standalone, and on Linux LV2 too (SPEC §1, §9.1).
 #
-# PLUGIN_MANUFACTURER_CODE and PLUGIN_CODE make up the VST3 class ID. Once a version ships,
-# changing either one makes hosts treat Forte as a different plugin, and saved projects lose it.
+# PLUGIN_MANUFACTURER_CODE and PLUGIN_CODE make up the VST3 class ID, and LV2URI is the LV2
+# plugin's identity. Once a version ships, changing any of them makes hosts treat Forte as a
+# different plugin, and saved projects lose it.
+
+set(forte_formats VST3 Standalone)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    list(APPEND forte_formats LV2)
+endif()
 
 juce_add_plugin(Forte
     PRODUCT_NAME "Forte"
@@ -10,7 +16,8 @@ juce_add_plugin(Forte
     VERSION "${PROJECT_VERSION}"
     PLUGIN_MANUFACTURER_CODE Frte
     PLUGIN_CODE Fgnd
-    FORMATS VST3 Standalone
+    FORMATS ${forte_formats}
+    LV2URI "https://github.com/sammikinsrox/forte"
     IS_SYNTH TRUE
     NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT FALSE

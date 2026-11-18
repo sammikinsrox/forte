@@ -3,6 +3,7 @@ refs/
 
 # Build output
 /build/
+/build-linux/
 /dist/
 /out/
 CMakeUserPresets.json

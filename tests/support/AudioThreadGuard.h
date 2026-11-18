@@ -18,8 +18,9 @@ struct HeapUse
 
     What is counted:
     - every replaceable global operator new and delete (all configurations);
-    - in Debug builds, also malloc, calloc, realloc and free, through the CRT allocation hook.
-      This is what catches JUCE's HeapBlock, which calls std::malloc.
+    - in Windows Debug builds, also malloc, calloc, realloc and free, through the CRT allocation
+      hook. This is what catches JUCE's HeapBlock, which calls std::malloc. Linux has no such
+      hook; the code under test is the same on both, so the Windows run covers it.
 
     Only this thread is watched. Other threads may allocate freely.
 

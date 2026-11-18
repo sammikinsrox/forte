@@ -129,27 +129,36 @@ set_tests_properties(
 # --- pluginval ---------------------------------------------------------------------------------
 
 # pluginval also runs Steinberg's VST3 validator when given its path. JUCE's bundled SDK
-# doesn't include the validator, so tools/get-vst3-validator.ps1 builds it from the full SDK.
-# CI sets FORTE_REQUIRE_CHECK_TOOLS=ON, so a missing tool fails the configure step instead of
-# quietly dropping a check.
+# doesn't include the validator, so tools/get-vst3-validator.ps1 (.sh on Linux) builds it from
+# the full SDK. CI sets FORTE_REQUIRE_CHECK_TOOLS=ON, so a missing tool fails the configure step
+# instead of quietly dropping a check. On Linux the tools live in .tools/linux/, so a checkout
+# shared with Windows (WSL) keeps both sets.
 
 option(FORTE_REQUIRE_CHECK_TOOLS "Fail if pluginval or the VST3 validator is missing" OFF)
 
+if(WIN32)
+    set(check_tools_dir "${PROJECT_SOURCE_DIR}/.tools")
+    set(check_tools_script "ps1")
+else()
+    set(check_tools_dir "${PROJECT_SOURCE_DIR}/.tools/linux")
+    set(check_tools_script "sh")
+endif()
+
 find_program(FORTE_PLUGINVAL_EXE pluginval
-    HINTS "${PROJECT_SOURCE_DIR}/.tools/pluginval"
-    DOC "pluginval executable (tools/get-pluginval.ps1 downloads the pinned version)")
+    HINTS "${check_tools_dir}/pluginval"
+    DOC "pluginval executable (tools/get-pluginval.${check_tools_script} downloads the pinned version)")
 
 find_program(FORTE_VST3_VALIDATOR_EXE validator
-    HINTS "${PROJECT_SOURCE_DIR}/.tools/vst3-validator"
+    HINTS "${check_tools_dir}/vst3-validator"
     NO_DEFAULT_PATH
-    DOC "Steinberg VST3 validator (tools/get-vst3-validator.ps1 builds the pinned version)")
+    DOC "Steinberg VST3 validator (tools/get-vst3-validator.${check_tools_script} builds the pinned version)")
 
 set(missing_check_tools "")
 if(NOT FORTE_PLUGINVAL_EXE)
-    list(APPEND missing_check_tools "pluginval (run tools/get-pluginval.ps1)")
+    list(APPEND missing_check_tools "pluginval (run tools/get-pluginval.${check_tools_script})")
 endif()
 if(NOT FORTE_VST3_VALIDATOR_EXE)
-    list(APPEND missing_check_tools "VST3 validator (run tools/get-vst3-validator.ps1)")
+    list(APPEND missing_check_tools "VST3 validator (run tools/get-vst3-validator.${check_tools_script})")
 endif()
 
 if(missing_check_tools)
@@ -161,8 +170,11 @@ if(missing_check_tools)
 endif()
 
 if(FORTE_PLUGINVAL_EXE)
+    # On Linux, pluginval 1.0.4 hands the validator the .so inside the bundle, which it rejects
+    # ("is not a module directory"), and stops before its own tests. There the validator runs as
+    # its own test, on the bundle, below.
     set(vst3_validator_args "")
-    if(FORTE_VST3_VALIDATOR_EXE)
+    if(FORTE_VST3_VALIDATOR_EXE AND WIN32)
         set(vst3_validator_args --vst3validator "${FORTE_VST3_VALIDATOR_EXE}")
     endif()
 
@@ -180,7 +192,36 @@ if(FORTE_PLUGINVAL_EXE)
         TIMEOUT 900
         # pluginval flips every parameter, Export voicing too: don't overwrite the user's
         # Documents/Forte/voicing.json (SPEC §6.5).
-        ENVIRONMENT "FORTE_NO_VOICING_EXPORT=1"
+        ENVIRONMENT "FORTE_NO_VOICING_EXPORT=1")
+    if(WIN32)
         # Belt and braces: pluginval reports a skipped validator as success.
-        FAIL_REGULAR_EXPRESSION "Skipping vst3 validator")
+        set_tests_properties("pluginval: VST3 at strictness 10" PROPERTIES
+            FAIL_REGULAR_EXPRESSION "Skipping vst3 validator")
+    endif()
+
+    if(FORTE_VST3_VALIDATOR_EXE AND NOT WIN32)
+        add_test(NAME "vst3 validator: VST3"
+            COMMAND "${FORTE_VST3_VALIDATOR_EXE}"
+                "$<GENEX_EVAL:$<TARGET_PROPERTY:Forte_VST3,JUCE_PLUGIN_ARTEFACT_FILE>>")
+        set_tests_properties("vst3 validator: VST3" PROPERTIES
+            LABELS "pluginval"
+            TIMEOUT 900
+            ENVIRONMENT "FORTE_NO_VOICING_EXPORT=1"
+            FAIL_REGULAR_EXPRESSION "[1-9][0-9]* tests failed")
+    endif()
+
+    # The LV2 build (Linux only), at the same strictness.
+    if(TARGET Forte_LV2)
+        add_test(NAME "pluginval: LV2 at strictness 10"
+            COMMAND "${FORTE_PLUGINVAL_EXE}"
+                --strictness-level 10
+                --validate-in-process
+                --timeout-ms 600000
+                --output-dir "${CMAKE_CURRENT_BINARY_DIR}/pluginval-lv2/$<CONFIG>"
+                --validate "$<GENEX_EVAL:$<TARGET_PROPERTY:Forte_LV2,JUCE_PLUGIN_ARTEFACT_FILE>>")
+        set_tests_properties("pluginval: LV2 at strictness 10" PROPERTIES
+            LABELS "pluginval"
+            TIMEOUT 900
+            ENVIRONMENT "FORTE_NO_VOICING_EXPORT=1")
+    endif()
 endif()

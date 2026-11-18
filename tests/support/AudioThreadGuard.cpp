@@ -1,13 +1,20 @@
 // Replaces the global allocation functions for the test executable, so the audio-thread guard
 // sees every allocation. Link this file into test executables only, never into the plugin.
+//
+// On Windows, Debug builds also hook the CRT heap, so a plain malloc() is caught too. Linux has no
+// such hook; the engine's sources are the same on both, so the Windows run covers that.
 
 #include "AudioThreadGuard.h"
 
+#include <algorithm>
 #include <cstdlib>
-#include <malloc.h>
 #include <new>
 
-#ifdef _DEBUG
+#if defined(_MSC_VER)
+    #include <malloc.h>
+#endif
+
+#if defined(_MSC_VER) && defined(_DEBUG)
     #include <crtdbg.h>
 #endif
 
@@ -50,7 +57,14 @@ void* allocateAligned (std::size_t size, std::align_val_t alignment) noexcept
 {
     noteAllocation();
     const ReplacementCall call;
+#if defined(_MSC_VER)
     return _aligned_malloc (size != 0 ? size : 1, static_cast<std::size_t> (alignment));
+#else
+    // posix_memalign wants at least a pointer's alignment; free() releases it.
+    void* p = nullptr;
+    const auto align = std::max (static_cast<std::size_t> (alignment), sizeof (void*));
+    return posix_memalign (&p, align, size != 0 ? size : 1) == 0 ? p : nullptr;
+#endif
 }
 
 void release (void* p) noexcept
@@ -70,7 +84,11 @@ void releaseAligned (void* p) noexcept
 
     noteDeallocation();
     const ReplacementCall call;
+#if defined(_MSC_VER)
     _aligned_free (p);
+#else
+    std::free (p);
+#endif
 }
 
 void* allocateOrThrow (std::size_t size)
@@ -89,7 +107,7 @@ void* allocateAlignedOrThrow (std::size_t size, std::align_val_t alignment)
     throw std::bad_alloc();
 }
 
-#ifdef _DEBUG
+#if defined(_MSC_VER) && defined(_DEBUG)
 int __cdecl crtAllocationHook (int allocationType, void*, std::size_t, int, long, const unsigned char*, int)
 {
     if (audioThreadDepth > 0 && insideReplacement == 0)

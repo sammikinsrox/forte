@@ -1,6 +1,6 @@
 # Forte v1 specification
 
-Forte is a free, open-source, physically modeled concert-grand piano plugin for Windows (VST3 + Standalone). It synthesises the sound by simulating the hammer, strings, dampers and soundboard. It does not play back recordings.
+Forte is a free, open-source, physically modeled concert-grand piano plugin for Windows (VST3 + Standalone) and Linux (VST3, LV2 + Standalone). It synthesises the sound by simulating the hammer, strings, dampers and soundboard. It does not play back recordings.
 
 This document compiles every decision from the planning map ([Map: Forte v1 spec](issues/0001-map-forte-v1-spec.md)). Each section links to the ticket that holds the full reasoning. If this document and a ticket disagree, the **later ticket wins**. Please report any disagreement so this file can be fixed. Vocabulary follows [GLOSSARY.md](GLOSSARY.md).
 
@@ -11,7 +11,7 @@ Status: build-ready, 2026-11-14.
 ## 1. Product
 
 - **Licence:** Forte's code is GPLv3-or-later. JUCE is used under AGPLv3 (combinable per GPLv3 §13). The VST3 SDK is MIT.
-- **Platform:** Windows only. VST3 and Standalone. The test hosts are **FL Studio** and **Reaper**.
+- **Platform:** Windows (VST3 and Standalone) and, since 2026-11-17, Linux (VST3, LV2 and Standalone), both x86-64 ([Linux build](issues/0023-linux-build.md)). The test hosts are **FL Studio** and **Reaper** on Windows, **Reaper** and **LMMS** on Linux.
 - **One piano model:** a modern concert grand (Steinway D values), built on a parameterised piano model so other pianos can be added later as new model files.
 - **Physics in v1:**
   - felt-hammer/string interaction;
@@ -25,7 +25,7 @@ Status: build-ready, 2026-11-14.
 - **Performance target:** a full 88-key sustain-pedal glissando plays without dropouts at a 128-sample buffer, using **≤ 25% of one core** on a mid-range 2020 PC (reference machine: the user's Ryzen 5 5500) at 48 kHz.
 - **Judging the sound:** the reference recordings are the objective comparison. The user's ear makes the final call. Since 2026-11-16 the voicing target is the user's own **Keyscape** renders (§3.1), not Iowa: the user hears Keyscape as "clear, smooth, rich and deep" and judges Forte against it ([Voicing against Iowa](issues/0021-voicing-against-iowa.md) §14–15). Forte is for the user's personal use, so numbers fitted from those renders are committed.
 - **Out of scope for v1:**
-  - macOS, AU and Linux;
+  - macOS and AU, CLAP, and ARM CPUs;
   - built-in reverb;
   - sostenuto pedal;
   - duplex scaling;
@@ -479,7 +479,8 @@ Source: [Build, installer and release](issues/0020-build-installer-release.md), 
 
 ### 9.1 Toolchain
 
-- **Compiler:** MSVC (Visual Studio 2026), with `/O2 /fp:fast`. Flush-to-zero and denormals-are-zero are set inside the engine.
+- **Compiler:** on Windows MSVC (Visual Studio 2026), with `/O2 /fp:fast`; on Linux GCC or Clang, with `-O2 -fno-math-errno -ffp-contract=off` (no `-ffast-math`: the tests check for NaNs). Flush-to-zero and denormals-are-zero are set inside the engine. The two platforms' renders agree to the ear but not bit for bit (their maths libraries round differently), so each keeps its own bit-identity references.
+- **Presets:** `vs2026` (`debug`, `release`) on Windows, `linux` (`linux-debug`, `linux-release`, Ninja Multi-Config, into `build-linux/`) on Linux. A Windows checkout builds the Linux side in WSL.
 - **JUCE:** a git submodule pinned to **JUCE 9.0.5**. Upgrading it is a deliberate commit.
 - **Build:** CMake. The targets are the VST3, the Standalone, `forte-render` and the tests. They all link **one shared engine library**.
 - **Version:** one semantic version number in CMake. Preview builds for the user's experiments are `0.9.x` (from `0.9.0`, 2026-11-17); `1.0.0` is the finished v1, after the sign-off.
@@ -513,12 +514,13 @@ Source: [Build, installer and release](issues/0020-build-installer-release.md), 
   - checkboxes for VST3 and Standalone, plus an uninstaller;
   - never touches `Documents\Forte\Presets`.
 - **Portable zip** of the same two files.
+- **Linux tarball** (`tools/release/package.sh`): `Forte.vst3`, `Forte.lv2` and the standalone `Forte`, with `install.sh`, which installs per user into `~/.vst3`, `~/.lv2` and `~/.local/bin` (no root), or with `--system` into `/usr/local/lib/vst3`, `/usr/local/lib/lv2` and `/usr/local/bin`, and `--uninstall`s. Built on Ubuntu 24.04; it needs glibc 2.38 or newer (measured: the newest symbol version it uses).
 - **Self-contained:** the model file and IRs are embedded in the binaries.
 
 ### 9.5 Release flow
 
 1. Bump the version in `CMakeLists.txt` and commit it.
-2. Either push a tag `vX.Y.Z` (`.github/workflows/release.yml`) or run `tools/release/make-release.ps1` on the user's PC. Both build Release, run every test with pluginval, package the installer and the zip (`tools/release/package.ps1`, `installer/forte.iss`) and create a **draft** GitHub Release, visible only to the owner. Tier 2 and its report join this step once they exist.
+2. Either push a tag `vX.Y.Z` (`.github/workflows/release.yml`) or run `tools/release/make-release.ps1` on the user's PC (its Linux half in WSL). Both build Release on Windows and Linux, run every test with pluginval (VST3, and LV2 on Linux), package the installer, the zip (`tools/release/package.ps1`, `installer/forte.iss`) and the Linux tarball (`tools/release/package.sh`) and create a **draft** GitHub Release, visible only to the owner. Tier 2 and its report join this step once they exist.
 3. The user installs the draft's build, and for 1.0.0 and later runs the blind A/B sign-off and the performance gate.
 4. The user publishes (previews `0.9.x` as pre-releases).
 
@@ -527,7 +529,7 @@ Source: [Build, installer and release](issues/0020-build-installer-release.md), 
 - **Files:**
   - `LICENSE` (GPLv3) and the AGPLv3 text, with a link to the matching source tag;
   - `CREDITS.md`: the references the voicing was measured from (Iowa MIS, the user's Keyscape renders; Salamander, Piano in 162 and Plath once used) and the papers;
-  - `THIRD-PARTY.md`: JUCE, the VST3 SDK (MIT), Jost and Italiana (OFL, embedded unmodified), and every JUCE-bundled library actually in the binary, checked against the real build (0.9.0: FLAC, zlib, libpng, IJG JPEG, libwebp, HarfBuzz, SheenBidi, LunaSVG, PlutoVG); the package carries each one's licence text in `licenses/`.
+  - `THIRD-PARTY.md`: JUCE, the VST3 SDK (MIT), Jost and Italiana (OFL, embedded unmodified), and every JUCE-bundled library actually in the binary, checked against the real build (0.9.0: FLAC, zlib, libpng, IJG JPEG, libwebp, HarfBuzz, SheenBidi, LunaSVG, PlutoVG; on Linux also the LV2 headers, ISC); the package carries each one's licence text in `licenses/`.
 - **About panel:** the same credits and notices.
 - **Records:**
   - the validation report is attached to each release;

@@ -49,9 +49,10 @@ add_library(forte_engine STATIC
     src/VoicingOverrides.inc)
 add_library(forte::engine ALIAS forte_engine)
 
-# The hot loops' AVX2 build (SPEC §9.2). Only this file gets /arch:AVX2: see src/Kernels.h for
-# why the rest of the engine, and everything it shares with this file, must not.
-set_source_files_properties(src/KernelsAvx2.cpp PROPERTIES COMPILE_OPTIONS "/arch:AVX2")
+# The hot loops' AVX2 build (SPEC §9.2). Only this file gets AVX2 (/arch:AVX2, or -mavx2 -mfma):
+# see src/Kernels.h for why the rest of the engine, and everything it shares with this file,
+# must not.
+set_source_files_properties(src/KernelsAvx2.cpp PROPERTIES COMPILE_OPTIONS "${FORTE_AVX2_FLAGS}")
 
 # The soundboard IRs (SPEC §3.5): data/ir/<perspective>-<region>.wav, built into the engine, and
 # the parts the voicing lab rebuilds them from (SPEC §6.5): data/ir/parts/<...>-modes.wav.
