@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 
 # The one version number for every Forte binary (SPEC §9.1).
-project(Forte VERSION 0.9.0 LANGUAGES C CXX)
+project(Forte VERSION 0.9.1 LANGUAGES C CXX)
 
 # Windows with MSVC (Visual Studio 2026), or Linux with GCC or Clang, on x86-64 (SPEC §9.1): the
 # engine's hot loops are SSE2 and AVX2.
