@@ -81,7 +81,7 @@ TEST_CASE ("Voicing lab: settings start at the committed voicing", "[lab]")
     {
         CHECK (settings.isNeutral (c.control));
         for (int r = 0; r < lab::numRegisters; ++r)
-            CHECK (settings.get (c.control, static_cast<Register> (r)) == lab::neutralValue);
+            CHECK (settings.get (c.control, static_cast<Register> (r)) == lab::restingValue (c.control));
     }
 
     for (auto group : { lab::Group::hammer, lab::Group::strings, lab::Group::board, lab::Group::output })
@@ -102,23 +102,36 @@ TEST_CASE ("Voicing lab: one register off 50 makes its control and group non-neu
 TEST_CASE ("Voicing lab: a control without registers ignores its unused slots", "[lab]")
 {
     lab::Settings settings;
-    settings.set (Control::tapeDrive, Register::treble, 0.0f);
+    settings.set (Control::tapeDrive, Register::treble, 60.0f);
 
     CHECK (settings.isNeutral (Control::tapeDrive));
 }
 
-TEST_CASE ("Voicing lab: 50 maps to the committed value exactly, 0 and 100 to the ends", "[lab]")
+TEST_CASE ("Voicing lab: the resting value maps to the committed value exactly, 0 and 100 to the ends", "[lab]")
 {
     using detail::labMap;
 
     for (const auto& c : lab::controls)
         for (double fitted : { 0.0, 0.37, 1.0, 8.0 })
-            CHECK (labMap (c.control, 50.0, fitted) == fitted);
+            CHECK (labMap (c.control, lab::restingValue (c.control), fitted) == fitted);
+
+    // Felt spike and Tape drive only add (their committed none and off are the bottom of their
+    // ranges): they rest at 0, so the knob sits all the way down at the committed voicing.
+    CHECK (lab::restingValue (Control::feltSpike) == 0.0f);
+    CHECK (lab::restingValue (Control::tapeDrive) == 0.0f);
+    CHECK (lab::Settings {}.get (Control::tapeDrive) == 0.0f);
+    CHECK (lab::Settings {}.get (Control::feltSpike, Register::treble) == 0.0f);
+    CHECK (lab::Settings {}.get (Control::feltHardness, Register::middle) == 50.0f);
+    for (const auto& c : lab::controls)
+        if (c.control != Control::feltSpike && c.control != Control::tapeDrive)
+            CHECK (c.resting == 50.0f);
 
     CHECK_THAT (labMap (Control::feltHardness, 0.0, 1.0), WithinRel (0.25, 1e-12));
     CHECK_THAT (labMap (Control::feltHardness, 100.0, 1.0), WithinRel (4.0, 1e-12));
     CHECK_THAT (labMap (Control::feltHardness, 75.0, 1.0), WithinRel (2.0, 1e-12));
-    CHECK (labMap (Control::feltSpike, 0.0, 0.85) == 0.0);
+    CHECK (labMap (Control::feltSpike, 0.0, 0.0) == 0.0);
+    CHECK_THAT (labMap (Control::feltSpike, 50.0, 0.0), WithinRel (0.475, 1e-12));
+    CHECK_THAT (labMap (Control::feltSpike, 100.0, 0.0), WithinRel (0.95, 1e-12));
     CHECK_THAT (labMap (Control::feltSpike, 100.0, 0.85), WithinRel (0.95, 1e-12));
     CHECK (labMap (Control::velocityBrightness, 0.0, 0.5) == 0.0);
     CHECK_THAT (labMap (Control::velocityBrightness, 100.0, 0.5), WithinRel (1.0, 1e-12));
@@ -136,8 +149,10 @@ TEST_CASE ("Voicing lab: 50 maps to the committed value exactly, 0 and 100 to th
     CHECK_THAT (labMap (Control::boardTilt, 0.0, 8.0), WithinRel (-4.0, 1e-12));
     CHECK_THAT (labMap (Control::boardTilt, 100.0, 8.0), WithinRel (16.0, 1e-12));
     CHECK_THAT (labMap (Control::colourHigh, 100.0, 0.0), WithinRel (12.0, 1e-12));
-    CHECK (labMap (Control::tapeDrive, 0.0, 8.0) == 0.0);
-    CHECK_THAT (labMap (Control::tapeDrive, 100.0, 8.0), WithinRel (24.0, 1e-12));
+    CHECK (labMap (Control::tapeDrive, 0.0, 0.0) == 0.0);  // off, as committed
+    CHECK_THAT (labMap (Control::tapeDrive, 1.0, 0.0), WithinRel (0.24, 1e-12));
+    CHECK_THAT (labMap (Control::tapeDrive, 100.0, 0.0), WithinRel (24.0, 1e-12));
+    CHECK_THAT (labMap (Control::tapeDrive, 50.0, 8.0), WithinRel (16.0, 1e-12));
 }
 
 TEST_CASE ("Voicing lab: registers sit at C2, C4 and C7, flat outside, log between for multipliers", "[lab]")

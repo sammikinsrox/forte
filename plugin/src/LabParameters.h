@@ -11,7 +11,8 @@
 namespace forte
 {
 /** The voicing lab's plugin parameters (SPEC §6.5), built from forte::lab::controls: one per
-    control, or one per register for a per-register control. Whole numbers 0–100, default 50.
+    control, or one per register for a per-register control. Whole numbers 0–100, defaulting to
+    the control's resting value (lab::restingValue: 50, or 0 for Felt spike and Tape drive).
 
     Parameter ids are permanent (SPEC §7.2): "lab.<control id>" or "lab.<control id>.<register>",
     e.g. "lab.feltHardness.bass". */

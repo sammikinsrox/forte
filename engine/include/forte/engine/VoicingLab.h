@@ -74,12 +74,16 @@ struct ControlInfo
     std::string_view name;   // as the host shows it
     Group group;
     bool perRegister;
-    std::string_view range;  // what 0, 50 and 100 mean, for the export and the docs
+    std::string_view range;  // what 0, the resting value and 100 mean, for the export and the docs
+
+    // Where the committed voicing sits on the knob: 50 for a control that moves both ways, 0 for
+    // one whose committed value is the bottom of its range (no spike, no tape), which only adds.
+    float resting = 50.0f;
 };
 
 inline constexpr std::array<ControlInfo, numControls> controls { {
     { Control::feltHardness,       "feltHardness",       "Felt hardness",       Group::hammer,  true,  "relaxed stiffness /4 ... fitted ... x4 (log)" },
-    { Control::feltSpike,          "feltSpike",          "Felt spike",          Group::hammer,  true,  "epsilon 0 ... fitted ... 0.95" },
+    { Control::feltSpike,          "feltSpike",          "Felt spike",          Group::hammer,  true,  "epsilon: committed (none) at 0 ... 0.95 at 100", 0.0f },
     { Control::velocityBrightness, "velocityBrightness", "Velocity brightness", Group::hammer,  false, "contact speed exponent 0 ... 0.5 ... 1" },
     { Control::strikePosition,     "strikePosition",     "Strike position",     Group::hammer,  true,  "x0.6 ... fitted ... x1.4" },
     { Control::hammerMass,         "hammerMass",         "Hammer mass",         Group::hammer,  true,  "x0.5 ... fitted ... x2 (log)" },
@@ -95,7 +99,7 @@ inline constexpr std::array<ControlInfo, numControls> controls { {
     { Control::colourLow,          "colourLow",          "Colour low",          Group::board,   true,  "-12 ... 0 ... +12 dB below 250 Hz" },
     { Control::colourMid,          "colourMid",          "Colour mid",          Group::board,   true,  "-12 ... 0 ... +12 dB 250 Hz - 2.5 kHz" },
     { Control::colourHigh,         "colourHigh",         "Colour high",         Group::board,   true,  "-12 ... 0 ... +12 dB above 2.5 kHz" },
-    { Control::tapeDrive,          "tapeDrive",          "Tape drive",          Group::output,  false, "0 (off) ... 8 ... 24" },
+    { Control::tapeDrive,          "tapeDrive",          "Tape drive",          Group::output,  false, "drive: committed (off) at 0 ... 24 at 100", 0.0f },
 } };
 
 static_assert ([] {
@@ -113,9 +117,14 @@ static_assert ([] {
 inline constexpr std::array<std::string_view, numRegisters> registerIds { "bass", "middle", "treble" };
 inline constexpr std::array<std::string_view, numRegisters> registerNames { "Bass", "Middle", "Treble" };
 
-inline constexpr float neutralValue = 50.0f;
 inline constexpr float minimumValue = 0.0f;
 inline constexpr float maximumValue = 100.0f;
+
+/** The lab value at which a control is the committed voicing: 50, or 0 for one that only adds. */
+[[nodiscard]] constexpr float restingValue (Control control) noexcept
+{
+    return info (control).resting;
+}
 
 /** Every lab value. A control without registers keeps its one value at Register::bass. */
 struct Settings
@@ -136,8 +145,8 @@ struct Settings
     [[nodiscard]] bool isNeutral (Control control) const noexcept
     {
         const auto& v = values[static_cast<std::size_t> (control)];
-        return info (control).perRegister ? (v[0] == neutralValue && v[1] == neutralValue && v[2] == neutralValue)
-                                          : v[0] == neutralValue;
+        const float r = restingValue (control);
+        return info (control).perRegister ? (v[0] == r && v[1] == r && v[2] == r) : v[0] == r;
     }
 
     /** True when every control in the group is at the committed voicing. */
@@ -155,8 +164,11 @@ private:
     static constexpr std::array<std::array<float, numRegisters>, numControls> allNeutral() noexcept
     {
         std::array<std::array<float, numRegisters>, numControls> v {};
-        for (auto& c : v)
-            c = { neutralValue, neutralValue, neutralValue };
+        for (std::size_t i = 0; i < v.size(); ++i)
+        {
+            const float r = controls[i].resting;
+            v[i] = { r, r, r };
+        }
         return v;
     }
 };

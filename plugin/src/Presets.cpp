@@ -1,5 +1,7 @@
 #include "Presets.h"
 
+#include "forte/bridge/VoicingFile.h"
+
 #include <algorithm>
 
 namespace forte::presets
@@ -8,6 +10,9 @@ Values clamped (Values values) noexcept
 {
     for (const auto& f : fields)
         values.*f.member = std::clamp (values.*f.member, f.minimum, f.maximum);
+    for (auto& control : values.lab.values)
+        for (auto& v : control)
+            v = std::clamp (v, lab::minimumValue, lab::maximumValue);
     return values;
 }
 
@@ -103,7 +108,7 @@ const std::vector<Factory>& factoryPresets()
 }
 
 //==============================================================================
-juce::String toJson (const juce::String& name, const Values& values)
+juce::String toJson (const juce::String& name, const Values& values, int voicingRevision)
 {
     auto* valuesObject = new juce::DynamicObject();
     for (const auto& f : fields)
@@ -115,10 +120,12 @@ juce::String toJson (const juce::String& name, const Values& values)
     root->setProperty ("model", modelId);
     root->setProperty ("name", name);
     root->setProperty ("values", juce::var (valuesObject));
+    root->setProperty ("voicingRevision", voicingRevision);
+    root->setProperty ("lab", bridge::voicingControlsToVar (values.lab));
     return juce::JSON::toString (juce::var (root));
 }
 
-std::optional<Values> fromJson (const juce::String& text)
+std::optional<Values> fromJson (const juce::String& text, int voicingRevision)
 {
     const auto parsed = juce::JSON::parse (text);
     const auto* root = parsed.getDynamicObject();
@@ -136,6 +143,18 @@ std::optional<Values> fromJson (const juce::String& text)
                 values.*f.member = juce::roundToInt (static_cast<double> (v));
         }
     }
+
+    // The lab, only from the voicing revision it was set on: on another it would move a voicing
+    // that's since been folded (SPEC §6.5). A broken lab block costs the lab, not the preset.
+    const auto revision = root->getProperty ("voicingRevision");
+    const auto labObject = root->getProperty ("lab");
+    if (labObject.isObject() && (revision.isInt() || revision.isInt64()) && static_cast<int> (revision) == voicingRevision)
+    {
+        juce::String error;
+        if (const auto settings = bridge::parseVoicingControls (labObject, error))
+            values.lab = *settings;
+    }
+
     return clamped (values);
 }
 
@@ -238,17 +257,23 @@ juce::Result Library::rename (const juce::String& from, const juce::String& to)
     if (cleanName (to) != to || to.isEmpty())
         return juce::Result::fail ("That name can't be a file name");
 
-    const auto values = load ({ false, from });
-    if (! values.has_value())
+    const auto source = fileFor (from);
+    const auto text = source.existsAsFile() ? source.loadFileAsString() : juce::String();
+    if (! fromJson (text).has_value())
         return juce::Result::fail ("The preset \"" + from + "\" is gone");
+
+    // Only the name inside changes: the rest is kept as written, the lab values of an older
+    // voicing revision too (which this Forte doesn't load, but a matching one would).
+    auto parsed = juce::JSON::parse (text);
+    if (auto* root = parsed.getDynamicObject())
+        root->setProperty ("name", to);
 
     // Written to a temporary file (with the new name inside it), the old file removed, then the
     // temporary one moved into place. On Windows a rename that only changes case is the same
     // file, so writing the target directly would write over the source.
-    const auto source = fileFor (from);
     const auto target = fileFor (to);
     const auto temporary = folder.getNonexistentChildFile ("rename", ".tmp", false);
-    if (! temporary.replaceWithText (toJson (to, *values)))
+    if (! temporary.replaceWithText (juce::JSON::toString (parsed)))
         return juce::Result::fail ("Couldn't write " + temporary.getFullPathName());
     if (! source.deleteFile())
     {

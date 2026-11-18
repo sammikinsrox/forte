@@ -61,6 +61,10 @@ NOTE_CONTROLS = {
 }
 NEUTRAL = {"scale": 1.0, "offset": 0.0, "replace": None}  # None: the fitted value
 
+# Each lab control's resting value, where it's the committed voicing (VoicingLab.h's `resting`):
+# 50, or 0 for the controls that only add.
+RESTING = {"feltSpike": 0, "tapeDrive": 0}
+
 
 def neutral_overrides():
     return {
@@ -136,12 +140,13 @@ def fold(voicing_path, render, force):
     controls = voicing["controls"]
 
     def moved(control_id):
-        v = controls.get(control_id, 50)
-        return any(x != 50 for x in v.values()) if isinstance(v, dict) else v != 50
+        rest = RESTING.get(control_id, 50)
+        v = controls.get(control_id, rest)
+        return any(x != rest for x in v.values()) if isinstance(v, dict) else v != rest
 
     changed = [c for c in controls if moved(c)]
     if not changed:
-        sys.exit(f"{voicing_path}: every control is at 50, nothing to fold")
+        sys.exit(f"{voicing_path}: every control is at rest, nothing to fold")
 
     # Hammer and strings, per note.
     for control_id, (field, kind) in NOTE_CONTROLS.items():

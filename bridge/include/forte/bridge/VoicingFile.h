@@ -20,8 +20,9 @@ namespace forte::bridge
       }
     }
 
-    Values are the lab's 0–100. A control or register the file leaves out is at 50, and keys it
-    doesn't know are ignored, so older and newer files both read. Export voicing also writes the
+    Values are the lab's 0–100. A control or register the file leaves out is at its resting value
+    (lab::restingValue: 50, or 0 for Felt spike and Tape drive), and keys it doesn't know are
+    ignored, so older and newer files both read. Export voicing also writes the
     voicing revision the values were set on ("voicingRevision"), which tools/fitting's fold checks,
     and the values in physical terms. */
 inline constexpr const char* voicingFormat = "forte-voicing";
@@ -55,28 +56,20 @@ inline juce::var voicingControlsToVar (const lab::Settings& settings)
     return juce::var (controls);
 }
 
-/** Reads a voicing file's text. Returns nothing, with a reason in error, if it isn't one. */
-inline std::optional<lab::Settings> parseVoicing (const juce::String& text, juce::String& error)
+/** Reads a "controls" object (voicingControlsToVar()'s, in a voicing file or a preset). Returns
+    nothing, with a reason in error, if it isn't one. */
+inline std::optional<lab::Settings> parseVoicingControls (const juce::var& controls, juce::String& error)
 {
-    const auto root = juce::JSON::parse (text);
-
-    if (! root.isObject() || root["format"].toString() != voicingFormat)
-    {
-        error = "not a Forte voicing file (its \"format\" must be \"forte-voicing\")";
-        return std::nullopt;
-    }
-
-    const auto controls = root["controls"];
     if (! controls.isObject())
     {
-        error = "the voicing file has no \"controls\" object";
+        error = "there is no \"controls\" object";
         return std::nullopt;
     }
 
     const auto readValue = [&error] (const juce::var& v, const juce::String& where, float& out)
     {
         if (v.isVoid())
-            return true;  // left out: 50
+            return true;  // left out: at rest
 
         if (! (v.isDouble() || v.isInt() || v.isInt64()))
         {
@@ -104,7 +97,7 @@ inline std::optional<lab::Settings> parseVoicing (const juce::String& text, juce
 
         if (! c.perRegister)
         {
-            float value = lab::neutralValue;
+            float value = c.resting;
             if (! readValue (entry, id, value))
                 return std::nullopt;
             settings.set (c.control, lab::Register::bass, value);
@@ -123,7 +116,7 @@ inline std::optional<lab::Settings> parseVoicing (const juce::String& text, juce
         for (int r = 0; r < lab::numRegisters; ++r)
         {
             const auto reg = toJuceString (lab::registerIds[static_cast<std::size_t> (r)]);
-            float value = lab::neutralValue;
+            float value = c.resting;
             if (! readValue (entry[juce::Identifier (reg)], id + "." + reg, value))
                 return std::nullopt;
             settings.set (c.control, static_cast<lab::Register> (r), value);
@@ -131,5 +124,25 @@ inline std::optional<lab::Settings> parseVoicing (const juce::String& text, juce
     }
 
     return settings;
+}
+
+/** Reads a voicing file's text. Returns nothing, with a reason in error, if it isn't one. */
+inline std::optional<lab::Settings> parseVoicing (const juce::String& text, juce::String& error)
+{
+    const auto root = juce::JSON::parse (text);
+
+    if (! root.isObject() || root["format"].toString() != voicingFormat)
+    {
+        error = "not a Forte voicing file (its \"format\" must be \"forte-voicing\")";
+        return std::nullopt;
+    }
+
+    if (! root["controls"].isObject())
+    {
+        error = "the voicing file has no \"controls\" object";
+        return std::nullopt;
+    }
+
+    return parseVoicingControls (root["controls"], error);
 }
 } // namespace forte::bridge

@@ -11,7 +11,8 @@
 namespace forte::presets
 {
 /** A preset's contents (SPEC §7.1): the 8 character controls, the room's 6 and Detune, as whole
-    numbers. Volume, A4 and the pedals are never in a preset. */
+    numbers, and the voicing lab's values (SPEC §6.5). Volume, A4 and the pedals are never in a
+    preset. */
 struct Values
 {
     int hardness = 50;
@@ -34,6 +35,11 @@ struct Values
     // A piano a few weeks after its tuning (SPEC §5): 0 = as tuned. Last, so the lists above keep
     // their positions.
     int detune = 0;
+
+    // The voicing lab, every control at rest (the committed voicing) unless the preset moved it.
+    // Lab values move the voicing they were set on, so a file from another voicing revision
+    // loads them at rest, as a project does (SPEC §6.5).
+    lab::Settings lab;
 
     friend bool operator== (const Values&, const Values&) = default;
 };
@@ -110,17 +116,22 @@ struct Factory
 
 //==============================================================================
 /** A user preset file (SPEC §7.1): Documents\Forte\Presets\<name>.fortepreset, as JSON with a
-    format version, the model id, the name and the 8 values. */
+    format version, the model id, the name, the 15 values, and the lab's values ("lab", as the
+    voicing file's "controls") with the voicing revision they were set on ("voicingRevision").
+    The lab joined in format 1 without a version change: older Forte ignores it, and a file
+    without it loads the lab at rest. */
 inline constexpr const char* fileExtension = ".fortepreset";
 inline constexpr const char* fileFormat = "forte-preset";
 inline constexpr int fileFormatVersion = 1;
 inline constexpr const char* modelId = "concert-grand";
 
-[[nodiscard]] juce::String toJson (const juce::String& name, const Values& values);
+[[nodiscard]] juce::String toJson (const juce::String& name, const Values& values,
+                                   int voicingRevision = Engine::getVoicingRevision());
 
 /** The values in a preset file's text. A value that's missing or not a number is its default;
-    one out of range is clamped. Nothing if it isn't a Forte preset at all. */
-[[nodiscard]] std::optional<Values> fromJson (const juce::String& text);
+    one out of range is clamped. The lab is at rest when the file has none, a broken one, or one
+    set on a voicing revision other than voicingRevision. Nothing if it isn't a Forte preset. */
+[[nodiscard]] std::optional<Values> fromJson (const juce::String& text, int voicingRevision = Engine::getVoicingRevision());
 
 [[nodiscard]] juce::File defaultFolder();
 

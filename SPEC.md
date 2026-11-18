@@ -347,23 +347,23 @@ Sources: [Editor look & feel direction](issues/0006-editor-look-and-feel.md), [E
 
 The user voices the model by ear from inside the host, to find what the measurements can't (issue 0021 §15: a "tinny", "CP-70" quality in the high notes that no comparison with Keyscape pins down). Forte is for personal use, so the lab is part of the plugin, not a developer build.
 
-- **Form:** plugin parameters in a **Lab** group, automatable and saved with the host project. They follow §6.3's value rules: 0–100, **50 = the committed voicing**, double-click resets. The lab is a permanent part of Forte: the editor's third view, **Lab** (§6.4).
+- **Form:** plugin parameters in a **Lab** group, automatable and saved with the host project. They follow §6.3's value rules: 0–100, **50 = the committed voicing**, double-click resets. Two controls only add, because their committed value is the bottom of their range (no spike, no tape since voicing revision 5): **Felt spike and Tape drive rest at 0 = the committed voicing** and run up to their maximum (since revision 6, which changed nothing else). Each knob has a tick at its resting value. The lab is a permanent part of Forte: the editor's third view, **Lab** (§6.4).
 - **The Lab view:**
   - one knob per control, in Hammer, Strings, Board and Output panels, each saying when its changes are heard;
   - a register selector, **Bass · Middle · Treble · All**: the knobs show and move that register (All moves the three together, by the same amount);
   - each knob shows its value in physical terms (×1.32 ring, ε 0.80, +3.0 dB, …), its three registers as small bars (click one to select that register), and a dot when any register has moved;
   - the control under the mouse is drawn across the whole keyboard, committed (dashed) and now, with a handle at each register's anchor (C2, C4, C7) to drag;
   - an info panel: what the control does, where each register stands, Reset control and Reset lab; each panel has its own Reset;
-  - **Lab | Committed:** an A/B by ear. Committed plays every control at 50 (the committed voicing) while the lab keeps its values. It isn't saved.
+  - **Lab | Committed:** an A/B by ear. Committed plays every control at rest (the committed voicing) while the lab keeps its values. It isn't saved.
   - **Export voicing** as a button, with the result shown;
   - the keyboard, to audition.
 - **Registers:** a per-register control has three values, **Bass / Middle / Treble**, anchored at C2, C4 and C7 and interpolated across the keys (log for multipliers, linear otherwise), held flat outside.
 - **Controls:**
 
-| Group | Control | Per register | 0 … 50 … 100 |
+| Group | Control | Per register | 0 … 50 … 100 (or 0 … 100 when it rests at 0) |
 |---|---|---|---|
 | Hammer | Felt hardness | yes | relaxed stiffness ÷4 … fitted … ×4 (log) |
-| Hammer | Felt spike (ε, the stiff onset) | yes | none … fitted … 0.95 |
+| Hammer | Felt spike (ε, the stiff onset) | yes | rests at 0: fitted (none) … 0.95, linear |
 | Hammer | Velocity brightness (contact speed exponent) | — | 0 (brightness fixed at mf) … 0.5 … 1 (physical) |
 | Hammer | Strike position | yes | ×0.6 … fitted … ×1.4 |
 | Hammer | Hammer mass | yes | ×0.5 … fitted … ×2 (log) |
@@ -377,12 +377,13 @@ The user voices the model by ear from inside the host, to find what the measurem
 | Board | Pickup (direct-path gain) | yes | 0 … 0.1 (fitted) … 2 |
 | Board | Board tilt above 1 kHz | — | −4 … +6 (fitted) … +16 dB/octave |
 | Board | Colour Low / Mid / High (shelves at 250 Hz and 2.5 kHz over the fitted curve) | yes | −12 … 0 … +12 dB |
-| Output | Tape drive | — | 0 (off) … 8 … 24 |
+| Output | Tape drive | — | rests at 0: fitted (off) … 24, linear |
 
 - **Live changes (§2.9):** hammer controls act on the next strike. String controls need a note's modes recomputed: a note is re-prepared, off the audio thread, the next time it starts from rest (not while it rings, so nothing clicks); the lab shows nothing until it's struck again. Board controls rebuild the four IRs from their kept parts (resonant modes, direct path, colour curve), off the audio thread, then crossfade to them as a perspective switch does (§2.8). Output controls are immediate.
-- **Export:** an **Export voicing** control (a momentary 0 → 1) writes the current lab values to `Documents/Forte/voicing.json`. That file is §3.2's voicing overrides: `tools/fitting/fold_voicing.py` folds it into the committed defaults (a per-note overrides table on top of the fitted hammer and decay tables, the tape drive, the board's settings and colour), and every lab control returns to 50 on the new voicing.
-- **Voicing revision:** each fold bumps it. An export records the revision it was made on, and the fold refuses one from another revision. A project saved on an older revision opens with the lab at its 50s, since its lab values moved a voicing that's now committed.
-- **Costs:** the lab must not change the sound at all its 50s (bit-identical renders) and stays within §1's CPU target with every control at its extreme.
+- **Export:** an **Export voicing** control (a momentary 0 → 1) writes the current lab values to `Documents/Forte/voicing.json`. That file is §3.2's voicing overrides: `tools/fitting/fold_voicing.py` folds it into the committed defaults (a per-note overrides table on top of the fitted hammer and decay tables, the tape drive, the board's settings and colour), and every lab control returns to rest on the new voicing.
+- **Voicing revision:** each fold bumps it, and so does a change to what a lab value means (revision 6). An export records the revision it was made on, and the fold refuses one from another revision. A project or user preset saved on another revision opens with the lab at rest, since its lab values moved a voicing that's now committed.
+- **Presets:** a user preset holds the lab's values (§7.1), so a voicing tried in the lab can be kept and recalled without folding it.
+- **Costs:** the lab must not change the sound with every control at rest (bit-identical renders) and stays within §1's CPU target with every control at its extreme.
 
 ## 7. Presets, saved state and automation
 
@@ -394,15 +395,17 @@ Source: [Presets, saved state and automation](issues/0018-presets-state-automati
 | Listening perspective | ✓ | ✓ (two-state) | ✓ |
 | Room, Room size, Room decay, Room damping, Room pre-delay, Room early | ✓ | ✓ | ✓ |
 | Volume, A4 | — | ✓ | ✓ |
+| The voicing lab's controls (§6.5) | ✓ (user presets; factory ones have it at rest) | ✓ | ✓ |
 | Sustain, Soft | — | — (MIDI only) | — (they start released) |
 | Pedal inverts, theme | — | — | — (per computer, `%APPDATA%\Forte\settings.json`) |
 
 ### 7.1 Presets
 
-- **Contents:** the 8 character controls, the room's 6 (§2.11) and Detune (§5). A file without the room loads the Studio room; one without Detune loads it at 0.
+- **Contents:** the 8 character controls, the room's 6 (§2.11) and Detune (§5), and the voicing lab's values (§6.5) with the voicing revision they were set on. A file without the room loads the Studio room; one without Detune loads it at 0. A file without lab values, or with ones set on another voicing revision, loads the lab at rest (2026-11-17: user presets had dropped the lab).
+- **Loading** a preset sets the lab too: a factory preset puts it at rest. The `*` counts lab changes.
 - **Factory presets:** about 5–8, built in and read-only. **"Concert Grand"** (all defaults, the Studio room) comes first. Then Pianist's Seat (Chamber), Mellow (Recital Hall), Bright, Intimate (Dry), Honest Equal and Concert Hall (Concert Hall). The final list is set by ear.
 - **Room presets:** Dry, Studio, Chamber, Recital Hall, Concert Hall, Cathedral: the room's 6 values only, from the Room panel's menu (§6.4). First-build values, set by ear.
-- **User preset files:** `Documents\Forte\Presets\<name>.fortepreset`, as JSON. Each holds a format version, the model id, the name and the 14 whole-number values (Room decay in tenths of a second). A file without the room's values (written before the room) loads them as the defaults.
+- **User preset files:** `Documents\Forte\Presets\<name>.fortepreset`, as JSON. Each holds a format version, the model id, the name, the 15 whole-number values (Room decay in tenths of a second), `voicingRevision` and `lab` (the voicing file's `controls`, §6.5). A rename changes only the name inside. A file without the room's values (written before the room) loads them as the defaults.
 - **Arrows:** ‹ › step through the factory presets, then the user presets alphabetically, and wrap at the ends.
 - **Changed indicator:** `*` marks unsaved changes. Arrowing away discards them silently.
 - **Name menu:** Factory and User lists, Save, Save as…, Rename, Delete and Open presets folder.
@@ -415,7 +418,7 @@ Source: [Presets, saved state and automation](issues/0018-presets-state-automati
 
 ### 7.3 Saved state
 
-- **The project saves:** the 10 values, the preset name and its `*` flag, the open view and a state-format version.
+- **The project saves:** the 10 values, the lab's values and the voicing revision, the preset name and the values it loaded (for its `*`), the open view and a state-format version.
 - **Model updates:** projects follow the latest piano model, and release notes flag sound changes.
 - **Compatibility:** a newer Forte opens older states. An older Forte ignores fields it doesn't know.
 

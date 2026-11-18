@@ -7,7 +7,13 @@ namespace forte::detail
 {
 namespace
 {
-constexpr double neutral = lab::neutralValue;
+constexpr double neutral = 50.0;  // a two-way control's resting value
+
+/** For a control that only adds (resting at 0): fitted at 0, at100 at 100, linear. */
+double upFrom (double value, double fitted, double at100) noexcept
+{
+    return value == 0.0 ? fitted : fitted + (at100 - fitted) * (value / 100.0);
+}
 
 /** at0 at 0, fitted at 50, at100 at 100, linear on each side. */
 double piecewise (double value, double at0, double fitted, double at100) noexcept
@@ -48,7 +54,7 @@ double labMap (lab::Control control, double value, double fitted) noexcept
     switch (control)
     {
         case C::feltHardness:       return logScale (value, fitted, 4.0);
-        case C::feltSpike:          return piecewise (value, 0.0, fitted, 0.95);
+        case C::feltSpike:          return upFrom (value, fitted, 0.95);
         case C::velocityBrightness: return piecewise (value, 0.0, fitted, 1.0);
         case C::strikePosition:     return piecewise (value, 0.6 * fitted, fitted, 1.4 * fitted);
         case C::hammerMass:         return logScale (value, fitted, 2.0);
@@ -64,7 +70,7 @@ double labMap (lab::Control control, double value, double fitted) noexcept
         case C::colourLow:
         case C::colourMid:
         case C::colourHigh:         return piecewise (value, fitted - 12.0, fitted, fitted + 12.0);
-        case C::tapeDrive:          return piecewise (value, 0.0, fitted, 24.0);
+        case C::tapeDrive:          return upFrom (value, fitted, 24.0);
         case C::count:              break;
     }
 

@@ -51,7 +51,7 @@ std::unique_ptr<juce::AudioProcessorParameterGroup> LabParameters::createGroup()
                 group->addChild (std::make_unique<juce::AudioParameterInt> (
                     juce::ParameterID { parameterId (c.control, reg), 1 }, name,
                     static_cast<int> (lab::minimumValue), static_cast<int> (lab::maximumValue),
-                    static_cast<int> (lab::neutralValue)));
+                    static_cast<int> (c.resting)));
             }
         }
 

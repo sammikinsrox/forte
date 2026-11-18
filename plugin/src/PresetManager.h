@@ -9,8 +9,10 @@ namespace forte
 /** The presets as the plugin plays them (SPEC §7.1): which one is loaded, the values it loaded
     (so `*` can show unsaved changes), and loading, saving, renaming and deleting.
 
-    Loading a preset moves the 8 parameters as one host gesture each, like a user's edit, so
-    ringing notes glide to it (SPEC §2.9) and the host's undo and automation see it.
+    Loading a preset moves its 15 sound parameters and the lab's parameters as one host gesture
+    each, like a user's edit, so ringing notes glide to it (SPEC §2.9) and the host's undo and
+    automation see it. A preset without lab values (a factory one, an older file, or one set on
+    another voicing revision) puts the lab at rest.
 
     Message thread, except toState() and fromState(), which hosts may call from anywhere: those
     and the getters share a lock. */
@@ -22,7 +24,7 @@ public:
     [[nodiscard]] presets::Library& library() noexcept { return lib; }
     [[nodiscard]] presets::Id current() const;
 
-    /** The 14 controls as the parameters hold them now. */
+    /** The 15 controls and the lab's values as the parameters hold them now. */
     [[nodiscard]] presets::Values liveValues() const;
 
     /** Sets the room's 6 controls to a room preset's, leaving the rest (SPEC §2.11). The piano

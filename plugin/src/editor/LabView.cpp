@@ -144,12 +144,15 @@ int anchorKey (Register r)
     return lab::registerAnchorKeys[static_cast<std::size_t> (r)];
 }
 
-/** The knob's ring: from the committed 50 at the top to the value. */
-void paintLabKnob (juce::Graphics& g, juce::Point<float> c, float ringRadius, int value, bool over, bool changed, const Theme& t, bool dark)
+/** The knob's ring: from the committed voicing's place (its resting value: 50 at the top, or 0 at
+    the start for a control that only adds) to the value. */
+void paintLabKnob (juce::Graphics& g, juce::Point<float> c, float ringRadius, int value, float resting, bool over, bool changed,
+                   const Theme& t, bool dark)
 {
     constexpr float start = ForteLookAndFeel::rotaryStart, end = ForteLookAndFeel::rotaryEnd;
     const auto angleAt = [] (float p) { return start + p * (end - start); };
     const float position = static_cast<float> (value) / 100.0f;
+    const float rest = resting / 100.0f;
 
     juce::Path track;
     track.addCentredArc (c.x, c.y, ringRadius, ringRadius, 0.0f, start, end, true);
@@ -159,13 +162,16 @@ void paintLabKnob (juce::Graphics& g, juce::Point<float> c, float ringRadius, in
     if (changed)
     {
         juce::Path arc;
-        arc.addCentredArc (c.x, c.y, ringRadius, ringRadius, 0.0f, angleAt (juce::jmin (0.5f, position)), angleAt (juce::jmax (0.5f, position)), true);
+        arc.addCentredArc (c.x, c.y, ringRadius, ringRadius, 0.0f, angleAt (juce::jmin (rest, position)), angleAt (juce::jmax (rest, position)), true);
         g.setColour (t.accent);
         g.strokePath (arc, juce::PathStrokeType (2.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
     }
 
+    // The tick at the committed voicing's place (arc angles run clockwise from 12 o'clock).
+    const float tickAngle = angleAt (rest);
+    const auto onRing = [&] (float radius) { return c + juce::Point<float> (radius * std::sin (tickAngle), -radius * std::cos (tickAngle)); };
     g.setColour (t.muted);
-    g.drawLine (c.x, c.y - ringRadius - 6.0f, c.x, c.y - ringRadius - 2.5f, 1.5f);
+    g.drawLine (juce::Line<float> (onRing (ringRadius + 6.0f), onRing (ringRadius + 2.5f)), 1.5f);
 
     const float r = ringRadius - 6.5f;
     juce::Path knob;
@@ -228,9 +234,10 @@ public:
         const auto& s = view.values();
         const auto shown = view.shownRegister (control);
         const int value = shownValue();
-        const bool changed = value != 50;
+        const float resting = lab::restingValue (control);
+        const bool changed = static_cast<float> (value) != resting;
 
-        paintLabKnob (g, knobArea().getCentre(), 25.0f, value, isMouseOver (true) || dragging, changed, t, look.isDark());
+        paintLabKnob (g, knobArea().getCentre(), 25.0f, value, resting, isMouseOver (true) || dragging, changed, t, look.isDark());
 
         const int x = 64;
         const int w = getWidth() - x - 2;
@@ -259,20 +266,20 @@ public:
             return;
         }
 
-        // The three registers: a bar each, from the committed 50 to the value.
+        // The three registers: a bar each, from the committed voicing's place to the value.
         static const char* letters[] { "B", "M", "T" };
         for (int r = 0; r < lab::numRegisters; ++r)
         {
             const auto area = barArea (r).toFloat();
             const int v = static_cast<int> (s.get (control, static_cast<Register> (r)));
             const bool selected = view.registerMode() == r || view.registerMode() == allRegisters;
-            const float mid = area.getY() + 11.0f;
             const float top = area.getY() + 1.0f, bottom = area.getY() + 21.0f;
+            const float mid = bottom + (top - bottom) * resting / 100.0f;
             const float y = bottom + (top - bottom) * static_cast<float> (v) / 100.0f;
 
             g.setColour (t.line.withAlpha (0.6f));
             g.fillRoundedRectangle (area.getX(), top, 7.0f, bottom - top, 2.0f);
-            g.setColour (v == 50 ? t.muted : t.accent);
+            g.setColour (static_cast<float> (v) == resting ? t.muted : t.accent);
             g.fillRect (area.getX(), juce::jmin (mid, y), 7.0f, juce::jmax (1.5f, std::abs (mid - y)));
 
             g.setColour (selected ? t.ink : t.muted);
@@ -341,7 +348,7 @@ public:
 
         view.beginEdit (control);
         for (auto r : edited())
-            view.setValue (control, r, 50);
+            view.setValue (control, r, static_cast<int> (lab::restingValue (control)));
         view.endEdit (control);
     }
 
@@ -589,7 +596,7 @@ public:
 
         // The lab value whose physical value at the anchor is nearest the mouse.
         auto trial = view.values();
-        int best = 50;
+        int best = static_cast<int> (lab::restingValue (c));
         double bestError = 1e30;
         for (int v = 0; v <= 100; ++v)
         {
@@ -687,8 +694,8 @@ public:
     {
         resetControl.onClick = [this] { view.resetControl (view.focus()); };
         resetAll.onClick = [this] { view.resetAll(); };
-        resetControl.setTooltip ("Every register of this control back to 50, the committed voicing");
-        resetAll.setTooltip ("Every lab control back to 50");
+        resetControl.setTooltip ("Every register of this control back to the committed voicing (its tick)");
+        resetAll.setTooltip ("Every lab control back to the committed voicing");
         addAndMakeVisible (resetControl);
         addAndMakeVisible (resetAll);
     }
@@ -789,7 +796,7 @@ LabView::LabView (PluginProcessor& p)
     addAndMakeVisible (registers);
 
     compare.setSelected (processor.isComparingCommitted() ? 1 : 0);
-    compare.setTooltips ({ "Hear the lab's voicing", "Hear the committed voicing, every control at 50. The lab keeps its values." });
+    compare.setTooltips ({ "Hear the lab's voicing", "Hear the committed voicing, every control at its tick. The lab keeps its values." });
     compare.onChange = [this] (int m)
     {
         processor.setComparingCommitted (m == 1);
@@ -806,7 +813,7 @@ LabView::LabView (PluginProcessor& p)
     for (std::size_t g = 0; g < groupResets.size(); ++g)
     {
         groupResets[g] = std::make_unique<juce::TextButton> ("Reset");
-        groupResets[g]->setTooltip (juce::String ("Every ") + groupName (static_cast<Group> (g)) + " control back to 50");
+        groupResets[g]->setTooltip (juce::String ("Every ") + groupName (static_cast<Group> (g)) + " control back to the committed voicing");
         groupResets[g]->onClick = [this, g] { resetGroup (static_cast<Group> (g)); };
         addAndMakeVisible (*groupResets[g]);
     }
@@ -923,7 +930,7 @@ void LabView::resetControl (C control)
 {
     beginEdit (control);
     for (auto r : registersOf (control))
-        setValue (control, r, 50);
+        setValue (control, r, static_cast<int> (lab::restingValue (control)));
     endEdit (control);
 }
 
@@ -976,7 +983,7 @@ void LabView::timerCallback()
         if (lastExport.message.isNotEmpty() && (juce::Time::getCurrentTime() - lastExport.when).inSeconds() < 30.0)
             newStatus = lastExport.message;
         else
-            newStatus = "Voicing revision " + juce::String (Engine::getVoicingRevision()) + ". Every control's 50 is the committed voicing.";
+            newStatus = "Voicing revision " + juce::String (Engine::getVoicingRevision()) + ". At its tick, every control is the committed voicing.";
     }
 
     if (newStatus != status || busy != statusBusy)

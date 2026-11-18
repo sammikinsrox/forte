@@ -1,7 +1,7 @@
 {
   "format": "forte-voicing-overrides",
   "version": 1,
-  "revision": 5,
+  "revision": 6,
   "folds": [
     {
       "revision": 1,
@@ -79,6 +79,14 @@
           "treble": 0
         }
       }
+    },
+    {
+      "revision": 6,
+      "folded": "2026-11-17T18:46:37-05:00",
+      "exported": null,
+      "builtFrom": null,
+      "controls": {},
+      "note": "No sound change: Felt spike and Tape drive now rest at 0 (their committed none/off) and only add, so lab values saved before mean something else."
     }
   ],
   "tapeDrive": 0.0,

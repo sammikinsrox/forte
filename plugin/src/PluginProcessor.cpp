@@ -271,7 +271,7 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
     view.store (viewFromName (state.getProperty (viewAttribute, "simple").toString()));
 
     // Lab values move the voicing they were set on (SPEC §6.5). Once that voicing has been
-    // folded into a newer one, they'd move it twice, so the lab starts again at its 50s.
+    // folded into a newer one, they'd move it twice, so the lab starts again at rest.
     if (static_cast<int> (state.getProperty (voicingRevisionAttribute, 0)) != Engine::getVoicingRevision())
         for (auto* parameter : getParameters())
             if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameter); ranged != nullptr && ranged->getParameterID().startsWith ("lab."))

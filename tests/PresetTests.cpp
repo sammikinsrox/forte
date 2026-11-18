@@ -111,6 +111,59 @@ TEST_CASE ("A preset file round-trips, with its format, model and name", "[prese
     CHECK (*read == v);
 }
 
+TEST_CASE ("A preset holds the voicing lab's values, set on the current voicing revision", "[presets][lab]")
+{
+    using lab::Control;
+    using lab::Register;
+
+    Values v { 1, 2, 3, 4, 5, 6, 7, 1 };
+    v.lab.set (Control::feltHardness, Register::bass, 0.0f);
+    v.lab.set (Control::feltHardness, Register::treble, 73.0f);
+    v.lab.set (Control::feltSpike, Register::middle, 20.0f);
+    v.lab.set (Control::tapeDrive, Register::bass, 35.0f);
+    REQUIRE (v.lab != lab::Settings {});
+
+    const auto text = toJson ("Lab Tone", v);
+    const auto parsed = juce::JSON::parse (text);
+    CHECK (static_cast<int> (parsed["voicingRevision"]) == Engine::getVoicingRevision());
+    CHECK (static_cast<double> (parsed["lab"]["tapeDrive"]) == 35.0);
+    CHECK (static_cast<double> (parsed["lab"]["feltHardness"]["treble"]) == 73.0);
+
+    const auto read = fromJson (text);
+    REQUIRE (read.has_value());
+    CHECK (read->lab == v.lab);
+    CHECK (*read == v);
+
+    // Set on another voicing revision, the lab values would move a voicing that has since been
+    // folded: the sound controls load, the lab rests (SPEC §6.5).
+    const auto older = fromJson (toJson ("Lab Tone", v, Engine::getVoicingRevision() - 1));
+    REQUIRE (older.has_value());
+    CHECK (older->lab == lab::Settings {});
+    CHECK (older->hardness == 1);
+
+    // A file from before the lab, and the factory presets, have the lab at rest.
+    const auto before = fromJson (R"({ "format": "forte-preset", "version": 1, "values": { "hardness": 40 } })");
+    REQUIRE (before.has_value());
+    CHECK (before->lab == lab::Settings {});
+    for (const auto& p : factoryPresets())
+        CHECK (p.values.lab == lab::Settings {});
+
+    // A broken lab block costs the lab, not the preset; a value out of range is refused with it.
+    const auto broken = fromJson (juce::String (R"({ "format": "forte-preset", "version": 1, "values": { "hardness": 40 },
+                                                     "voicingRevision": )") + juce::String (Engine::getVoicingRevision())
+                                  + R"(, "lab": { "tapeDrive": 400 } })");
+    REQUIRE (broken.has_value());
+    CHECK (broken->hardness == 40);
+    CHECK (broken->lab == lab::Settings {});
+}
+
+TEST_CASE ("A preset change is a change of the lab too", "[presets][lab]")
+{
+    Values a, b;
+    b.lab.set (lab::Control::colourMid, lab::Register::middle, 61.0f);
+    CHECK (a != b);  // the `*` compares whole values
+}
+
 TEST_CASE ("A preset file's missing values are defaults, and out-of-range ones are clamped", "[presets]")
 {
     const auto read = fromJson (R"({ "format": "forte-preset", "version": 9,
@@ -169,7 +222,8 @@ TEST_CASE ("User presets save, rename (even by case only) and delete", "[presets
     TemporaryFolder temp;
     Library library (temp.folder.getChildFile ("Presets"));  // created on the first save
 
-    const Values v { 33, 50, 50, 50, 50, 50, 100, 1 };
+    Values v { 33, 50, 50, 50, 50, 50, 100, 1 };
+    v.lab.set (lab::Control::feltHardness, lab::Register::bass, 0.0f);  // kept through saves and renames
     REQUIRE (library.save ("warm", v).wasOk());
     CHECK (library.userPresetExists ("warm"));
 
@@ -182,6 +236,15 @@ TEST_CASE ("User presets save, rename (even by case only) and delete", "[presets
     REQUIRE (library.rename ("Warm", "Evening").wasOk());
     CHECK (library.userNames() == std::vector<juce::String> { "Evening" });
     CHECK (*library.load ({ false, "Evening" }) == v);
+
+    // A rename changes only the name: lab values from another voicing revision, which this Forte
+    // doesn't load, stay in the file for one that does.
+    const auto revisionBefore = Engine::getVoicingRevision() - 1;
+    REQUIRE (library.fileFor ("Evening").replaceWithText (toJson ("Evening", v, revisionBefore)));
+    REQUIRE (library.rename ("Evening", "Dusk").wasOk());
+    REQUIRE (fromJson (library.fileFor ("Dusk").loadFileAsString(), revisionBefore).has_value());
+    CHECK (fromJson (library.fileFor ("Dusk").loadFileAsString(), revisionBefore)->lab == v.lab);
+    REQUIRE (library.rename ("Dusk", "Evening").wasOk());
 
     REQUIRE (library.remove ("Evening").wasOk());
     CHECK (library.userNames().empty());

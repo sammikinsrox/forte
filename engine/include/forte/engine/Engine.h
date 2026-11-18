@@ -137,8 +137,8 @@ public:
 
     /** The voicing lab's values (SPEC §6.5), at the current render position. Cheap when nothing
         changed, so it can be called every block. Hammer controls take effect at each note's next
-        strike; Tape drive glides there over ~20 ms. At every 50 the engine is exactly the
-        committed voicing. It survives reset() and prepare(), and prepare() builds every note
+        strike; Tape drive glides there over ~20 ms. With every control at rest
+        (lab::restingValue) the engine is exactly the committed voicing. It survives reset() and prepare(), and prepare() builds every note
         with its String controls and the soundboard with its Board controls. Realtime-safe.
 
         The String and Board controls need modes or IRs recomputed, which isn't realtime: see
